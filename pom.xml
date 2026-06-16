@@ -28,8 +28,25 @@
     </scm>
     <properties>
         <java.version>21</java.version>
+        <spring-ai.version>1.1.4</spring-ai.version>
+        <mybatis-plus.version>3.5.9</mybatis-plus.version>
+        <redisson.version>3.40.0</redisson.version>
+        <knife4j.version>4.5.0</knife4j.version>
     </properties>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
+        <!-- ==================== Spring Boot Starters ==================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
@@ -38,17 +55,84 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-neo4j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
 
+        <!-- ==================== Spring AI（原生 DeepSeek + RAG + Memory） ==================== -->
+        <!-- DeepSeek 大模型接入（替代 OpenAI 适配器，原生支持） -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-deepseek</artifactId>
+        </dependency>
+        <!-- Redis 向量存储（RAG 检索） -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-vector-store-redis</artifactId>
+        </dependency>
+        <!-- Redis 会话记忆持久化 — 手动配置，避免阿里云镜像缺包 -->
+        <!--
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-chat-memory-repository-redis</artifactId>
+        </dependency>
+        -->
+        <!-- 文档解析（PDF/Word/MD/TXT） -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-tika-document-reader</artifactId>
+        </dependency>
+        <!-- 通用对话记忆（短期） -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-chat-memory</artifactId>
+        </dependency>
+
+        <!-- ==================== Database ==================== -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
         <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+
+        <!-- ==================== Redis Power Tools ==================== -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-boot-starter</artifactId>
+            <version>${redisson.version}</version>
+        </dependency>
+
+        <!-- ==================== Document Parsing ==================== -->
+
+        <!-- ==================== API Documentation ==================== -->
+        <dependency>
+            <groupId>com.github.xiaoymin</groupId>
+            <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+            <version>${knife4j.version}</version>
+        </dependency>
+
+        <!-- ==================== Dev Tools ==================== -->
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+
+        <!-- ==================== Test ==================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc-test</artifactId>

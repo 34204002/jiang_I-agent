@@ -1,0 +1,195 @@
+# =============================================================================
+# Jiang I-Agent — 主配置文件
+# 所有敏感信息通过环境变量注入，默认值仅用于本地开发
+# =============================================================================
+
+spring:
+  application:
+    name: jiang_I-agent
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # ==================== MySQL 数据源 ====================
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:agent_db}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  # ==================== Redis（会话缓存 + 向量存储 + 限流） ====================
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:0}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 4
+
+  # ==================== Neo4j 图数据库（知识图谱） ====================
+  neo4j:
+    uri: ${NEO4J_URI:bolt://localhost:7687}
+    authentication:
+      username: ${NEO4J_USERNAME:neo4j}
+      password: ${NEO4J_PASSWORD:password}
+    pool:
+      max-connection-pool-size: 20
+      connection-acquisition-timeout: 30s
+
+  # ==================== RabbitMQ（异步任务） ====================
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    listener:
+      simple:
+        concurrency: 2        # 最小消费者数
+        max-concurrency: 5    # 最大消费者数
+        prefetch: 10          # 每次预取消息数
+        acknowledge-mode: manual
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
+          multiplier: 2.0
+
+  # ==================== Spring AI（大模型接入 — DeepSeek 原生） ====================
+  ai:
+    deepseek:
+      api-key: ${AI_API_KEY:your-api-key-here}
+      base-url: ${AI_BASE_URL:https://api.deepseek.com}
+      chat:
+        enabled: true
+        options:
+          model: ${AI_MODEL:deepseek-chat}
+          temperature: 0.7
+          max-tokens: 4096
+          top-p: 0.9
+      embedding:
+        enabled: true
+        api-key: ${AI_EMBEDDING_API_KEY:${AI_API_KEY:your-api-key-here}}
+        base-url: ${AI_EMBEDDING_BASE_URL:${AI_BASE_URL:https://api.deepseek.com}}
+        options:
+          model: ${AI_EMBEDDING_MODEL:text-embedding-3-small}
+    # Redis 向量库（RAG 检索引擎）
+    vectorstore:
+      redis:
+        index-name: agent-knowledge-idx
+        prefix: doc
+        initialize-schema: true
+
+# ==================== MyBatis-Plus ====================
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.jiang.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# ==================== Agent Prompt 模板 ====================
+agent:
+  prompts:
+    system: |
+      You are Jiang I-Agent, a personal AI assistant specialized in programming and technology.
+      You have access to a personal knowledge base and can assist with:
+      - Programming concepts, algorithms, and best practices
+      - Code review, debugging, and optimization
+      - Technical documentation and knowledge retrieval
+      - Task management and scheduling
+      Always be precise, provide code examples when relevant, and cite retrieved sources.
+    rag-query: |
+      Based on the following retrieved context, answer the user's question thoroughly.
+      If the context doesn't contain relevant information, say so honestly and
+      provide your best general knowledge instead.
+
+      Context:
+      {context}
+
+      Question: {question}
+    code-review: |
+      Review the following code carefully. Identify:
+      1. Potential bugs or logical errors
+      2. Performance bottlenecks
+      3. Style and best practice violations
+      4. Security vulnerabilities
+
+      Code:
+      {code}
+
+      Provide specific, actionable suggestions with corrected code examples.
+    knowledge-qa: |
+      Using the knowledge base results below, answer the user's question.
+
+      Semantic search results (relevant documents):
+      {semanticResults}
+
+      Knowledge graph results (related concepts):
+      {graphResults}
+
+      Question: {question}
+
+      Provide a comprehensive answer integrating both sources. Highlight connections
+      between related concepts found in the knowledge graph.
+    todo-management: |
+      Analyze the user's task management request. Available actions: CREATE, UPDATE, DELETE, LIST, COMPLETE.
+
+      User request: {request}
+      Current tasks: {currentTodos}
+
+      Determine the correct action and extract parameters from the request.
+    conversation-summary: |
+      Summarize the following conversation. Include: key topics, decisions made, and action items.
+
+      Conversation:
+      {conversation}
+
+      Summary:
+
+# ==================== Server ====================
+server:
+  port: ${SERVER_PORT:8080}
+
+# ==================== Logging ====================
+logging:
+  level:
+    com.jiang: ${LOG_LEVEL:debug}
+    org.springframework.ai: info
+    org.springframework.data.redis: warn
+    org.springframework.data.neo4j: warn
+
+# ==================== SpringDoc / Knife4j ====================
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: default
+      paths-to-match: /**
+      packages-to-scan: com.jiang.controller
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
