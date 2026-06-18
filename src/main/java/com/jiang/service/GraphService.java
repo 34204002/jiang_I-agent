@@ -1,10 +1,9 @@
 package com.jiang.service;
 
-import com.jiang.model.vo.ConceptVO;
+import com.jiang.model.PageResult;
 import com.jiang.model.resp.PathResult;
+import com.jiang.model.vo.ConceptVO;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 /**
  * 知识图谱服务 — Neo4j 概念 + 关系查询（Phase 3）
@@ -15,7 +14,7 @@ public class GraphService {
     /**
      * 按分类分页查询概念列表
      */
-    public List<ConceptVO> listConcepts(String category, int page, int size) {
+    public PageResult<ConceptVO> listConcepts(String category, int page, int size) {
         // TODO: Phase 3 — Cypher 查询 (:Concept)-[:BELONGS_TO]->(:Category)
         throw new UnsupportedOperationException("not implemented");
     }

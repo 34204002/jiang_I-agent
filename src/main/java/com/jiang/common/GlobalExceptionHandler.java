@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理，拦截所有 Controller 层抛出的异常，返回统一 Result 格式。
@@ -12,6 +13,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /** 忽略浏览器自动请求的静态资源（favicon.ico 等） */
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Result<Void> handleNoResource(NoResourceFoundException e) {
+        // 不打印日志，这是正常的浏览器行为
+        return Result.fail(404, "not found");
+    }
 
     @ExceptionHandler(BizException.class)
     public Result<Void> handleBizException(BizException e) {

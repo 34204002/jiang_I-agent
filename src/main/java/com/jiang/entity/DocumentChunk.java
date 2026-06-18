@@ -10,12 +10,22 @@ import lombok.Data;
 @TableName("t_document_chunk")
 public class DocumentChunk {
 
+    /** 分片主键，自增 */
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 所属文档 ID */
     private Long documentId;
+
+    /** 分片序号（从 0 开始） */
     private Integer chunkIndex;
+
+    /** 分片文本内容 */
     private String content;
+
+    /** Token 数量估算 */
     private Integer tokenCount;
-    private String embeddingId;     // Qdrant point ID
+
+    /** Qdrant 中对应的 Point ID */
+    private String embeddingId;
 }

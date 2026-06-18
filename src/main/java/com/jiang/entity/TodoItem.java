@@ -13,16 +13,26 @@ import java.time.LocalDateTime;
 @TableName("t_todo_item")
 public class TodoItem {
 
+    /** 待办主键，自增 */
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 关联会话 ID */
     private Long conversationId;
-    private String title;
-    private LocalDate dueDate;
-    private Integer isDone;         // 0-未完成 1-已完成
 
+    /** 待办标题 */
+    private String title;
+
+    /** 截止日期 */
+    private LocalDate dueDate;
+
+    /** 0-未完成 1-已完成 */
+    private Integer isDone;
+
+    /** 创建时间 */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
+    /** 完成时间 */
     private LocalDateTime completedAt;
 }

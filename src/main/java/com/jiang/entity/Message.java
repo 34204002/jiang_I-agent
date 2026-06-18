@@ -12,15 +12,26 @@ import java.time.LocalDateTime;
 @TableName("t_message")
 public class Message {
 
+    /** 消息主键，自增 */
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 所属会话 ID */
     private Long conversationId;
-    private String role;        // user / assistant / tool
+
+    /** 角色：user / assistant / tool */
+    private String role;
+
+    /** 消息正文 */
     private String content;
-    private String toolCalls;   // JSON string
+
+    /** 工具调用记录，JSON 数组 */
+    private String toolCalls;
+
+    /** Token 消耗估算 */
     private Integer tokenCount;
 
+    /** 消息时间 */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }

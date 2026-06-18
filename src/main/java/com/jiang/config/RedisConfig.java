@@ -20,7 +20,7 @@ public class RedisConfig {
 	@Bean
 	public ObjectMapper objectMapper() {
 		ObjectMapper mapper = new ObjectMapper();
-		mapper.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
+		mapper.activateDefaultTyping(mapper.getPolymorphicTypeValidator(), ObjectMapper.DefaultTyping.NON_FINAL);
 		return mapper;
 	}
 
