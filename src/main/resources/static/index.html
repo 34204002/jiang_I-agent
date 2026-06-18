@@ -4,443 +4,86 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
 <title>Jiang I-Agent</title>
-<style>
-  /* ========== Design Tokens ========== */
-  :root {
-    --bg-primary:   #0d1117;
-    --bg-secondary: #161b22;
-    --bg-tertiary:  #21262d;
-    --bg-hover:     #292e36;
-    --border:       #30363d;
-    --text-primary: #e6edf3;
-    --text-secondary: #8b949e;
-    --accent:       #6e40c9;
-    --accent-light: #8b5cf6;
-    --accent-glow:  rgba(110,64,201,.25);
-    --user-bubble:  #1a3a5c;
-    --ai-bubble:    #161b22;
-    --success:      #3fb950;
-    --danger:       #f85149;
-    --radius-sm:    8px;
-    --radius-md:    14px;
-    --radius-lg:    20px;
-    --shadow:       0 4px 24px rgba(0,0,0,.4);
-    --transition:   180ms cubic-bezier(.4,0,.2,1);
-  }
-
-  /* ========== Reset ========== */
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%;overflow:hidden}
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
-    font-size:15px;line-height:1.55;color:var(--text-primary);
-    background:var(--bg-primary);-webkit-font-smoothing:antialiased;
-  }
-  ::-webkit-scrollbar{width:5px}
-  ::-webkit-scrollbar-track{background:transparent}
-  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
-  a{color:var(--accent-light);text-decoration:none}
-
-  /* ========== Layout ========== */
-  .app{display:flex;height:100vh}
-  .main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
-
-  /* ========== Sidebar ========== */
-  .sidebar{
-    width:280px;background:var(--bg-secondary);border-right:1px solid var(--border);
-    display:flex;flex-direction:column;flex-shrink:0;
-  }
-  .sidebar-header{
-    padding:20px;border-bottom:1px solid var(--border);
-    display:flex;align-items:center;gap:10px;
-  }
-  .sidebar-logo{font-size:22px}
-  .sidebar-title{font-size:16px;font-weight:700;color:var(--text-primary)}
-  .sidebar-subtitle{font-size:12px;color:var(--text-secondary);margin-top:1px}
-  .sidebar-list{flex:1;overflow-y:auto;padding:8px}
-  .sidebar-item{
-    display:flex;align-items:center;gap:8px;padding:10px 12px;
-    border-radius:var(--radius-sm);color:var(--text-secondary);
-    cursor:pointer;transition:background var(--transition);
-    font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    min-height:44px;
-  }
-  .sidebar-item:hover,.sidebar-item.active{background:var(--bg-tertiary);color:var(--text-primary)}
-  .sidebar-item.active{border-left:2px solid var(--accent-light)}
-  .sidebar-item svg{flex-shrink:0}
-  .sidebar-footer{padding:12px;border-top:1px solid var(--border)}
-  .new-chat-btn{
-    width:100%;padding:10px;border:1px dashed var(--border);border-radius:var(--radius-sm);
-    background:transparent;color:var(--text-secondary);cursor:pointer;
-    font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;
-    transition:all var(--transition);min-height:44px;
-  }
-  .new-chat-btn:hover{border-color:var(--accent-light);color:var(--accent-light);background:var(--bg-hover)}
-
-  /* ========== Header ========== */
-  .header{
-    padding:14px 24px;border-bottom:1px solid var(--border);
-    background:var(--bg-primary);display:flex;align-items:center;
-    gap:12px;min-height:56px;
-  }
-  .header-title{font-size:15px;font-weight:600;flex:1}
-  .header-badge{
-    font-size:11px;padding:3px 8px;border-radius:20px;
-    background:var(--accent-glow);color:var(--accent-light);font-weight:500;
-  }
-  .header-btn{
-    width:36px;height:36px;display:flex;align-items:center;justify-content:center;
-    border-radius:var(--radius-sm);border:none;background:transparent;
-    color:var(--text-secondary);cursor:pointer;transition:all var(--transition);
-  }
-  .header-btn:hover{background:var(--bg-tertiary);color:var(--text-primary)}
-
-  /* ========== Chat Area ========== */
-  .chat-area{flex:1;overflow-y:auto;padding:20px 24px 10px;scroll-behavior:smooth}
-  .welcome{
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    height:100%;text-align:center;gap:16px;padding:40px 20px;
-  }
-  .welcome-icon{font-size:56px;opacity:.6}
-  .welcome h2{font-size:24px;font-weight:700;color:var(--text-primary)}
-  .welcome p{font-size:14px;color:var(--text-secondary);max-width:440px;line-height:1.6}
-  .welcome-hints{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px}
-  .welcome-hint{
-    padding:8px 16px;border:1px solid var(--border);border-radius:20px;
-    font-size:13px;color:var(--text-secondary);cursor:pointer;
-    transition:all var(--transition);background:var(--bg-secondary);
-    min-height:44px;display:flex;align-items:center;
-  }
-  .welcome-hint:hover{border-color:var(--accent-light);color:var(--text-primary);background:var(--bg-hover)}
-
-  /* ========== Messages ========== */
-  .msg{display:flex;gap:12px;margin-bottom:20px;animation:fadeIn .3s ease}
-  .msg-avatar{
-    width:32px;height:32px;border-radius:50%;display:flex;
-    align-items:center;justify-content:center;font-size:16px;flex-shrink:0;
-    margin-top:2px;
-  }
-  .msg.user .msg-avatar{background:var(--user-bubble)}
-  .msg.assistant .msg-avatar{background:linear-gradient(135deg,var(--accent),var(--accent-light))}
-  .msg-body{flex:1;min-width:0}
-  .msg-role{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-  .msg.user .msg-role{color:#58a6ff}
-  .msg.assistant .msg-role{color:var(--accent-light)}
-  .msg-content{
-    padding:12px 18px;border-radius:var(--radius-lg);line-height:1.65;
-    font-size:14px;word-break:break-word;position:relative;
-  }
-  .msg.user .msg-content{
-    background:var(--user-bubble);border-bottom-right-radius:var(--radius-sm);
-    color:var(--text-primary);
-  }
-  .msg.assistant .msg-content{
-    background:var(--ai-bubble);border:1px solid var(--border);
-    border-bottom-left-radius:var(--radius-sm);color:var(--text-primary);
-  }
-  .msg-content pre{
-    background:var(--bg-primary);border:1px solid var(--border);
-    border-radius:var(--radius-sm);padding:14px;overflow-x:auto;
-    margin:8px 0;font-size:13px;line-height:1.5;
-  }
-  .msg-content code{font-family:"SF Mono","Fira Code","Cascadia Code",monospace;font-size:.9em}
-  .msg-content p+p{margin-top:6px}
-  .msg-content ul,.msg-content ol{padding-left:20px;margin:6px 0}
-  .msg-time{font-size:11px;color:var(--text-secondary);margin-top:4px;padding-left:4px}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
-  /* Streaming cursor */
-  .streaming .cursor::after{
-    content:"▍";animation:blink .8s infinite;color:var(--accent-light);
-  }
-  @keyframes blink{50%{opacity:0}}
-
-  /* ========== Input ========== */
-  .input-bar{
-    padding:12px 24px 24px;background:linear-gradient(transparent,var(--bg-primary) 30%);
-  }
-  .input-wrap{
-    display:flex;align-items:flex-end;gap:10px;background:var(--bg-secondary);
-    border:1px solid var(--border);border-radius:var(--radius-lg);
-    padding:6px 6px 6px 18px;transition:border-color var(--transition);
-  }
-  .input-wrap:focus-within{border-color:var(--accent-light);box-shadow:0 0 0 3px var(--accent-glow)}
-  .input-wrap textarea{
-    flex:1;background:transparent;border:none;outline:none;resize:none;
-    color:var(--text-primary);font:inherit;font-size:14px;
-    padding:8px 0;max-height:120px;line-height:1.5;min-height:24px;
-  }
-  .input-wrap textarea::placeholder{color:var(--text-secondary)}
-  .send-btn{
-    width:40px;height:40px;border-radius:50%;border:none;
-    background:var(--accent);color:#fff;cursor:pointer;flex-shrink:0;
-    display:flex;align-items:center;justify-content:center;
-    transition:all var(--transition);min-width:44px;min-height:44px;
-  }
-  .send-btn:hover{background:var(--accent-light);transform:scale(1.05)}
-  .send-btn:active{transform:scale(.95)}
-  .send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
-  .input-hint{font-size:11px;color:var(--text-secondary);text-align:center;margin-top:6px}
-
-  /* ========== Tool Call Badge ========== */
-  .tool-badge{
-    display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
-    border-radius:20px;background:var(--accent-glow);color:var(--accent-light);
-    font-size:11px;font-weight:500;margin:4px 4px 0 0;
-  }
-
-  /* ========== Toast ========== */
-  .toast{
-    position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:var(--radius-md);
-    color:#fff;font-size:13px;z-index:999;animation:fadeIn .3s ease;
-    box-shadow:var(--shadow);max-width:360px;
-  }
-  .toast.success{background:var(--success)}
-  .toast.error{background:var(--danger)}
-
-  /* ========== Responsive ========== */
-  @media(max-width:768px){
-    .sidebar{display:none}
-    .chat-area{padding:14px 14px 6px}
-    .input-bar{padding:8px 10px 16px}
-    .header{padding:10px 16px}
-    .welcome h2{font-size:20px}
-  }
-  @media(prefers-reduced-motion:reduce){
-    .msg{animation:none}
-  }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
 <div class="app">
-  <!-- Sidebar -->
+  <!-- ========== Sidebar ========== -->
   <aside class="sidebar">
-    <div class="sidebar-header">
-      <span class="sidebar-logo">⚡</span>
+    <div class="sidebar-brand">
+      <div class="icon">⚡</div>
       <div>
-        <div class="sidebar-title">Jiang I-Agent</div>
-        <div class="sidebar-subtitle">DeepSeek V3.2 · 在线</div>
+        <div class="name">Jiang I-Agent</div>
+        <div class="ver">DeepSeek V3.2 · 在线</div>
       </div>
     </div>
-    <div class="sidebar-list" id="sidebarList"></div>
+
+    <div class="sidebar-list" id="sidebarList">
+      <div class="sidebar-loading"><span class="spinner"></span>加载中…</div>
+    </div>
+
     <div class="sidebar-footer">
-      <button class="new-chat-btn" onclick="newChat()">
+      <button class="sidebar-new" onclick="onNewChat()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         新对话
       </button>
     </div>
   </aside>
 
-  <!-- Main -->
+  <!-- ========== Main Area ========== -->
   <main class="main">
-    <header class="header">
-      <span class="header-title" id="headerTitle">新对话</span>
-      <span class="header-badge">P1 框架</span>
-    </header>
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="chat" onclick="switchTab('chat')">
+        <span class="dot"></span>对话
+      </button>
+      <button class="tab" data-tab="knowledge" onclick="switchTab('knowledge')">
+        <span class="dot"></span>知识库
+      </button>
+      <button class="tab" data-tab="graph" onclick="switchTab('graph')">
+        <span class="dot"></span>图谱
+      </button>
+      <button class="tab" data-tab="tools" onclick="switchTab('tools')">
+        <span class="dot"></span>工具
+      </button>
+    </nav>
 
-    <div class="chat-area" id="chatArea">
-      <div class="welcome">
-        <div class="welcome-icon">🧠</div>
+    <!-- Chat body -->
+    <div class="chat-body" id="chatBody">
+      <div class="welcome" id="welcome">
+        <div class="welcome-emoji">🧠</div>
         <h2>Jiang I-Agent</h2>
-        <p>你的个人 AI 知识库助手。支持对话、待办管理、RAG 检索、知识图谱问答。</p>
-        <div class="welcome-hints">
-          <span class="welcome-hint" onclick="sendHint('帮我记一下明天下午3点面试')">📋 新建待办</span>
-          <span class="welcome-hint" onclick="sendHint('用Java写一个快速排序')">💻 代码问答</span>
-          <span class="welcome-hint" onclick="sendHint('解释一下RAG检索增强生成的原理')">📚 知识库检索</span>
+        <p>你的个人 AI 知识库助手。支持文档问答、代码答疑、知识图谱检索，具备工具调用与待办管理能力。</p>
+        <div class="welcome-cards">
+          <button class="welcome-card" onclick="sendHint('帮我记一下明天下午3点面试')">📋 新建待办</button>
+          <button class="welcome-card" onclick="sendHint('用Java写一个快速排序')">💻 代码问答</button>
+          <button class="welcome-card" onclick="sendHint('解释一下 RAG 检索增强生成的原理')">📚 知识检索</button>
+          <button class="welcome-card" onclick="sendHint('什么是Java中的CompletableFuture')">☕ 八股答疑</button>
         </div>
       </div>
     </div>
 
-    <div class="input-bar">
-      <div class="input-wrap">
-        <textarea id="input" rows="1" placeholder="输入消息…… (Enter 发送，Shift+Enter 换行)"
-          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="send-btn" id="sendBtn" onclick="send()" title="发送">
+    <!-- Input -->
+    <div class="input-area" id="inputArea">
+      <div class="input-row">
+        <textarea id="msgInput" rows="1" placeholder="输入消息… (Enter 发送，Shift+Enter 换行)"
+          onkeydown="onInputKey(event)" oninput="autoGrow(this)"></textarea>
+        <button class="btn-send" id="sendBtn" onclick="onSend()" title="发送 (Enter)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
       </div>
-      <div class="input-hint">响应可能会调用工具 · 数据不会用于训练</div>
+      <div class="input-footnote">Jiang I-Agent · 响应可能调用工具</div>
     </div>
   </main>
 </div>
 
-<script>
-// ========== State ==========
-let state = {
-  conversationId: null,
-  streaming: false,
-  messages: []
-};
+<!-- Toast container -->
+<div class="toast-wrap" id="toastWrap"></div>
 
-// ========== DOM ==========
-const chatArea = document.getElementById('chatArea');
-const input    = document.getElementById('input');
-const sendBtn  = document.getElementById('sendBtn');
-const headerTitle = document.getElementById('headerTitle');
-const sidebarList = document.getElementById('sidebarList');
-
-// ========== Keyboard ==========
-function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
-}
-function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-}
-
-// ========== Init ==========
-function init() {
-  newChat();
-  input.focus();
-}
-document.addEventListener('DOMContentLoaded', init);
-
-// ========== Chat ==========
-function newChat() {
-  state.conversationId = null;
-  state.messages = [];
-  chatArea.innerHTML = '';
-  headerTitle.textContent = '新对话';
-  showWelcome();
-}
-
-function showWelcome() {
-  chatArea.innerHTML = `
-    <div class="welcome">
-      <div class="welcome-icon">🧠</div>
-      <h2>Jiang I-Agent</h2>
-      <p>你的个人 AI 知识库助手。支持对话、待办管理、RAG 检索、知识图谱问答。</p>
-      <div class="welcome-hints">
-        <span class="welcome-hint" onclick="sendHint('帮我记一下明天下午3点面试')">📋 新建待办</span>
-        <span class="welcome-hint" onclick="sendHint('用Java写一个快速排序')">💻 代码问答</span>
-        <span class="welcome-hint" onclick="sendHint('解释一下RAG检索增强生成的原理')">📚 知识库检索</span>
-      </div>
-    </div>`;
-}
-
-function sendHint(text) {
-  input.value = text;
-  send();
-}
-
-function send() {
-  const text = input.value.trim();
-  if (!text || state.streaming) return;
-
-  input.value = '';
-  input.style.height = 'auto';
-  removeWelcome();
-
-  addMessage('user', text);
-  state.messages.push({ role: 'user', content: text });
-  addStreamingMessage();
-  streamChat(text);
-}
-
-// ========== Stream ==========
-function streamChat(message) {
-  state.streaming = true;
-  sendBtn.disabled = true;
-  updateInputState(false);
-
-  const url = new URL('/api/chat/stream', window.location.origin);
-  url.searchParams.set('message', message);
-  if (state.conversationId) url.searchParams.set('conversationId', state.conversationId);
-
-  const es = new EventSource(url);
-  const msgEl = document.getElementById('streamMsg');
-  let full = '';
-
-  es.onmessage = function(e) {
-    full += e.data;
-    if (msgEl) {
-      msgEl.innerHTML = renderMarkdown(full) + '<span class="cursor"></span>';
-      msgEl.parentElement.parentElement.classList.add('streaming');
-    }
-    chatArea.scrollTop = chatArea.scrollHeight;
-  };
-
-  es.onerror = function() {
-    es.close();
-    state.streaming = false;
-    sendBtn.disabled = false;
-    updateInputState(true);
-    input.focus();
-
-    if (msgEl) {
-      msgEl.parentElement.parentElement.classList.remove('streaming');
-      const cursor = msgEl.querySelector('.cursor');
-      if (cursor) cursor.remove();
-      // Store final response
-      if (!full) full = '（服务器未响应，请检查后端是否启动）';
-      state.messages.push({ role: 'assistant', content: full });
-    }
-  };
-}
-
-// ========== UI ==========
-function addMessage(role, content) {
-  const el = document.createElement('div');
-  el.className = 'msg ' + role;
-  el.innerHTML = `
-    <div class="msg-avatar">${role === 'user' ? '👤' : '🤖'}</div>
-    <div class="msg-body">
-      <div class="msg-role">${role === 'user' ? 'You' : 'Jiang I-Agent'}</div>
-      <div class="msg-content">${renderMarkdown(content)}</div>
-    </div>`;
-  chatArea.appendChild(el);
-  chatArea.scrollTop = chatArea.scrollHeight;
-}
-
-function addStreamingMessage() {
-  const el = document.createElement('div');
-  el.className = 'msg assistant';
-  el.innerHTML = `
-    <div class="msg-avatar">🤖</div>
-    <div class="msg-body">
-      <div class="msg-role">Jiang I-Agent</div>
-      <div class="msg-content" id="streamMsg"></div>
-    </div>`;
-  chatArea.appendChild(el);
-  chatArea.scrollTop = chatArea.scrollHeight;
-}
-
-function removeWelcome() {
-  const w = chatArea.querySelector('.welcome');
-  if (w) w.remove();
-}
-
-function updateInputState(enabled) {
-  input.disabled = !enabled;
-  input.placeholder = enabled ? '输入消息……' : '正在生成回复……';
-}
-
-// ========== Markdown (minimal) ==========
-function renderMarkdown(text) {
-  if (!text) return '';
-  return text
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^### (.+)/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)/gm, '<h1>$1</h1>')
-    .replace(/^- (.+)/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-    .replace(/\n/g, '<br>');
-}
-
-// ========== Toast ==========
-function toast(msg, type) {
-  const t = document.createElement('div');
-  t.className = 'toast ' + type;
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(),300) }, 3000);
-}
-</script>
+<script src="/js/app.js"></script>
 </body>
 </html>
