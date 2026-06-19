@@ -22,12 +22,6 @@ public class GlobalExceptionHandler {
         return Result.fail(404, "not found");
     }
 
-    @ExceptionHandler(BizException.class)
-    public Result<Void> handleBizException(BizException e) {
-        log.warn("业务异常: code={}, message={}", e.getCode(), e.getMessage());
-        return Result.fail(e.getCode(), e.getMessage());
-    }
-
     @ExceptionHandler(IllegalArgumentException.class)
     public Result<Void> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("参数异常: {}", e.getMessage());
