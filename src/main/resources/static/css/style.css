@@ -130,7 +130,42 @@ input,textarea { font:inherit;color:inherit }
 }
 @keyframes spin { to{transform:rotate(360deg)} }
 
-.sidebar-footer { padding:14px;border-top:1px solid var(--border-light);flex-shrink:0 }
+.sidebar-footer { padding:12px;border-top:1px solid var(--border-light);flex-shrink:0;display:flex;flex-direction:column;gap:10px }
+
+/* ---- Profile card ---- */
+.sidebar-profile {
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:var(--bg-elevated);border-radius:var(--radius);
+  border:1px solid var(--border-light);
+}
+.sidebar-avatar {
+  width:36px;height:36px;border-radius:50%;object-fit:cover;
+  background:linear-gradient(135deg,var(--accent),var(--lavender));
+  flex-shrink:0;
+}
+.sidebar-avatar[src=""] { display:none }
+.sidebar-profile-info { flex:1;min-width:0;display:flex;flex-direction:column;gap:1px }
+.sidebar-profile-name { font-size:13px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.sidebar-profile-role { font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-subtle);padding:1px 6px;border-radius:10px;align-self:flex-start }
+.sidebar-profile-actions { display:flex;gap:4px;flex-shrink:0 }
+.sidebar-action-btn {
+  width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  border-radius:var(--radius-sm);color:var(--text-tertiary);
+  transition:all var(--transition);cursor:pointer;
+}
+.sidebar-action-btn:hover { background:var(--bg-hover);color:var(--accent) }
+.sidebar-action-btn:focus-visible { outline:2px solid var(--accent);outline-offset:2px }
+
+/* ---- Admin link ---- */
+.sidebar-admin-link {
+  display:flex;align-items:center;gap:6px;padding:8px 12px;
+  font-size:12px;font-weight:600;color:var(--lavender);
+  text-decoration:none;border-radius:var(--radius-sm);
+  border:1px dashed rgba(139,92,246,.25);
+  transition:all var(--transition);
+}
+.sidebar-admin-link:hover { background:rgba(139,92,246,.06);border-color:var(--lavender) }
+
 .sidebar-new {
   width:100%;padding:11px;border:2px dashed var(--border);border-radius:var(--radius);
   color:var(--accent);font-size:13px;font-weight:700;
@@ -222,6 +257,16 @@ input,textarea { font:inherit;color:inherit }
   background:linear-gradient(135deg,var(--accent),var(--lavender));
   box-shadow:0 3px 12px rgba(236,72,153,.2);
   color:#fff;font-size:18px;
+}
+/* 真实头像图片 & 兜底 */
+.msg-avatar-img {
+  width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;margin-top:2px;
+}
+.msg-avatar-fallback {
+  width:36px;height:36px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:16px;flex-shrink:0;margin-top:2px;
+  background:linear-gradient(135deg,var(--accent),var(--lavender));
+  color:#fff;
 }
 .msg-body { flex:1;min-width:0 }
 .msg-label {

@@ -1,22 +1,20 @@
 /**
  * Jiang I-Agent — Frontend Application
- *
- * 功能状态：
- *   ✅ 对话 SSE 流式输出
- *   ✅ 会话列表 / 切换 / 删除
- *   ✅ Markdown 渲染
- *   ⏳ 知识库 / 图谱 / 工具 — 后端未实现，前端显示占位
  */
+
+if (!TOKEN || !USER) {
+  location.href = '/login.html';
+}
 
 // =========================================================================
 // State
 // =========================================================================
 const S = {
-  conversationId: null,   // 当前会话 ID（MySQL bigint → string）
-  messages: [],           // 当前展示的消息
-  streaming: false,       // 是否正在流式输出
-  activeTab: 'chat',      // 当前标签页
-  convos: [],             // 缓存的会话列表
+  conversationId: null,
+  messages: [],
+  streaming: false,
+  activeTab: 'chat',
+  convos: [],
 };
 
 // =========================================================================
@@ -34,22 +32,6 @@ const dom = {
   get inputArea()  { return $('#inputArea') },
   get toastWrap()  { return $('#toastWrap') },
 };
-
-// =========================================================================
-// Toast
-// =========================================================================
-function showToast(text, type) {
-  type = type || 'info';
-  const t = document.createElement('div');
-  t.className = 'toast ' + type;
-  t.textContent = text;
-  dom.toastWrap.appendChild(t);
-  setTimeout(function() {
-    t.style.opacity = '0';
-    t.style.transition = 'opacity .2s';
-    setTimeout(function() { t.remove() }, 220);
-  }, 2800);
-}
 
 // =========================================================================
 // Tab switching
@@ -121,7 +103,7 @@ function sendHint(text) {
 // Sidebar — conversation list
 // =========================================================================
 function loadConversations() {
-  fetch('/api/conversations?page=1&size=50')
+  fetch('/api/conversations?page=1&size=50', authHeaders())
     .then(function(res) { return res.json() })
     .then(function(json) {
       if (json.code !== 200) throw new Error(json.message);
@@ -152,10 +134,18 @@ function renderSidebar() {
 }
 
 function onSelectConvo(id) {
+  // 断开流式连接，停止打字机，防止串消息
+  if (window._activeES) { window._activeES.close(); window._activeES = null; }
+  if (window._typeTimer) { clearInterval(window._typeTimer); window._typeTimer = null; }
+  S.streaming = false;
+  dom.sendBtn.disabled = false;
+  dom.msgInput.disabled = false;
+  dom.msgInput.placeholder = '输入消息…';
+
   S.conversationId = String(id);
   renderSidebar();
 
-  fetch('/api/conversations/' + id + '/messages?page=1&size=200')
+  fetch('/api/conversations/' + id + '/messages?page=1&size=200', authHeaders())
     .then(function(res) { return res.json() })
     .then(function(json) {
       if (json.code === 200 && json.data && json.data.records) {
@@ -172,7 +162,7 @@ function onSelectConvo(id) {
 
 function onDeleteConvo(id) {
   if (!confirm('确定删除该会话及其所有消息？')) return;
-  fetch('/api/conversations/' + id, { method:'DELETE' })
+  fetch('/api/conversations/' + id, authHeaders({ method:'DELETE' }))
     .then(function(res) { return res.json() })
     .then(function(json) {
       if (json.code === 200) {
@@ -189,6 +179,13 @@ function onDeleteConvo(id) {
 }
 
 function onNewChat() {
+  if (window._activeES) { window._activeES.close(); window._activeES = null; }
+  if (window._typeTimer) { clearInterval(window._typeTimer); window._typeTimer = null; }
+  S.streaming = false;
+  dom.sendBtn.disabled = false;
+  dom.msgInput.disabled = false;
+  dom.msgInput.placeholder = '输入消息…';
+
   S.conversationId = null;
   S.messages = [];
   renderSidebar();
@@ -209,10 +206,15 @@ function renderMessages(msgs) {
   scrollDown();
 }
 
+function avatarImg(url, isUser) {
+  if (url) return '<img class="msg-avatar-img" src="' + escAttr(url) + '" alt="">';
+  return '<div class="msg-avatar-fallback">' + (isUser ? '👤' : '🤖') + '</div>';
+}
+
 function renderMsg(m, idx) {
   var isUser = m.role === 'user';
-  var avatar = isUser ? '👤' : '🤖';
-  var label  = isUser ? 'You' : 'Jiang I-Agent';
+  var url = isUser ? (USER && USER.avatar ? USER.avatar : '') : AGENT_AVATAR;
+  var label = isUser ? 'You' : AGENT_NAME;
   var content = m.content || '';
 
   var toolTags = '';
@@ -223,7 +225,7 @@ function renderMsg(m, idx) {
   }
 
   return '<div class="msg ' + (isUser ? 'user' : 'assistant') + '">' +
-    '<div class="msg-avatar">' + avatar + '</div>' +
+    avatarImg(url, isUser) +
     '<div class="msg-body">' +
       '<div class="msg-label">' + label + '</div>' +
       toolTags +
@@ -262,34 +264,36 @@ function onSend() {
   dom.msgInput.placeholder = 'AI 正在生成…';
 
   var fullContent = '';
-  var displayedIdx = 0;      // 已逐字展示到哪个位置
-  var typeTimer = null;      // 打字机定时器
-  var TYPE_MS = 22;          // 每字间隔（毫秒）
+  var currentConvoId = S.conversationId;
+  var displayedIdx = 0;
+  window._typeTimer = null;
+  var TYPE_MS = 22;
 
-  var url = '/api/chat/stream?message=' + encodeURIComponent(text);
+  var url = '/api/chat/stream?message=' + encodeURIComponent(text)
+    + '&token=' + encodeURIComponent(TOKEN);
   if (S.conversationId) url += '&conversationId=' + encodeURIComponent(S.conversationId);
 
+  if (window._activeES) { window._activeES.close(); }
   var es = new EventSource(url);
+  window._activeES = es;
 
-  /** 打字机：每隔 TYPE_MS 从缓冲区吐一个字到屏幕 */
+  /** 打字机 */
   function pumpType() {
     if (displayedIdx < fullContent.length) {
-      // 缓冲区积压太多 → 加速追赶（每次多吐几个字）
       var backlog = fullContent.length - displayedIdx;
       var step = backlog > 80 ? 5 : backlog > 30 ? 2 : 1;
       displayedIdx = Math.min(displayedIdx + step, fullContent.length);
       var el = $('#streamBubble');
       if (el) {
-        var text = escHtml(fullContent.substring(0, displayedIdx));
-      el.innerHTML = text.replace(/\n/g, '<br>') + '<span class="cursor"></span>';
+        el.innerHTML = escHtml(fullContent.substring(0, displayedIdx)).replace(/\n/g, '<br>') + '<span class="cursor"></span>';
       }
       scrollDown();
     }
   }
 
   function ensureTyping() {
-    if (!typeTimer) {
-      typeTimer = setInterval(pumpType, TYPE_MS);
+    if (!window._typeTimer) {
+      window._typeTimer = setInterval(pumpType, TYPE_MS);
     }
   }
 
@@ -300,11 +304,11 @@ function onSend() {
 
   es.onerror = function() {
     es.close();
+    window._activeES = null;
     S.streaming = false;
 
-    // 停止打字机，立刻展示全部
-    clearInterval(typeTimer);
-    typeTimer = null;
+    clearInterval(window._typeTimer);
+    window._typeTimer = null;
 
     dom.sendBtn.disabled = false;
     dom.msgInput.disabled = false;
@@ -321,9 +325,14 @@ function onSend() {
       fullContent = '（AI 未响应，请确认后端服务已启动且 API Key 有效）';
     }
 
-    // 流结束 → 最终渲染 Markdown
-    if (el) el.innerHTML = renderMarkdown(fullContent);
+    if (S.conversationId !== currentConvoId) {
+      return;
+    }
 
+    if (el) {
+      el.innerHTML = renderMarkdown(fullContent);
+      el.removeAttribute('id');  // 去掉 id，下次 appendStreamingMsg 不会找到旧元素
+    }
     S.messages.push({ role:'assistant', content: fullContent });
 
     if (!S.conversationId) {
@@ -343,12 +352,14 @@ function onSend() {
 // =========================================================================
 function appendMsg(role, content) {
   var isUser = role === 'user';
+  var url = isUser ? (USER && USER.avatar ? USER.avatar : '') : AGENT_AVATAR;
+  var label = isUser ? 'You' : AGENT_NAME;
   var div = document.createElement('div');
   div.className = 'msg ' + (isUser ? 'user' : 'assistant');
   div.innerHTML =
-    '<div class="msg-avatar">' + (isUser ? '👤' : '🤖') + '</div>' +
+    avatarImg(url, isUser) +
     '<div class="msg-body">' +
-      '<div class="msg-label">' + (isUser ? 'You' : 'Jiang I-Agent') + '</div>' +
+      '<div class="msg-label">' + label + '</div>' +
       '<div class="msg-bubble">' + renderMarkdown(content) + '</div>' +
     '</div>';
   dom.chatBody.appendChild(div);
@@ -359,9 +370,9 @@ function appendStreamingMsg() {
   var div = document.createElement('div');
   div.className = 'msg assistant';
   div.innerHTML =
-    '<div class="msg-avatar">🤖</div>' +
+    avatarImg(AGENT_AVATAR, false) +
     '<div class="msg-body">' +
-      '<div class="msg-label">Jiang I-Agent</div>' +
+      '<div class="msg-label">' + AGENT_NAME + '</div>' +
       '<div class="msg-bubble" id="streamBubble"></div>' +
     '</div>';
   dom.chatBody.appendChild(div);
@@ -397,10 +408,10 @@ function renderMarkdown(text) {
   s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   // italic
   s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  // headings
-  s = s.replace(/^### (.+)/gm, '<h3>$1</h3>');
-  s = s.replace(/^## (.+)/gm, '<h2>$1</h2>');
-  s = s.replace(/^# (.+)/gm, '<h1>$1</h1>');
+  // headings (allow variable whitespace after #, e.g. "###标题" or "###  标题")
+  s = s.replace(/^###\s+(.+)/gm, '<h3>$1</h3>');
+  s = s.replace(/^##\s+(.+)/gm, '<h2>$1</h2>');
+  s = s.replace(/^#\s+(.+)/gm, '<h1>$1</h1>');
   // blockquote
   s = s.replace(/^&gt; (.+)/gm, '<blockquote>$1</blockquote>');
   // horizontal rule
@@ -419,21 +430,34 @@ function renderMarkdown(text) {
 }
 
 // =========================================================================
-// Utilities
-// =========================================================================
-function escHtml(str) {
-  var map = { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' };
-  return String(str).replace(/[&<>"']/g, function(c) { return map[c] });
-}
-
-function escAttr(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// =========================================================================
 // Bootstrap
 // =========================================================================
+/** 全局缓存的 Agent 头像 */
+var AGENT_AVATAR = '';
+var AGENT_NAME = 'Jiang I-Agent';
+
+function loadAgentProfile() {
+  fetch('/api/admin/agent/profile')
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (json.code === 200 && json.data) {
+        AGENT_AVATAR = json.data.avatar || '';
+        AGENT_NAME = json.data.agentName || 'Jiang I-Agent';
+      }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+  loadAgentProfile();
+  if (USER) {
+    document.getElementById('sidebarNickname').textContent = USER.nickname || USER.username;
+    var av = document.getElementById('sidebarAvatar');
+    if (USER.avatar) { av.src = USER.avatar; } else { av.style.display = 'none'; }
+    if (USER.role === 'ADMIN') {
+      document.getElementById('sidebarAdminLink').style.display = '';
+      document.getElementById('sidebarRoleBadge').style.display = '';
+    }
+  }
   loadConversations();
   dom.msgInput.focus();
 });

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>登录 — Jiang I-Agent</title>
+<style>
+  :root {
+    --bg: #FDF2F8; --surface: #FFFFFF; --border: #F0E2EF;
+    --text: #1E293B; --text2: #64748B; --accent: #EC4899; --accent-light: #F472B6;
+    --radius: 12px; --shadow: 0 4px 24px rgba(30,41,59,.08);
+    --font: "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  *,*::before,*::after { box-sizing:border-box;margin:0;padding:0 }
+  body {
+    font-family:var(--font);font-size:14px;color:var(--text);
+    background:var(--bg);display:flex;align-items:center;justify-content:center;
+    min-height:100vh;
+  }
+  .card {
+    background:var(--surface);border-radius:var(--radius);padding:40px 36px;
+    width:100%;max-width:400px;box-shadow:var(--shadow);
+  }
+  .card h2 { text-align:center;font-size:22px;font-weight:800;margin-bottom:6px }
+  .card .sub { text-align:center;font-size:13px;color:var(--text2);margin-bottom:28px }
+  .field { margin-bottom:18px }
+  .field label { display:block;font-size:13px;font-weight:600;margin-bottom:5px }
+  .field input {
+    width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;
+    font-size:14px;outline:none;transition:border-color .2s;
+  }
+  .field input:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(236,72,153,.1) }
+  .btn {
+    width:100%;padding:11px;border:none;border-radius:8px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-light));
+    color:#fff;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;
+    transition:transform .15s,box-shadow .15s;
+  }
+  .btn:hover { transform:translateY(-1px);box-shadow:0 4px 14px rgba(236,72,153,.3) }
+  .btn:disabled { opacity:.4;cursor:not-allowed;transform:none }
+  .msg { text-align:center;font-size:13px;margin-top:14px;min-height:20px }
+  .msg.error { color:#EF4444 }
+  .msg.ok { color:#22C55E }
+  .switch { text-align:center;font-size:13px;color:var(--text2);margin-top:20px }
+  .switch a { color:var(--accent);font-weight:600;cursor:pointer;text-decoration:none }
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <h2 id="title">登录</h2>
+  <div class="sub">Jiang I-Agent · 个人 AI 知识库助手</div>
+
+  <div class="field" id="nickField" style="display:none">
+    <label>昵称</label>
+    <input id="nickname" placeholder="给自己取个名字">
+  </div>
+  <div class="field">
+    <label>用户名</label>
+    <input id="username" placeholder="输入用户名" autocomplete="username">
+  </div>
+  <div class="field">
+    <label>密码</label>
+    <input id="password" type="password" placeholder="输入密码" autocomplete="current-password">
+  </div>
+  <button class="btn" id="submitBtn" onclick="submit()">登录</button>
+  <div class="msg" id="msg"></div>
+  <div class="switch">
+    <span id="switchText">没有账号？</span>
+    <a id="switchLink" onclick="toggleMode()">去注册</a>
+  </div>
+</div>
+
+<script>
+var mode = 'login';
+
+function toggleMode() {
+  mode = mode === 'login' ? 'register' : 'login';
+  if (mode === 'login') {
+    document.getElementById('title').textContent = '登录';
+    document.getElementById('submitBtn').textContent = '登录';
+    document.getElementById('nickField').style.display = 'none';
+    document.getElementById('switchText').textContent = '没有账号？';
+    document.getElementById('switchLink').textContent = '去注册';
+  } else {
+    document.getElementById('title').textContent = '注册';
+    document.getElementById('submitBtn').textContent = '注册';
+    document.getElementById('nickField').style.display = '';
+    document.getElementById('switchText').textContent = '已有账号？';
+    document.getElementById('switchLink').textContent = '去登录';
+  }
+  document.getElementById('msg').textContent = '';
+  document.getElementById('msg').className = 'msg';
+}
+
+function msg(text, type) {
+  var m = document.getElementById('msg');
+  m.textContent = text;
+  m.className = 'msg ' + (type || 'error');
+}
+
+function submit() {
+  var username = document.getElementById('username').value.trim();
+  var password = document.getElementById('password').value;
+  var nickname = document.getElementById('nickname').value.trim();
+  if (!username || !password) { msg('请填写用户名和密码'); return; }
+  if (mode === 'register' && password.length < 6) { msg('密码至少 6 位'); return; }
+
+  var btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '处理中…';
+
+  var url = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+  var body = mode === 'login'
+    ? JSON.stringify({ username: username, password: password })
+    : JSON.stringify({ username: username, password: password, nickname: nickname || username });
+
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body
+  })
+  .then(function(r) { return r.json() })
+  .then(function(json) {
+    if (json.code === 200) {
+      if (mode === 'login') {
+        localStorage.setItem('token', json.data.token);
+        localStorage.setItem('user', JSON.stringify(json.data.user));
+        msg('登录成功，跳转中…', 'ok');
+        setTimeout(function() { location.href = '/'; }, 600);
+      } else {
+        msg('注册成功，请登录', 'ok');
+        toggleMode();
+      }
+    } else {
+      msg(json.message || '操作失败');
+    }
+  })
+  .catch(function() { msg('网络错误，请重试') })
+  .finally(function() {
+    btn.disabled = false;
+    btn.textContent = mode === 'login' ? '登录' : '注册';
+  });
+}
+
+document.getElementById('username').focus();
+document.getElementById('password').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') submit();
+});
+</script>
+</body>
+</html>
