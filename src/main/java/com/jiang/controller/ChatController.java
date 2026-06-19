@@ -4,12 +4,13 @@ import com.jiang.common.Result;
 import com.jiang.model.req.ChatRequest;
 import com.jiang.model.resp.ChatResponse;
 import com.jiang.service.ChatService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 /**
- * 对话接口 — Phase 1
+ * 对话接口
  */
 @RestController
 @RequestMapping("/api/chat")
@@ -22,20 +23,26 @@ public class ChatController {
 
     /** 同步对话 */
     @PostMapping
-    public Result<ChatResponse> chat(@RequestBody ChatRequest request) {
-        return Result.success(chatService.chat(request));
+    public Result<ChatResponse> chat(@RequestBody ChatRequest request,
+                                      HttpServletRequest req) {
+        Long userId = (Long) req.getAttribute("userId");
+        return Result.success(chatService.chat(request, userId));
     }
 
-    /** SSE 流式对话 — GET，供 EventSource 使用 */
+    /** SSE 流式对话 — GET */
     @GetMapping(value = "/stream", produces = SSE_UTF8)
     public Flux<String> streamChatGet(@RequestParam String message,
-                                       @RequestParam(required = false) String conversationId) {
-        return chatService.streamChat(new ChatRequest(message, conversationId));
+                                       @RequestParam(required = false) String conversationId,
+                                       HttpServletRequest req) {
+        Long userId = (Long) req.getAttribute("userId");
+        return chatService.streamChat(new ChatRequest(message, conversationId), userId);
     }
 
-    /** SSE 流式对话 — POST 兼容 */
+    /** SSE 流式对话 — POST */
     @PostMapping(value = "/stream", produces = SSE_UTF8)
-    public Flux<String> streamChatPost(@RequestBody ChatRequest request) {
-        return chatService.streamChat(request);
+    public Flux<String> streamChatPost(@RequestBody ChatRequest request,
+                                        HttpServletRequest req) {
+        Long userId = (Long) req.getAttribute("userId");
+        return chatService.streamChat(request, userId);
     }
 }

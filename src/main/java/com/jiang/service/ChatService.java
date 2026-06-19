@@ -1,7 +1,9 @@
 package com.jiang.service;
 
+import com.jiang.entity.AgentConfig;
 import com.jiang.entity.Conversation;
 import com.jiang.entity.Message;
+import com.jiang.mapper.AgentConfigMapper;
 import com.jiang.mapper.ConversationMapper;
 import com.jiang.mapper.MessageMapper;
 import com.jiang.model.req.ChatRequest;
@@ -18,12 +20,7 @@ import reactor.core.publisher.Flux;
 import java.util.List;
 
 /**
- * 对话服务 — Agent 核心调度（Phase 1）
- * <p>
- * 每次对话：MySQL 持久化消息 → ChatClient 调度 LLM → Redis ChatMemory 维护上下文窗口。
- * <p>
- * ChatMemory 手动管理（加载/保存），避免 Spring AI 2.0 streaming advisor 的 conversationId 丢失问题。
- * </p>
+ * 对话服务 — Agent 核心调度
  */
 @Slf4j
 @Service
@@ -34,25 +31,48 @@ public class ChatService {
     private final ChatMemory chatMemory;
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
+    private final AgentConfigMapper agentConfigMapper;
 
-    private static final String MODEL = "deepseek-ai/DeepSeek-V3.2";
+    private static final String DEFAULT_MODEL = "deepseek-ai/DeepSeek-V3.2";
+
+    /**
+     * 从 DB 读取自定义系统提示词；无自定义时返回 null，由 ChatClient 默认值兜底
+     */
+    private String getDbSystemPrompt() {
+        try {
+            AgentConfig config = agentConfigMapper.selectById(1);
+            if (config != null && config.getSystemPrompt() != null && !config.getSystemPrompt().isBlank()) {
+                return config.getSystemPrompt();
+            }
+        } catch (Exception e) {
+            log.debug("DB AgentConfig 读取失败，使用 ChatClient 默认提示词", e);
+        }
+        return null;
+    }
+
+    private String getModel() {
+        try {
+            AgentConfig config = agentConfigMapper.selectById(1);
+            if (config != null && config.getModel() != null && !config.getModel().isBlank()) {
+                return config.getModel();
+            }
+        } catch (Exception ignored) {}
+        return DEFAULT_MODEL;
+    }
+
+    // ==================== 公开接口 ====================
 
     /** 同步对话 */
-    public ChatResponse chat(ChatRequest request) {
-        Long convoId = resolveConversationId(request.getConversationId(), request.getMessage());
+    public ChatResponse chat(ChatRequest request, Long userId) {
+        Long convoId = resolveConversationId(request.getConversationId(), request.getMessage(), userId);
         String memoryKey = String.valueOf(convoId);
 
         saveMessage(convoId, "user", request.getMessage(), null);
 
-        List<org.springframework.ai.chat.messages.Message> history = chatMemory.get(memoryKey);
+        var history = chatMemory.get(memoryKey);
         chatMemory.add(memoryKey, List.of(new UserMessage(request.getMessage())));
 
-        String aiContent = chatClient.prompt()
-                .messages(history)
-                .user(request.getMessage())
-                .call()
-                .content();
-
+        String aiContent = doCall(history, request.getMessage());
         saveMessage(convoId, "assistant", aiContent, null);
         chatMemory.add(memoryKey, List.of(new AssistantMessage(aiContent)));
         updateConversationMeta(convoId);
@@ -65,28 +85,46 @@ public class ChatService {
     }
 
     /** 流式对话 */
-    public Flux<String> streamChat(ChatRequest request) {
-        Long convoId = resolveConversationId(request.getConversationId(), request.getMessage());
+    public Flux<String> streamChat(ChatRequest request, Long userId) {
+        Long convoId = resolveConversationId(request.getConversationId(), request.getMessage(), userId);
         String memoryKey = String.valueOf(convoId);
 
         saveMessage(convoId, "user", request.getMessage(), null);
 
-        List<org.springframework.ai.chat.messages.Message> history = chatMemory.get(memoryKey);
+        var history = chatMemory.get(memoryKey);
         chatMemory.add(memoryKey, List.of(new UserMessage(request.getMessage())));
 
-        StringBuilder fullContent = new StringBuilder();
+        return doStream(history, request.getMessage(), convoId, memoryKey);
+    }
 
-        return chatClient.prompt()
-                .messages(history)
-                .user(request.getMessage())
+    // ==================== LLM 调用模板 ====================
+
+    /** 组装 Prompt — 默认 system 已由 ChatClient bean 预置，仅在 DB 有自定义时覆盖 */
+    private ChatClient.ChatClientRequestSpec spec(List<org.springframework.ai.chat.messages.Message> history, String userMsg) {
+        var s = chatClient.prompt().messages(history).user(userMsg);
+        String dbPrompt = getDbSystemPrompt();
+        if (dbPrompt != null) {
+            s.system(dbPrompt);
+        }
+        return s;
+    }
+
+    /** 同步调用 */
+    private String doCall(List<org.springframework.ai.chat.messages.Message> history, String userMsg) {
+        return spec(history, userMsg).call().content();
+    }
+
+    /** 流式调用 + 统一收尾 */
+    private Flux<String> doStream(List<org.springframework.ai.chat.messages.Message> history,
+                                   String userMsg, Long convoId, String memoryKey) {
+        StringBuilder full = new StringBuilder();
+
+        return spec(history, userMsg)
                 .stream()
                 .content()
-                .doOnNext(token -> {
-                    log.debug("token arrived, length={}", token.length());
-                    fullContent.append(token);
-                })
+                .doOnNext(full::append)
                 .doOnComplete(() -> {
-                    String content = fullContent.toString();
+                    String content = full.toString();
                     log.info("流式完成: conversationId={}, 总长度={}", convoId, content.length());
                     saveMessage(convoId, "assistant", content, null);
                     chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
@@ -97,16 +135,27 @@ public class ChatService {
 
     // ==================== 内部辅助 ====================
 
-    private Long resolveConversationId(String conversationId, String firstMessage) {
+    private Long resolveConversationId(String conversationId, String firstMessage, Long userId) {
         if (conversationId != null && !conversationId.isEmpty()) {
-            return Long.parseLong(conversationId);
+            Long id = Long.parseLong(conversationId);
+            Conversation existing = conversationMapper.selectById(id);
+            if (existing == null) {
+                log.warn("会话不存在: id={}, 将创建新会话", id);
+            } else if (!existing.getUserId().equals(userId)) {
+                log.warn("越权访问会话: userId={}, conversationId={}, owner={}",
+                        userId, id, existing.getUserId());
+                throw new SecurityException("无权访问该会话");
+            } else {
+                return id;
+            }
         }
         Conversation convo = new Conversation();
+        convo.setUserId(userId);
         convo.setTitle(firstMessage.length() > 50 ? firstMessage.substring(0, 50) : firstMessage);
-        convo.setModel(MODEL);
+        convo.setModel(getModel());
         convo.setMessageCount(0);
         conversationMapper.insert(convo);
-        log.info("新建会话: id={}, title={}", convo.getId(), convo.getTitle());
+        log.info("新建会话: id={}, userId={}, title={}", convo.getId(), userId, convo.getTitle());
         return convo.getId();
     }
 

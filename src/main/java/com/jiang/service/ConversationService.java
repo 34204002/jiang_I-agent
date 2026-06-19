@@ -27,13 +27,14 @@ public class ConversationService {
     private final MessageMapper messageMapper;
 
     /**
-     * 分页查询会话列表，按更新时间倒序
+     * 分页查询当前用户会话列表，按更新时间倒序
      */
-    public PageResult<ConversationVO> listConversations(int page, int size) {
+    public PageResult<ConversationVO> listConversations(Long userId, int page, int size) {
         Page<Conversation> mpPage = Page.of(page, size);
         Page<Conversation> result = conversationMapper.selectPage(
                 mpPage,
                 new LambdaQueryWrapper<Conversation>()
+                        .eq(Conversation::getUserId, userId)
                         .orderByDesc(Conversation::getUpdatedAt)
         );
 
@@ -52,9 +53,15 @@ public class ConversationService {
     }
 
     /**
-     * 查询指定会话的消息列表，按时间正序
+     * 查询会话消息列表（校验归属），按时间正序
      */
-    public PageResult<MessageVO> listMessages(Long conversationId, int page, int size) {
+    public PageResult<MessageVO> listMessages(Long conversationId, Long userId, int page, int size) {
+        Conversation convo = conversationMapper.selectById(conversationId);
+        if (convo == null || !convo.getUserId().equals(userId)) {
+            log.warn("越权访问会话: userId={}, conversationId={}", userId, conversationId);
+            throw new SecurityException("无权访问该会话");
+        }
+
         Page<Message> mpPage = Page.of(page, size);
         Page<Message> result = messageMapper.selectPage(
                 mpPage,
@@ -70,7 +77,6 @@ public class ConversationService {
             vo.setContent(m.getContent());
             vo.setTokenCount(m.getTokenCount());
             vo.setCreatedAt(m.getCreatedAt());
-            // toolCalls JSON 暂不解析，Phase 4 完善
             return vo;
         }).toList();
 
@@ -78,14 +84,19 @@ public class ConversationService {
     }
 
     /**
-     * 删除会话（DB 外键 ON DELETE CASCADE 自动级联删除消息）
+     * 删除会话（校验归属，DB 外键 ON DELETE CASCADE 级联删除消息）
      */
-    public void deleteConversation(Long id) {
-        int rows = conversationMapper.deleteById(id);
-        if (rows > 0) {
-            log.info("会话已删除: id={}", id);
-        } else {
+    public void deleteConversation(Long id, Long userId) {
+        Conversation convo = conversationMapper.selectById(id);
+        if (convo == null) {
             log.warn("删除会话不存在: id={}", id);
+            return;
         }
+        if (!convo.getUserId().equals(userId)) {
+            log.warn("越权删除会话: userId={}, conversationId={}", userId, id);
+            throw new SecurityException("无权删除该会话");
+        }
+        conversationMapper.deleteById(id);
+        log.info("会话已删除: id={}", id);
     }
 }
