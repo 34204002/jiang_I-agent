@@ -16,6 +16,9 @@ public class Conversation {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 所属用户 ID */
+    private Long userId;
+
     /** 会话标题（首条消息截取前 50 字） */
     private String title;
 
