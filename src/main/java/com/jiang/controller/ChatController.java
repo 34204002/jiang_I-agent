@@ -29,20 +29,26 @@ public class ChatController {
         return Result.success(chatService.chat(request, userId));
     }
 
-    /** SSE 流式对话 — GET */
+    /** SSE 流式对话 — GET（支持思考模式） */
     @GetMapping(value = "/stream", produces = SSE_UTF8)
     public Flux<String> streamChatGet(@RequestParam String message,
                                        @RequestParam(required = false) String conversationId,
+                                       @RequestParam(required = false, defaultValue = "false") boolean thinking,
                                        HttpServletRequest req) {
         Long userId = (Long) req.getAttribute("userId");
-        return chatService.streamChat(new ChatRequest(message, conversationId), userId);
+        var request = new ChatRequest(message, conversationId);
+        return thinking ? chatService.streamChatWithThinking(request, userId)
+                        : chatService.streamChat(request, userId);
     }
 
-    /** SSE 流式对话 — POST */
+    /** SSE 流式对话 — POST（支持思考模式） */
     @PostMapping(value = "/stream", produces = SSE_UTF8)
     public Flux<String> streamChatPost(@RequestBody ChatRequest request,
+                                        @RequestParam(required = false, defaultValue = "false") boolean thinking,
                                         HttpServletRequest req) {
         Long userId = (Long) req.getAttribute("userId");
-        return chatService.streamChat(request, userId);
+        return thinking ? chatService.streamChatWithThinking(request, userId)
+                        : chatService.streamChat(request, userId);
     }
+
 }

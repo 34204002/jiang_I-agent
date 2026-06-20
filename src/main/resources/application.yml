@@ -42,9 +42,9 @@ spring:
       base-url: ${AI_BASE_URL}
       chat:
         model: ${AI_MODEL}
+        temperature: ${AI_TEMPERATURE:0.7}
       embedding:
-        options:
-          model: ${AI_EMBEDDING_MODEL}
+        model: ${AI_EMBEDDING_MODEL:text-embedding-3-small}
 
     vectorstore:
       qdrant:
