@@ -41,6 +41,9 @@ public class RedisChatMemory implements ChatMemory {
 
     // ==================== ChatMemory 接口 ====================
 
+    /**
+     * 追加消息到会话记忆，写入后刷新 TTL（滑动过期）。
+     */
     @Override
     public void add(String conversationId, List<Message> messages) {
         String key = buildKey(conversationId);
@@ -55,6 +58,9 @@ public class RedisChatMemory implements ChatMemory {
         redisTemplate.expire(key, TTL_MINUTES, TimeUnit.MINUTES);
     }
 
+    /**
+     * 获取会话全部历史消息，读取时刷新 TTL（滑动过期）。
+     */
     @Override
     public List<Message> get(String conversationId) {
         String key = buildKey(conversationId);
@@ -64,6 +70,7 @@ public class RedisChatMemory implements ChatMemory {
         }
 
         List<Object> rawList = redisTemplate.opsForList().range(key, 0, size - 1);
+        // 读取时刷新 TTL，实现滑动过期
         redisTemplate.expire(key, TTL_MINUTES, TimeUnit.MINUTES);
 
         if (rawList == null || rawList.isEmpty()) {

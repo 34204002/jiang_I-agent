@@ -22,12 +22,14 @@ public class GlobalExceptionHandler {
         return Result.fail(404, "not found");
     }
 
+    /** 请求参数不合法 */
     @ExceptionHandler(IllegalArgumentException.class)
     public Result<Void> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("参数异常: {}", e.getMessage());
         return Result.fail(400, e.getMessage());
     }
 
+    /** 未预期的内部异常兜底 */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleUnknown(Exception e) {

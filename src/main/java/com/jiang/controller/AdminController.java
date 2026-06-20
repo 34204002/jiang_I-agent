@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 管理员接口 — 仅 ADMIN 角色可访问
@@ -61,9 +62,9 @@ public class AdminController {
 
     /** Agent 公开信息（名称、头像），前端展示用，无需鉴权 */
     @GetMapping("/agent/profile")
-    public Result<java.util.Map<String, String>> getAgentProfile() {
+    public Result<Map<String, String>> getAgentProfile() {
         AgentConfig config = agentConfigMapper.selectById(1);
-        return Result.success(java.util.Map.of(
+        return Result.success(Map.of(
                 "agentName", config != null ? config.getAgentName() : "Jiang I-Agent",
                 "avatar", config != null && config.getAvatar() != null ? config.getAvatar() : ""
         ));

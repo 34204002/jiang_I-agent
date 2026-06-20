@@ -17,15 +17,20 @@ public class LoginInterceptor implements HandlerInterceptor {
 
     private final JwtUtil jwtUtil;
 
+    /**
+     * 拦截请求，校验 JWT Token。
+     *
+     * <p>校验顺序：OPTIONS 预检放行 → Authorization Header → token Query 参数（EventSource GET 兼容）。
+     * 校验通过后将 userId、username、role 写入 request attribute 供 Controller 使用。</p>
+     */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
                               Object handler) throws Exception {
-        // OPTIONS 预检放行
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
 
-        // 优先从 Header 取，其次从 Query 参数取（EventSource 不支持自定义 Header）
+        // 优先 Header，其次 Query 参数（EventSource 不支持自定义 Header）
         String token = jwtUtil.extractToken(request.getHeader("Authorization"));
         if (token == null) {
             token = request.getParameter("token");
