@@ -357,6 +357,45 @@ input,textarea { font:inherit;color:inherit }
 .input-row:focus-within {
   border-color:var(--accent-light);box-shadow:0 0 0 4px var(--accent-glow);
 }
+/* ---- Think toggle ---- */
+.btn-think {
+  display:flex;align-items:center;gap:5px;padding:6px 14px;
+  border:1.5px solid var(--border);border-radius:var(--radius-full);
+  font-size:12px;font-weight:600;color:var(--text-tertiary);
+  background:var(--bg-elevated);transition:all var(--transition);
+  flex-shrink:0;white-space:nowrap;
+}
+.btn-think:hover { border-color:var(--accent-light);color:var(--accent) }
+.btn-think.active {
+  border-color:var(--accent);color:var(--accent);
+  background:var(--accent-subtle);
+  box-shadow:0 0 0 3px var(--accent-glow);
+}
+.btn-think:focus-visible { outline:2px solid var(--accent);outline-offset:2px }
+.btn-think .think-icon { font-size:14px;line-height:1 }
+.btn-think .think-label { font-size:12px }
+
+/* ---- Thinking block in streaming bubble ---- */
+.thinking-block {
+  margin-bottom:10px;border:1.5px solid var(--lavender-light);
+  border-radius:var(--radius-sm);overflow:hidden;
+  background:rgba(139,92,246,.04);
+}
+.thinking-header {
+  padding:8px 14px;font-size:12px;font-weight:600;color:var(--lavender);
+  cursor:pointer;display:flex;align-items:center;gap:6px;
+  background:rgba(139,92,246,.06);border-bottom:1px solid rgba(139,92,246,.1);
+  user-select:none;
+}
+.thinking-header:hover { background:rgba(139,92,246,.1) }
+.thinking-body {
+  padding:10px 14px;font-size:13px;color:var(--text-secondary);
+  line-height:1.6;max-height:200px;overflow-y:auto;
+  border-left:3px solid var(--lavender-light);margin:0;
+}
+.thinking-body:empty { display:none }
+
+/* ---- Input footnote ---- */
 .input-row textarea {
   flex:1;background:transparent;border:none;outline:none;resize:none;
   font-size:14px;padding:8px 0;max-height:130px;line-height:1.6;
