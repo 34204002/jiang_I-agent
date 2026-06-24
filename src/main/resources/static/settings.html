@@ -52,6 +52,7 @@
   <span class="brand">Jiang I-Agent</span>
   <a href="/">对话</a>
   <a href="settings.html" class="active">设置</a>
+  <a href="admin.html" id="adminLink" style="display:none">管理</a>
   <a href="#" onclick="logout()" style="margin-left:auto">退出</a>
 </nav>
 
@@ -146,6 +147,9 @@ function saveProfile() {
 }
 
 loadProfile();
+if (USER && USER.role === 'ADMIN') {
+  document.getElementById('adminLink').style.display = '';
+}
 </script>
 </body>
 </html>

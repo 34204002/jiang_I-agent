@@ -257,7 +257,10 @@ public class ChatService {
             body.put("thinking_budget", 1024);
         }
         try {
-            return objectMapper.writeValueAsString(body);
+            // 用干净的 ObjectMapper，避免 Redis DefaultTyping 污染 JSON
+            String json = new ObjectMapper().writeValueAsString(body);
+            log.info("API请求: model={}, thinking={}, body={}", model, thinking, json);
+            return json;
         } catch (Exception e) {
             throw new RuntimeException("构建请求体失败", e);
         }
