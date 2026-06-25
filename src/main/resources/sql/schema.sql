@@ -112,6 +112,7 @@ CREATE TABLE t_document_chunk (
 
 CREATE TABLE t_todo_item (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '待办 ID',
+    user_id         BIGINT UNSIGNED NOT NULL                  COMMENT '所属用户',
     conversation_id BIGINT UNSIGNED NULL                     COMMENT '关联会话',
     title           VARCHAR(500)    NOT NULL                 COMMENT '标题',
     due_date        DATE            NULL                     COMMENT '截止日期',
@@ -137,3 +138,17 @@ CREATE TABLE t_tool_usage_log (
     created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX           idx_tool_time (tool_name, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='工具调用日志';
+
+-- =============================================================================
+-- 定时提醒
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS t_reminder (
+    id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '提醒 ID',
+    user_id     BIGINT UNSIGNED NOT NULL,
+    message     VARCHAR(500) NOT NULL               COMMENT '提醒内容',
+    remind_at   DATETIME NOT NULL                   COMMENT '提醒时间',
+    fired       TINYINT NOT NULL DEFAULT 0          COMMENT '0-未触发 1-已触发',
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX       idx_user_remind (user_id, remind_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='定时提醒';
