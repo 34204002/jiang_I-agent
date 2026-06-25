@@ -9,6 +9,7 @@ import com.jiang.mapper.ConversationMapper;
 import com.jiang.mapper.MessageMapper;
 import com.jiang.model.req.ChatRequest;
 import com.jiang.model.resp.ChatResponse;
+import com.jiang.tool.DsmlParser;
 import com.jiang.tool.ToolContext;
 import com.jiang.tool.ToolRegistry;
 import com.jiang.util.DeepSeekStreamService;
@@ -172,11 +173,14 @@ public class ChatService {
     private Flux<String> streamWithPossibleTools(List<Message> history, String userMsg,
                                                    Long convoId, String memoryKey, boolean thinking,
                                                    Long userId) {
-        // Mutable accumulators for tool calls
+        // Mutable accumulators
         final String[] tcName = {null};
         final StringBuilder tcArgs = new StringBuilder();
-        final StringBuilder contentBuf = new StringBuilder();
+        final StringBuilder contentBuf = new StringBuilder();  // 持久化用的完整文本
         final StringBuilder thinkingBuf = thinking ? new StringBuilder() : null;
+        final StringBuilder batchBuf = new StringBuilder();    // 微批量缓冲，攒够再 flush
+        final String[] tagPrefix = {""};                       // 跨批次标签前缀残留
+        final String[] dsmlPending = {""};                   // 跨批次 DSML 未完成块暂存
 
         String body = buildRequestBody(history, userMsg, thinking);
 
@@ -186,18 +190,21 @@ public class ChatService {
                         JsonNode root = new ObjectMapper().readTree(data);
                         JsonNode delta = root.path("choices").get(0).path("delta");
 
-                        // Accumulate tool_calls (if model decides to call a tool)
+                        // === OpenAI 标准 tool_calls（兼容未来） ===
                         JsonNode tcArray = delta.path("tool_calls");
                         if (tcArray.isArray() && tcArray.size() > 0) {
                             JsonNode tc = tcArray.get(0);
                             JsonNode func = tc.path("function");
                             if (func.has("name") && !func.get("name").isNull()) {
-                                tcName[0] = func.get("name").asText();
+                                String n = func.get("name").asText();
+                                if (n != null && !n.isEmpty()) tcName[0] = n;
                             }
                             if (func.has("arguments")) {
                                 tcArgs.append(func.get("arguments").asText());
                             }
-                            return; // Don't emit content while tool call is being assembled
+                            // 有实质 name 才是真正的 tool call；空 name 是 DeepSeek 的占位，
+                            // 不要 return，让 DSML 路径处理 content
+                            if (tcName[0] != null) return;
                         }
 
                         // Thinking mode: reasoning_content
@@ -212,20 +219,44 @@ public class ChatService {
                             }
                         }
 
-                        // Normal content
+                        // === Content: 微批量缓冲 → 攒到句子边界再 flush ===
                         if (delta.has("content") && !delta.get("content").isNull()) {
-                            String content = delta.get("content").asText();
-                            if (!content.isEmpty()) {
-                                contentBuf.append(content);
-                                sink.next("{\"type\":\"content\",\"content\":"
-                                        + CLEAN_MAPPER.writeValueAsString(content) + "}");
+                            String c = delta.get("content").asText();
+                            if (c.isEmpty()) return;
+                            batchBuf.append(c);
+                            // 攒够 200 字符 或 遇到句子边界（。！？\n）就 flush
+                            if (batchBuf.length() >= 200 || c.matches(".*[。！？\n]") || c.matches(".*[.!?\n]")) {
+                                flushBatch(batchBuf, contentBuf, sink, tcName, tcArgs, tagPrefix, dsmlPending);
                             }
                         }
                     } catch (Exception ignored) {}
                 })
                 .concatWith(Flux.<String>defer(() -> {
+                    // 流结束：处理 batchBuf + dsmlPending 中残留的内容
+                    if ((batchBuf.length() > 0 || !dsmlPending[0].isEmpty())
+                            && (tcName[0] == null || tcName[0].isEmpty())) {
+                        String tail = dsmlPending[0] + tagPrefix[0] + batchBuf.toString();
+                        int idx = DsmlParser.indexOf(tail);
+                        if (idx >= 0) {
+                            String before = tail.substring(0, idx);
+                            if (!before.isEmpty()) contentBuf.append(before);
+                            DsmlParser.parse(tail.substring(idx), tcName, tcArgs);
+                        } else {
+                            contentBuf.append(tail);
+                        }
+                    }
+                    // 兜底：从完整 content 搜未处理的 DSML
+                    if ((tcName[0] == null || tcName[0].isEmpty())) {
+                        String full = contentBuf.toString();
+                        int idx = full.indexOf("<DSML");
+                        if (idx >= 0) {
+                            DsmlParser.parse(full.substring(idx), tcName, tcArgs);
+                            contentBuf.setLength(idx);
+                        }
+                    }
+
                     // After first stream ends: check if tool was called
-                    if (tcName[0] == null) {
+                    if ((tcName[0] == null || tcName[0].isEmpty())) {
                         // No tool call — normal path, persist and done
                         String content = contentBuf.toString();
                         if (thinking && thinkingBuf != null) {
@@ -461,11 +492,59 @@ public class ChatService {
         }
         try {
             String json = CLEAN_MAPPER.writeValueAsString(body);
-            log.info("API请求: model={}, thinking={}, tools={}, body={}",
-                    model, thinking, toolRegistry.count(), json);
+            log.info("API请求: model={}, thinking={}, tools={}, msgs={}, bodyLen={}",
+                    model, thinking, toolRegistry.count(), messages.size(), json.length());
             return json;
         } catch (Exception e) {
             throw new RuntimeException("构建请求体失败", e);
+        }
+    }
+
+    /**
+     * 微批量 flush：扫描缓冲区中的 DSML 标签，只把安全的文本 emit 到前端。
+     * 标签残留跨越批次时，通过 tagPrefix 和 dsmlPending 在批次间传递。
+     */
+    private void flushBatch(StringBuilder batch, StringBuilder persistent,
+                            reactor.core.publisher.SynchronousSink<String> sink,
+                            String[] tcName, StringBuilder tcArgs,
+                            String[] tagPrefix, String[] dsmlPending) {
+        String text = dsmlPending[0] + tagPrefix[0] + batch.toString();
+        tagPrefix[0] = "";
+        dsmlPending[0] = "";
+        batch.setLength(0);
+
+        // 1. 搜 DSML 起始标记（<DSML| 或 <DSML｜）
+        int dsmlStart = DsmlParser.indexOf(text);
+        if (dsmlStart >= 0) {
+            String before = text.substring(0, dsmlStart);
+            if (!before.isEmpty()) {
+                persistent.append(before);
+                try { sink.next("{\"type\":\"content\",\"content\":"
+                        + CLEAN_MAPPER.writeValueAsString(before) + "}"); } catch (Exception ignored) {}
+            }
+            String dsml = text.substring(dsmlStart);
+            String nameBefore = tcName[0];
+            DsmlParser.parse(dsml, tcName, tcArgs);
+            // 解析失败（DSML 块不完整，跨批次了）→ 暂存，下批再试
+            if (tcName[0] == null || tcName[0].isEmpty()) {
+                dsmlPending[0] = dsml;
+                tcName[0] = nameBefore; // 恢复旧值
+                return;
+            }
+            return;
+        }
+
+        // 2. 没找到 DSML → 检查末尾是否有标签前缀残留
+        tagPrefix[0] = DsmlParser.trailingPrefix(text);
+        if (!tagPrefix[0].isEmpty()) {
+            text = text.substring(0, text.length() - tagPrefix[0].length());
+        }
+
+        // 3. emit 安全文本
+        if (!text.isEmpty()) {
+            persistent.append(text);
+            try { sink.next("{\"type\":\"content\",\"content\":"
+                    + CLEAN_MAPPER.writeValueAsString(text) + "}"); } catch (Exception ignored) {}
         }
     }
 
