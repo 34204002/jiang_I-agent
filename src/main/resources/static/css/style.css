@@ -420,6 +420,41 @@ input,textarea { font:inherit;color:inherit }
 .input-footnote {
   font-size:11px;color:var(--text-tertiary);text-align:center;
   margin-top:8px;user-select:none;font-weight:500;
+  transition:color .3s;
+}
+.input-footnote.working {
+  color:var(--accent);font-weight:600;
+}
+
+/* ---- Pulse dots for streaming indicator ---- */
+.dot-pulse { display:inline-flex;align-items:center;gap:3px;vertical-align:middle }
+.dot-pulse span {
+  width:5px;height:5px;border-radius:50%;background:var(--accent-light);
+  animation:dotPulse 1.4s ease-in-out infinite;
+}
+.dot-pulse span:nth-child(2) { animation-delay:.2s }
+.dot-pulse span:nth-child(3) { animation-delay:.4s }
+@keyframes dotPulse {
+  0%,80%,100% { transform:scale(.6);opacity:.4 }
+  40% { transform:scale(1);opacity:1 }
+}
+
+/* ---- Tool call status in thinking block ---- */
+.tc-status {
+  padding:6px 14px;font-size:12px;font-weight:600;
+  color:var(--lavender);display:flex;align-items:center;gap:6px;
+}
+.tc-status .tc-spinner {
+  width:14px;height:14px;border:2px solid rgba(139,92,246,.2);
+  border-top-color:var(--lavender);border-radius:50%;
+  animation:spin .6s linear infinite;
+  flex-shrink:0;
+}
+
+/* ---- SVG icon base ---- */
+.icon-svg {
+  width:1em;height:1em;display:inline-block;vertical-align:-.15em;
+  flex-shrink:0;
 }
 
 /* ===== Toast ===== */

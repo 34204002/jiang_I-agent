@@ -7,6 +7,26 @@ if (!TOKEN || !USER) {
 }
 
 // =========================================================================
+// SVG Icons — 替代 emoji，笔画统一 1.5px，24×24 viewBox
+// =========================================================================
+var I = {
+  brain: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.5 2C6.5 2 4 4.5 4 7.5c0 1.8.7 3.4 1.8 4.5H8l1 3h2v3h2v-3h2l1-3h2.2c1.1-1.1 1.8-2.7 1.8-4.5C20 4.5 17.5 2 14.5 2c-1.3 0-2.5.5-3.3 1.3L12 4l-.7-.7C10.5 2.5 9.3 2 8 2h1.5z"/></svg>',
+  zap:   '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+  tool:  '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+  book:  '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  graph: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><circle cx="5" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="8.5" y1="7" x2="9.5" y2="9.5"/></svg>',
+  plus:  '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  upload:'<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+  check: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="20 6 9 17 4 12"/></svg>',
+  trash: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  search:'<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  clock: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  globe: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+  file:  '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>',
+  edit:  '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+};
+
+// =========================================================================
 // State
 // =========================================================================
 const S = {
@@ -15,7 +35,8 @@ const S = {
   streaming: false,
   activeTab: 'chat',
   convos: [],
-  thinking: false,  // 思考模式开关
+  thinking: false,
+  toolRunning: null,  // 当前正在执行的工具名
 };
 
 // =========================================================================
@@ -82,10 +103,10 @@ function showWelcome() {
       '<h2>Jiang I-Agent</h2>' +
       '<p>你的个人 AI 知识库助手。支持文档问答、代码答疑、知识图谱检索，具备工具调用与待办管理能力。</p>' +
       '<div class="welcome-cards">' +
-        '<button class="welcome-card" onclick="sendHint(\'帮我记一下明天下午3点面试\')">📋 新建待办</button>' +
-        '<button class="welcome-card" onclick="sendHint(\'用Java写一个快速排序\')">💻 代码问答</button>' +
-        '<button class="welcome-card" onclick="sendHint(\'解释一下 RAG 检索增强生成的原理\')">📚 知识检索</button>' +
-        '<button class="welcome-card" onclick="sendHint(\'什么是Java中的CompletableFuture\')">☕ 八股答疑</button>' +
+        '<button class="welcome-card" onclick="sendHint(\'帮我记一下明天下午3点面试\')">' + I.check + ' 新建待办</button>' +
+        '<button class="welcome-card" onclick="sendHint(\'用Java写一个快速排序\')"><svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> 代码问答</button>' +
+        '<button class="welcome-card" onclick="sendHint(\'解释一下 RAG 检索增强生成的原理\')">' + I.book + ' 知识检索</button>' +
+        '<button class="welcome-card" onclick="sendHint(\'什么是Java中的CompletableFuture\')">' + I.clock + ' 八股答疑</button>' +
       '</div>' +
     '</div>';
 }
@@ -246,10 +267,45 @@ function toggleThinking() {
   var foot = $('#inputFootnote');
   if (S.thinking) {
     btn.classList.add('active');
-    foot.textContent = '思考模式 · DeepSeek 展示推理过程';
+    foot.textContent = '思考模式 · 展示推理过程';
   } else {
-    btn.classList.remove('active');
     foot.textContent = 'Jiang I-Agent · 响应可能调用工具';
+  }
+}
+
+/** 更新输入区状态指示器 */
+function setStatus(state, toolName) {
+  var foot = $('#inputFootnote');
+  if (!foot) return;
+  foot.classList.remove('working');
+  if (state === 'streaming') {
+    foot.classList.add('working');
+    foot.innerHTML = '<span class="dot-pulse"><span></span><span></span><span></span></span> AI 正在生成...';
+  } else {
+    if (S.thinking) {
+      foot.textContent = '思考模式 · 展示推理过程';
+    } else {
+      foot.textContent = 'Jiang I-Agent · 响应可能调用工具';
+    }
+  }
+  // 思考/工具状态直接更新思考块内部，不通过 footnote
+  if (state === 'thinking') updateThinkBlock('thinking');
+  if (state === 'tool') updateThinkBlock('tool', toolName);
+}
+
+/** 更新思考块内部状态 */
+function updateThinkBlock(mode, toolName) {
+  var tBlock = document.getElementById('thinkingBlock');
+  if (!tBlock) return;
+  tBlock.style.display = '';
+  var tHeader = tBlock.querySelector('.thinking-header');
+  var tBody = tBlock.querySelector('.thinking-body');
+  if (mode === 'thinking') {
+    if (tHeader) tHeader.innerHTML = '<span class="dot-pulse"><span></span><span></span><span></span></span> 思考中…';
+    if (tBody) tBody.textContent = '';
+  } else if (mode === 'tool') {
+    if (tHeader) tHeader.innerHTML = '<span class="tc-spinner"></span> 正在调用: ' + escHtml(toolName || '工具');
+    if (tBody) { var cur = tBody.textContent || ''; if (cur) tBody.textContent = cur; else tBody.textContent = '执行中…'; }
   }
 }
 
@@ -263,25 +319,34 @@ function onSend() {
   dom.msgInput.value = '';
   dom.msgInput.style.height = 'auto';
 
+  // 如果上一条的打字机还在跑，强行收尾（防止旧定时器往新 bubble 写内容）
+  if (window._typeTimer) {
+    clearInterval(window._typeTimer);
+    window._typeTimer = null;
+  }
+  var oldBubble = document.getElementById('streamBubble');
+  if (oldBubble) {
+    oldBubble.innerHTML = ''; // 清空残留文本
+    oldBubble.removeAttribute('id');
+  }
+  var oldThinking = document.getElementById('thinkingBlock');
+  if (oldThinking) oldThinking.removeAttribute('id');
+
   var w = $('#welcome');
   if (w) w.remove();
 
   appendMsg('user', text);
   S.messages.push({ role:'user', content:text });
 
-  // 清理上一条消息遗留的 streaming 元素 id，避免串到旧气泡
-  var oldBubble = document.getElementById('streamBubble');
-  if (oldBubble) oldBubble.removeAttribute('id');
-  var oldThinking = document.getElementById('thinkingBlock');
-  if (oldThinking) oldThinking.removeAttribute('id');
-
   var isThinking = S.thinking;
   appendStreamingMsg(isThinking);
 
   S.streaming = true;
+  S.toolRunning = null;
   dom.sendBtn.disabled = true;
   dom.msgInput.disabled = true;
   dom.msgInput.placeholder = isThinking ? 'AI 正在思考…' : 'AI 正在生成…';
+  setStatus(isThinking ? 'thinking' : 'streaming');
 
   var fullContent = '';
   var fullThinking = '';
@@ -333,9 +398,12 @@ function onSend() {
   function finalizeAnswer() {
     clearInterval(window._typeTimer);
     window._typeTimer = null;
+    S.toolRunning = null;
+    setStatus('idle');
 
     var bubble = document.getElementById('streamBubble');
     if (bubble && fullContent) {
+      // 切除 fullContent 末尾可能残留的 DSML 或空 thinking 引用
       bubble.innerHTML = renderMarkdown(fullContent);
       bubble.removeAttribute('id');
     }
@@ -379,10 +447,8 @@ function onSend() {
         ensureTyping();
         return;
       } else if (evt.type === 'tool_call') {
-        // 工具调用指示器
-        var tcNote = '\n\n🔧 调用工具: ' + escHtml(evt.name) + '\n';
-        fullContent += tcNote;
-        ensureTyping();
+        S.toolRunning = evt.name;
+        setStatus('tool', evt.name);
         return;
       }
       // 未知 JSON 类型，忽略
@@ -398,6 +464,8 @@ function onSend() {
     es.close();
     window._activeES = null;
     S.streaming = false;
+    S.toolRunning = null;
+    setStatus('idle');
 
     dom.sendBtn.disabled = false;
     dom.msgInput.disabled = false;
@@ -468,7 +536,7 @@ function appendStreamingMsg(withThinking) {
   if (withThinking) {
     thinkingHTML =
       '<div class="thinking-block" id="thinkingBlock" style="display:none">' +
-        '<div class="thinking-header">🧠 思考中…</div>' +
+        '<div class="thinking-header"><span class="dot-pulse"><span></span><span></span><span></span></span> 思考中…</div>' +
         '<div class="thinking-body" id="thinkingBody"></div>' +
       '</div>';
   }
@@ -585,395 +653,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // =========================================================================
-// Knowledge Base
-// =========================================================================
-
-var K = {
-  docs: [],
-  searching: false
-};
-
-function showKnowledgeBase() {
-  var html =
-    '<div class="kbase-panel">' +
-      // Toolbar: search + upload
-      '<div class="kbase-toolbar">' +
-        '<input class="kbase-search-input" id="kbaseSearchInput" type="text" ' +
-          'placeholder="输入问题搜索知识库… (Enter 搜索)" ' +
-          'onkeydown="if(event.key===\'Enter\')searchKnowledge()">' +
-        '<button class="kbase-search-btn" onclick="searchKnowledge()">搜索</button>' +
-        '<button class="kbase-upload-btn" onclick="document.getElementById(\'kbaseFileInput\').click()">' +
-          '📄 上传文档</button>' +
-        '<input type="file" id="kbaseFileInput" style="display:none" multiple ' +
-          'accept=".pdf,.md,.txt,.docx" onchange="uploadDocuments(this.files)">' +
-      '</div>' +
-      // Search result area
-      '<div id="kbaseSearchResult" style="display:none">' +
-        '<div class="kbase-search-answer" id="kbaseAnswer"></div>' +
-        '<div class="kbase-sources" id="kbaseSources">' +
-          '<div class="kbase-sources-label">📖 参考来源</div>' +
-          '<div id="kbaseSourcesList"></div>' +
-        '</div>' +
-      '</div>' +
-      // Document list
-      '<div class="doc-list" id="docList"></div>' +
-    '</div>';
-
-  dom.chatBody.innerHTML = html;
-  loadDocuments();
-}
-
-/** Fetch and render document list */
-function loadDocuments() {
-  var list = document.getElementById('docList');
-  if (!list) return;
-  list.innerHTML = '<div class="kbase-loading"><span class="spinner"></span>加载中…</div>';
-
-  fetch('/api/knowledge/documents?page=1&size=50', authHeaders())
-    .then(function(r) { return r.json(); })
-    .then(function(json) {
-      if (json.code !== 200) { list.innerHTML = '<div class="kbase-empty"><div class="kbase-empty-icon">❌</div><div class="kbase-empty-text">加载失败</div></div>'; return; }
-      K.docs = json.data.records || [];
-      renderDocumentList();
-    })
-    .catch(function() {
-      list.innerHTML = '<div class="kbase-empty"><div class="kbase-empty-icon">❌</div><div class="kbase-empty-text">网络错误</div></div>';
-    });
-}
-
-function renderDocumentList() {
-  var list = document.getElementById('docList');
-  if (!list) return;
-
-  if (K.docs.length === 0) {
-    list.innerHTML =
-      '<div class="kbase-empty">' +
-        '<div class="kbase-empty-icon">📂</div>' +
-        '<div class="kbase-empty-text">还没有上传文档</div>' +
-        '<span style="font-size:12px;color:var(--text-tertiary)">点击"上传文档"添加 PDF/MD/TXT/DOCX</span>' +
-      '</div>';
-    return;
-  }
-
-  var html = '';
-  for (var i = 0; i < K.docs.length; i++) {
-    var doc = K.docs[i];
-    var icon = {'pdf':'📕','md':'📝','txt':'📄','docx':'📘'}[doc.fileType] || '📎';
-    var statusLabel = {0:'⏳ 待处理',1:'📋 已解析',2:'✅ 已向量化'}[doc.status] || '未知';
-    var statusClass = {0:'pending',1:'parsed',2:'vectorized'}[doc.status] || 'pending';
-    var sizeStr = doc.fileSize < 1024 ? doc.fileSize + 'B'
-                : doc.fileSize < 1048576 ? (doc.fileSize / 1024).toFixed(1) + 'KB'
-                : (doc.fileSize / 1048576).toFixed(1) + 'MB';
-
-    html +=
-      '<div class="doc-card">' +
-        '<div class="doc-card-icon">' + icon + '</div>' +
-        '<div class="doc-card-info">' +
-          '<div class="doc-card-name" title="' + escAttr(doc.filename) + '">' + escHtml(doc.filename) + '</div>' +
-          '<div class="doc-card-meta">' +
-            '<span>' + sizeStr + '</span>' +
-            '<span>' + (doc.chunkCount || 0) + ' 分片</span>' +
-            '<span class="doc-status ' + statusClass + '">' + statusLabel + '</span>' +
-          '</div>' +
-        '</div>' +
-        (doc.downloadUrl ?
-          '<a class="doc-card-del" title="下载" href="' + escAttr(doc.downloadUrl) + '" download style="text-decoration:none">📥</a>' : '') +
-        '<button class="doc-card-del" title="删除" onclick="deleteDocument(' + doc.id + ',\'' + escAttr(doc.filename) + '\')">🗑</button>' +
-      '</div>';
-  }
-  list.innerHTML = html;
-}
-
-/** Upload one or more documents */
-function uploadDocuments(files) {
-  if (!files || files.length === 0) return;
-
-  // Validate all files first
-  for (var i = 0; i < files.length; i++) {
-    var ext = files[i].name.split('.').pop().toLowerCase();
-    if (['pdf','md','txt','docx'].indexOf(ext) === -1) {
-      showToast('不支持的文件类型: ' + ext + ' (文件: ' + files[i].name + ')', 'error');
-      document.getElementById('kbaseFileInput').value = '';
-      return;
-    }
-    if (files[i].size > 20 * 1024 * 1024) {
-      showToast('文件大小不能超过 20MB: ' + files[i].name, 'error');
-      document.getElementById('kbaseFileInput').value = '';
-      return;
-    }
-  }
-
-  // Show uploading state
-  var list = document.getElementById('docList');
-  if (list) {
-    list.innerHTML = '<div class="kbase-loading"><span class="spinner"></span>正在解析 ' + files.length + ' 个文档…</div>';
-  }
-
-  var form = new FormData();
-  for (var i = 0; i < files.length; i++) {
-    form.append('files', files[i]);
-  }
-
-  fetch('/api/knowledge/documents/batch', authHeaders({ method:'POST', body:form }))
-    .then(function(r) { return r.json(); })
-    .then(function(json) {
-      if (json.code === 200) {
-        var results = json.data || [];
-        var ok = results.filter(function(r) { return r.status === 1 || r.status === 2; }).length;
-        var fail = results.filter(function(r) { return r.status === 0; }).length;
-        if (fail > 0) {
-          showToast('上传完成: ' + ok + ' 成功, ' + fail + ' 失败', 'error');
-        } else {
-          showToast('上传完成: ' + ok + ' 个文档', 'ok');
-        }
-        loadDocuments();
-        var sr = document.getElementById('kbaseSearchResult');
-        if (sr) sr.style.display = 'none';
-      } else {
-        showToast(json.message || '上传失败', 'error');
-        loadDocuments();
-      }
-    })
-    .catch(function() {
-      showToast('上传失败', 'error');
-      loadDocuments();
-    });
-
-  document.getElementById('kbaseFileInput').value = '';
-}
-
-/** Delete document */
-function deleteDocument(id, filename) {
-  if (!confirm('确定删除「' + filename + '」吗？\n\n该操作将同时删除所有分片和向量数据，不可恢复。')) return;
-
-  fetch('/api/knowledge/documents/' + id, authHeaders({ method:'DELETE' }))
-    .then(function(r) { return r.json(); })
-    .then(function(json) {
-      if (json.code === 200) {
-        showToast('已删除: ' + filename, 'ok');
-        K.docs = K.docs.filter(function(d) { return d.id !== id; });
-        renderDocumentList();
-        // Reset search
-        var sr = document.getElementById('kbaseSearchResult');
-        if (sr) sr.style.display = 'none';
-      } else {
-        showToast(json.message || '删除失败', 'error');
-      }
-    })
-    .catch(function() {
-      showToast('删除失败', 'error');
-    });
-}
-
-/** Semantic search */
-function searchKnowledge() {
-  var input = document.getElementById('kbaseSearchInput');
-  if (!input) return;
-  var query = input.value.trim();
-  if (!query) { showToast('请输入搜索内容', 'error'); return; }
-  if (K.searching) return;
-
-  K.searching = true;
-  var answerEl = document.getElementById('kbaseAnswer');
-  var resultWrap = document.getElementById('kbaseSearchResult');
-  if (answerEl) answerEl.innerHTML = '<div class="kbase-loading"><span class="spinner"></span>正在检索知识库…</div>';
-  if (resultWrap) resultWrap.style.display = '';
-
-  fetch('/api/knowledge/search', authHeaders({
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ query:query, topK:5 })
-  }))
-    .then(function(r) { return r.json(); })
-    .then(function(json) {
-      K.searching = false;
-      if (json.code !== 200) {
-        if (answerEl) answerEl.textContent = '❌ 检索失败: ' + (json.message || '未知错误');
-        return;
-      }
-      renderSearchResult(json.data);
-    })
-    .catch(function() {
-      K.searching = false;
-      if (answerEl) answerEl.textContent = '❌ 网络错误，请重试';
-    });
-}
-
-function renderSearchResult(data) {
-  var answerEl = document.getElementById('kbaseAnswer');
-  var sourcesList = document.getElementById('kbaseSourcesList');
-  var sourcesWrap = document.getElementById('kbaseSources');
-
-  // Render answer (plain text — could be markdown but keep simple for now)
-  if (answerEl) {
-    answerEl.innerHTML = data.answer
-      ? data.answer.replace(/\n/g, '<br>')
-      : '<span style="color:var(--text-tertiary)">知识库中未找到相关内容</span>';
-  }
-
-  // Render sources
-  if (sourcesList && data.sources && data.sources.length > 0) {
-    var html = '';
-    for (var i = 0; i < data.sources.length; i++) {
-      var s = data.sources[i];
-      html +=
-        '<div class="source-card">' +
-          '<div class="source-card-header">' +
-            '<span>' + escHtml(s.filename || '未知文档') + '</span>' +
-            '<span style="color:var(--text-tertiary);font-size:11px">分片 #' + (s.chunkIndex != null ? s.chunkIndex + 1 : '?') + '</span>' +
-            '<span class="source-card-score">' + (s.score * 100).toFixed(0) + '%</span>' +
-          '</div>' +
-          '<div>' + escHtml((s.content || '').substring(0, 300)) + (s.content && s.content.length > 300 ? '…' : '') + '</div>' +
-        '</div>';
-    }
-    sourcesList.innerHTML = html;
-    if (sourcesWrap) sourcesWrap.style.display = '';
-  } else if (sourcesWrap) {
-    sourcesWrap.style.display = 'none';
-  }
-}
-
-// =========================================================================
-// Tools & Todo Panel
-// =========================================================================
-
-function showToolsPanel() {
-  var html =
-    '<div class="kbase-panel">' +
-      // Todo Input
-      '<div class="kbase-toolbar">' +
-        '<input class="kbase-search-input" id="todoInput" type="text" ' +
-          'placeholder="添加待办… (Enter 创建)" ' +
-          'onkeydown="if(event.key===\'Enter\')createTodoItem()">' +
-        '<button class="kbase-search-btn" onclick="createTodoItem()">添加</button>' +
-      '</div>' +
-      // Todo List
-      '<div style="display:flex;gap:16px;flex:1;min-height:0">' +
-        // Pending
-        '<div style="flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto">' +
-          '<div style="font-size:13px;font-weight:700;color:var(--text-secondary);padding:4px 0">📋 未完成</div>' +
-          '<div id="todoPendingList" class="doc-list" style="flex:1"></div>' +
-        '</div>' +
-        // Done
-        '<div style="flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto">' +
-          '<div style="font-size:13px;font-weight:700;color:var(--text-secondary);padding:4px 0">✅ 已完成</div>' +
-          '<div id="todoDoneList" class="doc-list" style="flex:1"></div>' +
-        '</div>' +
-      '</div>' +
-      // Available Tools
-      '<div id="toolsList" style="margin-top:4px"></div>' +
-    '</div>';
-
-  dom.chatBody.innerHTML = html;
-  loadTodoList();
-  loadTools();
-}
-
-function loadTodoList() {
-  fetch('/api/todos', authHeaders())
-    .then(function(r) { return r.json(); })
-    .then(function(json) {
-      if (json.code !== 200) return;
-      var todos = json.data || [];
-      var pending = todos.filter(function(t) { return t.isDone === 0; });
-      var done = todos.filter(function(t) { return t.isDone === 1; });
-
-      var pHtml = '';
-      for (var i = 0; i < pending.length; i++) {
-        pHtml += renderTodoCard(pending[i]);
-      }
-      if (pending.length === 0) {
-        pHtml = '<div style="padding:28px;text-align:center;color:var(--text-tertiary);font-size:13px">暂无待办</div>';
-      }
-      document.getElementById('todoPendingList').innerHTML = pHtml;
-
-      var dHtml = '';
-      for (var i = 0; i < done.length; i++) {
-        dHtml += renderTodoCard(done[i]);
-      }
-      if (done.length === 0) {
-        dHtml = '<div style="padding:28px;text-align:center;color:var(--text-tertiary);font-size:13px">暂无已完成</div>';
-      }
-      document.getElementById('todoDoneList').innerHTML = dHtml;
-    });
-}
-
-function renderTodoCard(item) {
-  var dueHtml = item.dueDate
-    ? '<span style="font-size:11px;color:var(--text-tertiary)">截止: ' + item.dueDate + '</span>'
-    : '';
-  var doneClass = item.isDone === 1 ? 'todo-done' : '';
-  return '<div class="doc-card ' + doneClass + '" style="padding:10px 14px">' +
-    (item.isDone === 1
-      ? '<button class="doc-card-del" title="还原" onclick="toggleTodoItem(' + item.id + ',false)" style="font-size:14px">↩</button>'
-      : '<button class="doc-card-del" title="完成" onclick="toggleTodoItem(' + item.id + ',true)" style="font-size:14px">✓</button>' ) +
-    '<div class="doc-card-info" style="flex:1">' +
-      '<div class="doc-card-name" style="font-size:14px">' + escHtml(item.title) + '</div>' +
-      '<div class="doc-card-meta">' +
-        '<span>' + new Date(item.createdAt).toLocaleDateString('zh-CN') + '</span>' +
-        dueHtml +
-      '</div>' +
-    '</div>' +
-    '<button class="doc-card-del" title="删除" onclick="deleteTodoItem(' + item.id + ')">🗑</button>' +
-  '</div>';
-}
-
-function createTodoItem() {
-  var input = document.getElementById('todoInput');
-  if (!input) return;
-  var title = input.value.trim();
-  if (!title) return;
-
-  fetch('/api/todos', authHeaders({
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ title:title })
-  }))
-    .then(function(r) { return r.json(); })
-    .then(function(json) {
-      if (json.code === 200) {
-        input.value = '';
-        input.placeholder = '已添加: ' + title;
-        setTimeout(function() { input.placeholder = '添加待办… (Enter 创建)'; }, 2000);
-        loadTodoList();
-      } else {
-        showToast('添加失败: ' + (json.message || ''), 'error');
-      }
-    });
-}
-
-function toggleTodoItem(id, done) {
-  var url = '/api/todos/' + id + (done ? '/complete' : '/uncomplete');
-  // uncomplete not implemented, use complete endpoint
-  fetch('/api/todos/' + id + '/complete', authHeaders({ method:'PUT' }))
-    .then(function(r) { return r.json(); })
-    .then(function() { loadTodoList(); });
-}
-
-function deleteTodoItem(id) {
-  fetch('/api/todos/' + id, authHeaders({ method:'DELETE' }))
-    .then(function(r) { return r.json(); })
-    .then(function() { loadTodoList(); });
-}
-
-function loadTools() {
-  fetch('/api/tools', authHeaders())
-    .then(function(r) { return r.json(); })
-    .then(function(json) {
-      if (json.code !== 200) return;
-      var tools = json.data || [];
-      var el = document.getElementById('toolsList');
-      if (!el || tools.length === 0) return;
-      var html = '<div style="font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:8px">🔧 可用工具 (' + tools.length + ')</div>';
-      for (var i = 0; i < tools.length; i++) {
-        html += '<div class="doc-card" style="padding:10px 14px;margin-bottom:6px">' +
-          '<div class="doc-card-icon" style="font-size:16px">🔧</div>' +
-          '<div class="doc-card-info">' +
-            '<div style="font-size:14px;font-weight:700">' + escHtml(tools[i].name) + '</div>' +
-            '<div style="font-size:12px;color:var(--text-tertiary)">' + escHtml(tools[i].description) + '</div>' +
-          '</div>' +
-        '</div>';
-      }
-      el.innerHTML = html;
-    });
-}
