@@ -74,7 +74,13 @@ public class ToolRegistry {
             func.put("name", def.name());
             func.put("description", def.description());
             try {
-                func.put("parameters", objectMapper.readTree(def.paramsJson()));
+                JsonNode params = objectMapper.readTree(def.paramsJson());
+                // DeepSeek 要求 schema 必须含 type:object
+                if (!params.has("type")) {
+                    params = objectMapper.readTree(
+                            "{\"type\":\"object\",\"properties\":" + params.toString() + "}");
+                }
+                func.put("parameters", params);
             } catch (JsonProcessingException e) {
                 log.warn("工具 {} 的 params JSON 解析失败，跳过", def.name(), e);
                 continue;
