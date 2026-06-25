@@ -26,4 +26,6 @@ public class DocumentVO {
     private String summary;
     /** 上传时间 */
     private LocalDateTime uploadedAt;
+    /** 下载链接（OSS 公网地址） */
+    private String downloadUrl;
 }

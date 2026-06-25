@@ -89,6 +89,7 @@ CREATE TABLE t_document (
     chunk_count  INT UNSIGNED    NOT NULL DEFAULT 0        COMMENT '分片数',
     status       TINYINT         NOT NULL DEFAULT 0        COMMENT '0-待处理 1-已解析 2-已向量化',
     summary      VARCHAR(500)    NOT NULL DEFAULT ''       COMMENT 'LLM 摘要',
+    oss_key      VARCHAR(200)    NOT NULL DEFAULT ''       COMMENT 'OSS 存储 key',
     uploaded_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY   uk_content_hash (content_hash),
     INDEX        idx_status (status)

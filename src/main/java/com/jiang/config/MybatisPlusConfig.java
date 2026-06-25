@@ -33,6 +33,7 @@ public class MybatisPlusConfig {
                 LocalDateTime now = LocalDateTime.now();
                 this.strictInsertFill(metaObject, "createdAt", LocalDateTime.class, now);
                 this.strictInsertFill(metaObject, "updatedAt", LocalDateTime.class, now);
+                this.strictInsertFill(metaObject, "uploadedAt", LocalDateTime.class, now);
             }
 
             @Override

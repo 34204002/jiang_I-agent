@@ -12,6 +12,10 @@ spring:
     name: jiang_I-agent
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 120MB
 
   # ==================== MySQL ====================
   datasource:
@@ -44,7 +48,7 @@ spring:
         model: ${AI_MODEL}
         temperature: ${AI_TEMPERATURE:0.7}
       embedding:
-        model: ${AI_EMBEDDING_MODEL:text-embedding-3-small}
+        model: ${AI_EMBEDDING_MODEL:BAAI/bge-m3}
 
     vectorstore:
       qdrant:

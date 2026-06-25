@@ -138,15 +138,14 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- 文档解析 (PDF/MD/TXT/DOCX) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-tika-document-reader</artifactId>
+        </dependency>
     </dependencies>
 
-    <!--
-    ========== 后续按需扩展 ==========
-    spring-boot-starter-amqp                                       → 异步文档解析
-    redisson-spring-boot-starter                                   → 分布式锁/令牌桶限流
-    spring-ai-tika-document-reader                                 → 文档解析 (PDF/MD/TXT)
-    knife4j-openapi3-jakarta-spring-boot-starter                   → API 文档
-    -->
+    <!-- 后续按需扩展: amqp / redisson / knife4j -->
 
     <build>
         <plugins>

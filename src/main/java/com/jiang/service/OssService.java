@@ -24,30 +24,37 @@ public class OssService {
 
     /** 头像目录 */
     private static final String AVATAR_DIR = "avatars/";
+    /** 知识库文档目录 */
+    private static final String KNOWLEDGE_DIR = "knowledge/";
 
     /**
      * 上传头像，返回公网访问 URL。
-     * 新头像会覆盖旧头像（同 conversation 维度暂不做，每次上传生成新文件名，旧文件异步删除）。
      */
     public String uploadAvatar(MultipartFile file) throws IOException {
+        return uploadToDir(AVATAR_DIR, file);
+    }
+
+    /**
+     * 上传知识库文档原始文件，返回 OSS key。
+     */
+    public String uploadKnowledgeFile(MultipartFile file) throws IOException {
+        return uploadToDir(KNOWLEDGE_DIR, file);
+    }
+
+    private String uploadToDir(String dir, MultipartFile file) throws IOException {
         String originalName = file.getOriginalFilename();
         String suffix = originalName != null && originalName.contains(".")
                 ? originalName.substring(originalName.lastIndexOf("."))
-                : ".png";
-        String key = AVATAR_DIR + "avatar-" + UUID.randomUUID().toString().substring(0, 8) + suffix;
+                : "";
+        String key = dir + UUID.randomUUID().toString().substring(0, 8) + suffix;
 
         PutObjectRequest putRequest = new PutObjectRequest(
                 ossConfig.getBucketName(), key,
                 file.getInputStream(), null);
         ossClient.putObject(putRequest);
 
-        // 拼接公网 URL: https://<bucket>.<endpoint>/<key>
-        String url = "https://" + ossConfig.getBucketName() + "."
-                + ossConfig.getEndpoint().replace("https://", "").replace("http://", "")
-                + "/" + key;
-
-        log.info("头像已上传到 OSS: {}", url);
-        return url;
+        log.info("OSS 上传成功: {}", key);
+        return key;
     }
 
     /**
@@ -56,5 +63,15 @@ public class OssService {
     public void delete(String key) {
         ossClient.deleteObject(ossConfig.getBucketName(), key);
         log.info("OSS 文件已删除: {}", key);
+    }
+
+    /**
+     * 返回 OSS 文件的公网访问地址。
+     */
+    public String getPublicUrl(String key) {
+        if (key == null || key.isEmpty()) return "";
+        return "https://" + ossConfig.getBucketName() + "."
+                + ossConfig.getEndpoint().replace("https://", "").replace("http://", "")
+                + "/" + key;
     }
 }
