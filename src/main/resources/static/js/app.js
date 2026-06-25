@@ -354,7 +354,7 @@ function onSend() {
   var displayedIdx = 0;
   var displayedThinkingIdx = 0;
   window._typeTimer = null;
-  var TYPE_MS = 22;
+  var TYPE_MS = 14;
 
   var url = '/api/chat/stream?message=' + encodeURIComponent(text)
     + '&token=' + encodeURIComponent(TOKEN);
@@ -370,7 +370,7 @@ function onSend() {
     // 先打思考内容
     if (displayedThinkingIdx < fullThinking.length) {
       var backlog = fullThinking.length - displayedThinkingIdx;
-      var step = backlog > 200 ? 12 : backlog > 80 ? 6 : backlog > 30 ? 2 : 1;
+      var step = backlog > 300 ? 24 : backlog > 120 ? 14 : backlog > 50 ? 6 : 3;
       displayedThinkingIdx = Math.min(displayedThinkingIdx + step, fullThinking.length);
       var tBody = document.getElementById('thinkingBody');
       if (tBody) {
@@ -383,7 +383,7 @@ function onSend() {
     // 思考打完，打正文（比思考快一档）
     if (displayedIdx < fullContent.length) {
       var backlogC = fullContent.length - displayedIdx;
-      var stepC = backlogC > 200 ? 16 : backlogC > 80 ? 9 : backlogC > 30 ? 4 : 2;
+      var stepC = backlogC > 300 ? 30 : backlogC > 120 ? 18 : backlogC > 50 ? 8 : 4;
       displayedIdx = Math.min(displayedIdx + stepC, fullContent.length);
       var el = document.getElementById('streamBubble');
       if (el) {
@@ -403,10 +403,11 @@ function onSend() {
 
     var bubble = document.getElementById('streamBubble');
     if (bubble && fullContent) {
-      // 切除 fullContent 末尾可能残留的 DSML 或空 thinking 引用
       bubble.innerHTML = renderMarkdown(fullContent);
       bubble.removeAttribute('id');
     }
+    var tBlock = document.getElementById('thinkingBlock');
+    if (tBlock) tBlock.removeAttribute('id');
 
     var saveContent = fullThinking
       ? '<thinking>' + fullThinking + '</thinking>\n' + fullContent
