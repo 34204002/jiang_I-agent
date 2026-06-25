@@ -9,11 +9,11 @@ import org.springframework.core.io.Resource;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 系统提示词配置——从 {@code prompts/system.md} 加载默认提示词。
+ * 系统提示词配置 — 从 {@code prompts/system.md} 加载默认提示词。
  */
 @Slf4j
 @Configuration
-public class ChatClientConfig {
+public class PromptConfig {
 
     @Value("classpath:prompts/system.md")
     private Resource systemPromptResource;

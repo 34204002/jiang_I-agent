@@ -1,4 +1,4 @@
-package com.jiang.config;
+package com.jiang.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;

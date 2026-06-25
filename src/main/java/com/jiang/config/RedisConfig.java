@@ -1,6 +1,7 @@
 package com.jiang.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jiang.service.RedisChatMemory;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
