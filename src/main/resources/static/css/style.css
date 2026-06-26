@@ -40,6 +40,12 @@
   --radius-lg:      18px;
   --radius-full:    9999px;
 
+  /* Graph — additional surfaces & radii */
+  --bg-card:        #FFFFFF;
+  --bg-tertiary:    #F3F4F6;
+  --r-md:           12px;
+  --r-lg:           16px;
+
   /* Shadows — skill: softer multi-layer (0 2px 4px) */
   --shadow-xs:      0 1px 2px rgba(30,41,59,.04);
   --shadow-sm:      0 2px 4px rgba(30,41,59,.06);
@@ -651,6 +657,43 @@ input,textarea { font:inherit;color:inherit }
   border-top-color:var(--accent);border-radius:50%;
   animation:spin .6s linear infinite;
 }
+
+/* ---- Graph (Phase 3: Neo4j) ---- */
+.graph-concept-card { cursor:pointer }
+.graph-concept-card:hover { border-color:var(--accent);box-shadow:0 4px 12px rgba(0,0,0,.06) }
+.graph-cat-tag { font-size:11px;padding:1px 8px;border-radius:99px;background:var(--accent-light,#ede9fe);color:var(--accent,#7c3aed);margin-left:8px;font-weight:600;vertical-align:middle }
+.graph-stars { color:#f59e0b;font-size:12px;letter-spacing:1px }
+
+/* Concept detail modal */
+.graph-modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1000;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease }
+.graph-modal { background:var(--bg-card,#fff);border-radius:var(--r-lg,16px);max-width:560px;width:90vw;max-height:80vh;overflow-y:auto;padding:28px;position:relative;animation:scaleIn .2s ease }
+.graph-modal-close { position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;border:none;background:var(--bg-tertiary,#f3f4f6);color:var(--text-secondary,#6b7280);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px }
+.graph-modal-header { display:flex;gap:14px;align-items:center;margin-bottom:18px }
+.graph-modal-icon { font-size:36px }
+.graph-modal-header h2 { font-size:20px;font-weight:700;margin:0;color:var(--text-primary) }
+.graph-modal-body { display:flex;flex-direction:column;gap:16px }
+.graph-section { display:flex;flex-wrap:wrap;gap:6px;align-items:center }
+.graph-section-title { font-size:12px;font-weight:700;color:var(--text-secondary,#6b7280);text-transform:uppercase;letter-spacing:.5px;width:100% }
+.graph-ref-chip { padding:4px 12px;border-radius:99px;background:var(--bg-tertiary,#f3f4f6);font-size:13px;cursor:pointer;transition:all .15s }
+.graph-ref-chip:hover { transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.1) }
+
+/* Path chain */
+.graph-path-chain { display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:12px 16px;background:var(--bg-card,#fff);border-radius:var(--r-md,12px);margin-bottom:8px;font-size:13px }
+.graph-path-arrow { color:var(--accent,#7c3aed);font-weight:700;margin:0 2px }
+.graph-path-node { padding:3px 10px;background:var(--accent-light,#ede9fe);color:var(--accent,#7c3aed);border-radius:99px;font-weight:600 }
+
+/* Pager */
+.graph-page-active { background:var(--accent,#7c3aed)!important;color:#fff!important }
+
+/* ---- Batch Delete ---- */
+.batch-bar { display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--accent-subtle);border-radius:var(--radius-sm);margin-bottom:6px;font-size:12px }
+.batch-check-all { display:flex;align-items:center;gap:4px;flex:1;cursor:pointer;font-weight:600;color:var(--text-secondary) }
+.batch-del-btn { padding:4px 10px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent-subtle);color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap }
+.batch-del-btn:disabled { opacity:.4;cursor:default }
+.batch-del-btn:not(:disabled):hover { background:var(--accent);color:#fff }
+.batch-cancel-btn { padding:4px 10px;border-radius:var(--radius-sm);border:none;background:transparent;color:var(--text-tertiary);font-size:11px;cursor:pointer }
+.batch-cancel-btn:hover { color:var(--text-primary) }
+.batch-cb { width:15px;height:15px;accent-color:var(--accent);margin-right:6px;flex-shrink:0;cursor:pointer }
 
 /* ---- Responsive ---- */
 @media(max-width:768px) {

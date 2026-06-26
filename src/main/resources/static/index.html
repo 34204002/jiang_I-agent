@@ -8,110 +8,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://unpkg.com/vis-data@7.1.9/peer/umd/vis-data.min.js"></script>
+<script src="https://unpkg.com/vis-network@9.1.9/peer/umd/vis-network.min.js"></script>
+<script type="importmap">
+{ "imports": { "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js" } }
+</script>
 </head>
 <body>
-
-<div class="app">
-  <!-- ========== Sidebar ========== -->
-  <aside class="sidebar">
-    <div class="sidebar-brand">
-      <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
-      <div>
-        <div class="name">Jiang I-Agent</div>
-        <div class="ver">DeepSeek V3.2 · 在线</div>
-      </div>
-    </div>
-
-    <div class="sidebar-list" id="sidebarList">
-      <div class="sidebar-loading"><span class="spinner"></span>加载中…</div>
-    </div>
-
-    <div class="sidebar-footer">
-      <!-- 用户卡片 -->
-      <div class="sidebar-profile" id="sidebarProfile">
-        <img class="sidebar-avatar" id="sidebarAvatar" src="" alt="">
-        <div class="sidebar-profile-info">
-          <span class="sidebar-profile-name" id="sidebarNickname"></span>
-          <span class="sidebar-profile-role" id="sidebarRoleBadge" style="display:none">ADMIN</span>
-        </div>
-        <div class="sidebar-profile-actions">
-          <a href="settings.html" class="sidebar-action-btn" title="设置">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </a>
-          <button class="sidebar-action-btn" onclick="logout()" title="退出">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          </button>
-        </div>
-      </div>
-      <!-- 管理入口 -->
-      <a href="admin.html" class="sidebar-admin-link" id="sidebarAdminLink" style="display:none">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        管理后台
-      </a>
-      <button class="sidebar-new" onclick="onNewChat()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        新对话
-      </button>
-    </div>
-  </aside>
-
-  <!-- ========== Main Area ========== -->
-  <main class="main">
-    <!-- Tabs -->
-    <nav class="tabs">
-      <button class="tab active" data-tab="chat" onclick="switchTab('chat')">
-        <span class="dot"></span>对话
-      </button>
-      <button class="tab" data-tab="knowledge" onclick="switchTab('knowledge')">
-        <span class="dot"></span>知识库
-      </button>
-      <button class="tab" data-tab="graph" onclick="switchTab('graph')">
-        <span class="dot"></span>图谱
-      </button>
-      <button class="tab" data-tab="tools" onclick="switchTab('tools')">
-        <span class="dot"></span>工具
-      </button>
-    </nav>
-
-    <!-- Chat body -->
-    <div class="chat-body" id="chatBody">
-      <div class="welcome" id="welcome">
-        <div class="welcome-emoji"><svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".8"><path d="M12 2a5 5 0 0 1 5 5c0 2.5-1.2 4-2.5 5.5h-5c-1.3-1.5-2.5-3-2.5-5.5a5 5 0 0 1 5-5z"/><path d="M7 16v5a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3v-5"/><line x1="8" y1="21" x2="16" y2="21"/></svg></div>
-        <h2>Jiang I-Agent</h2>
-        <p>你的个人 AI 知识库助手。支持文档问答、代码答疑、知识图谱检索，具备工具调用与待办管理能力。</p>
-        <div class="welcome-cards">
-          <button class="welcome-card" onclick="sendHint('帮我记一下明天下午3点面试')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="20 6 9 17 4 12"/></svg>新建待办</button>
-          <button class="welcome-card" onclick="sendHint('用Java写一个快速排序')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>代码问答</button>
-          <button class="welcome-card" onclick="sendHint('解释一下 RAG 检索增强生成的原理')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>知识检索</button>
-          <button class="welcome-card" onclick="sendHint('什么是Java中的CompletableFuture')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>八股答疑</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Input -->
-    <div class="input-area" id="inputArea">
-      <div class="input-row">
-        <button class="btn-think" id="thinkBtn" onclick="toggleThinking()" title="思考模式">
-          <span class="think-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 4a3 3 0 0 1 3 3c0 1.5-.8 2.5-1.5 3.5h-3c-.7-1-1.5-2-1.5-3.5a3 3 0 0 1 3-3z"/><path d="M8 14v3a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-3"/><line x1="9" y1="19" x2="15" y2="19"/><line x1="10" y1="22" x2="14" y2="22"/></svg></span>
-          <span class="think-label">思考</span>
-        </button>
-        <textarea id="msgInput" rows="1" placeholder="输入消息… (Enter 发送，Shift+Enter 换行)"
-          onkeydown="onInputKey(event)" oninput="autoGrow(this)"></textarea>
-        <button class="btn-send" id="sendBtn" onclick="onSend()" title="发送 (Enter)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        </button>
-      </div>
-      <div class="input-footnote" id="inputFootnote">Jiang I-Agent · 响应可能调用工具</div>
-    </div>
-  </main>
-</div>
-
-<!-- Toast container -->
-<div class="toast-wrap" id="toastWrap"></div>
-
+<div id="app"><app-root></app-root></div>
 <script src="/js/common.js"></script>
-<script src="/js/app.js"></script>
-<script src="/js/kb.js"></script>
-<script src="/js/tools.js"></script>
+<script type="module" src="/js/vue/app.js"></script>
 </body>
 </html>
