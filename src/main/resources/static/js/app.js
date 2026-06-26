@@ -37,6 +37,8 @@ const S = {
   convos: [],
   thinking: false,
   toolRunning: null,  // 当前正在执行的工具名
+  batchMode: false,   // 批量删除模式
+  batchSelected: {}   // { id: true }
 };
 
 // =========================================================================
@@ -74,9 +76,7 @@ function switchTab(name) {
     showKnowledgeBase();
   } else if (name === 'graph') {
     dom.inputArea.style.display = 'none';
-    showPlaceholder('🕸️', '知识图谱',
-      '概念关联、知识链查询、双检索融合。',
-      'Phase 3 — 规划中');
+    showGraphPanel();
   } else if (name === 'tools') {
     dom.inputArea.style.display = 'none';
     showToolsPanel();
@@ -139,16 +139,86 @@ function renderSidebar() {
     dom.sidebarList.innerHTML = '<div class="sidebar-empty">暂无对话</div>';
     return;
   }
-  dom.sidebarList.innerHTML = S.convos.map(function(c) {
+
+  var batchBar = '';
+  if (S.batchMode) {
+    var selCount = Object.keys(S.batchSelected).length;
+    batchBar =
+      '<div class="batch-bar">' +
+        '<label class="batch-check-all"><input type="checkbox" onchange="toggleSelectAll()"' +
+          (selCount === S.convos.length ? ' checked' : '') + '> 全选</label>' +
+        '<button class="batch-del-btn" onclick="batchDeleteConvos()"' +
+          (selCount === 0 ? ' disabled' : '') + '>删除(' + selCount + ')</button>' +
+        '<button class="batch-cancel-btn" onclick="toggleBatchMode()">取消</button>' +
+      '</div>';
+  }
+
+  dom.sidebarList.innerHTML = batchBar + S.convos.map(function(c) {
     var activeClass = String(c.id) === S.conversationId ? ' active' : '';
+    var checked = S.batchMode && S.batchSelected[c.id] ? ' checked' : '';
+    var checkbox = S.batchMode
+      ? '<input type="checkbox" class="batch-cb" ' + checked
+        + ' onclick="event.stopPropagation();toggleSelect(\'' + c.id + '\')">'
+      : '';
     return '<div class="sidebar-convo' + activeClass + '"' +
-      ' onclick="onSelectConvo(\'' + c.id + '\')"' +
+      ' onclick="' + (S.batchMode ? 'toggleSelect(\'' + c.id + '\')' : 'onSelectConvo(\'' + c.id + '\')') + '"' +
       ' title="' + escAttr(c.title || '新对话') + '">' +
+      checkbox +
       '<span style="font-size:14px">💬</span>' +
       '<span class="text">' + escHtml(c.title || '新对话') + '</span>' +
-      '<span class="del" onclick="event.stopPropagation();onDeleteConvo(\'' + c.id + '\')" title="删除">✕</span>' +
+      (S.batchMode ? '' : '<span class="del" onclick="event.stopPropagation();onDeleteConvo(\'' + c.id + '\')" title="删除">✕</span>') +
     '</div>';
   }).join('');
+}
+
+// ==================== Batch Delete ====================
+
+function toggleBatchMode() {
+  S.batchMode = !S.batchMode;
+  S.batchSelected = {};
+  renderSidebar();
+}
+
+function toggleSelect(id) {
+  if (S.batchSelected[id]) delete S.batchSelected[id];
+  else S.batchSelected[id] = true;
+  renderSidebar();
+}
+
+function toggleSelectAll() {
+  var allSelected = Object.keys(S.batchSelected).length === S.convos.length;
+  S.batchSelected = {};
+  if (!allSelected) {
+    S.convos.forEach(function(c) { S.batchSelected[c.id] = true; });
+  }
+  renderSidebar();
+}
+
+function batchDeleteConvos() {
+  var ids = Object.keys(S.batchSelected);
+  if (ids.length === 0) { showToast('请先选择要删除的会话', 'info'); return; }
+  if (!confirm('确定删除选中的 ' + ids.length + ' 个会话及其所有消息？此操作不可恢复。')) return;
+
+  var numIds = ids.map(function(id) { return parseInt(id); });
+  fetch('/api/conversations/batch-delete', authHeaders({
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: numIds })
+  }))
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (json.code === 200) {
+        showToast('已删除 ' + json.data.deleted + ' 个会话', 'ok');
+        var deletedIds = {};
+        ids.forEach(function(id) { deletedIds[String(id)] = true; });
+        if (deletedIds[S.conversationId]) onNewChat();
+        S.batchMode = false;
+        S.batchSelected = {};
+        loadConversations();
+      } else {
+        showToast(json.message || '删除失败', 'error');
+      }
+    });
 }
 
 function onSelectConvo(id) {
@@ -159,6 +229,9 @@ function onSelectConvo(id) {
   dom.sendBtn.disabled = false;
   dom.msgInput.disabled = false;
   dom.msgInput.placeholder = '输入消息…';
+
+  // 确保切换到聊天 Tab 并显示输入框
+  if (S.activeTab !== 'chat') switchTab('chat');
 
   S.conversationId = String(id);
   renderSidebar();
@@ -374,7 +447,7 @@ function onSend() {
       displayedThinkingIdx = Math.min(displayedThinkingIdx + step, fullThinking.length);
       var tBody = document.getElementById('thinkingBody');
       if (tBody) {
-        tBody.textContent = fullThinking.substring(0, displayedThinkingIdx);
+        tBody.innerHTML = renderMarkdown(fullThinking.substring(0, displayedThinkingIdx));
         tBody.scrollTop = tBody.scrollHeight;
       }
       scrollDown();
@@ -414,15 +487,14 @@ function onSend() {
       : fullContent;
     S.messages.push({ role: 'assistant', content: saveContent });
 
-    if (!S.conversationId) {
-      setTimeout(function() {
-        loadConversations();
-        if (S.convos.length && !S.conversationId) {
-          S.conversationId = String(S.convos[0].id);
-          renderSidebar();
-        }
-      }, 600);
-    }
+    // 每次对话结束后刷新侧边栏（更新排序和消息数）
+    setTimeout(function() {
+      loadConversations();
+      if (!S.conversationId && S.convos.length) {
+        S.conversationId = String(S.convos[0].id);
+        renderSidebar();
+      }
+    }, 600);
   }
 
   function ensureTyping() {
@@ -501,7 +573,7 @@ function onSend() {
           if (b) b.style.display = b.style.display === 'none' ? '' : 'none';
         };
       }
-      if (tBody) tBody.textContent = fullThinking;
+      if (tBody) tBody.innerHTML = renderMarkdown(fullThinking);
       tBlock.removeAttribute('id');
     } else if (tBlock) {
       tBlock.remove();
