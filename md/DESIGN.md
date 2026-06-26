@@ -9,10 +9,10 @@
 | 决策 | 选项 | 原因 |
 |------|------|------|
 | Spring Boot 版本 | **4.1.0** | 阿里云 Maven 镜像全量支持，Java 21 + Virtual Threads |
-| Spring AI 版本 | **2.0.0** | 专为 Boot 4.x 编译，@Tool 注解更简洁 |
-| 大模型接入 | **OpenAI 适配器** | 2.0.0 移除了 DeepSeek 原生 Starter，统一到 OpenAI 兼容接口 |
-| 嵌入模型 | **text-embedding-3-small** | 硅基流动平台提供，1536 维向量 |
-| 序列化 | **JDK 默认（后续切 JSON）** | 框架阶段无需复杂序列化，后续按需升级 |
+| Spring AI 版本 | **2.0.0** | 使用 `spring-ai-deepseek` 专用 API（ChatCompletion/Chunk 带 reasoningContent） |
+| 大模型接入 | **DeepSeek 官方 API** | 直接 `api.deepseek.com`，HttpClient 构建请求 + Spring AI 类型解析 |
+| 嵌入模型 | **BAAI/bge-m3** | 硅基流动提供，1024 维向量（text-embedding-3-small 是 OpenAI 模型，硅基不支持） |
+| 序列化 | **Jackson** | API 请求/响应序列化，工具调用参数解析 |
 
 ---
 
@@ -166,8 +166,8 @@ RETURN c, d
 
 | 参数 | 值 |
 |------|-----|
-| Collection 名 | `agent_knowledge` |
-| 向量维度 | 1536（text-embedding-3-small） |
+| Collection 名 | `jiang_i_agent_knowledge` |
+| 向量维度 | 1024（BAAI/bge-m3） |
 | 距离算法 | Cosine |
 
 ### Payload

@@ -27,38 +27,30 @@
 
 ---
 
-## 2. DSML 格式函数调用 + 解析方案演化
+## 2. DSML 格式函数调用 + 根因定位
 
-**症状**：接入 Tool 后，DeepSeek V3.2 不在 `delta.tool_calls` 返回函数调用，而是在 `delta.content` 里输出自创标签：
+**症状**：DeepSeek 在 `delta.content` 里输出自创标签格式的工具调用，不入 `delta.tool_calls`。
 
 ```
-<DSML｜function_calls>
-<DSML｜invoke name="get_current_time">
-</DSML｜invoke>
-</DSML｜function_calls>
+<tool_calls>
+<invoke name="add_concept"><parameter name="name">Redis</parameter></invoke>
+</tool_calls>
 ```
 
-**根因**：DeepSeek V3.2 不支持 OpenAI function calling，用 DSML 替代。
+**最终根因**（2026-06-26 定位）：**流式代码并行 tool_calls 参数粘连导致工具执行失败，模型后续 fallback 到 DSML。**
 
-**三次迭代**：
+详细链：
+1. DeepSeek 在流式模式下并行返回多个 tool_call（如 2 个 `search_knowledge`）
+2. 自研流式解析用**单个 `StringBuilder` 累积所有 tool_call 的 arguments**，参数串接成非法 JSON
+3. `ToolRegistry.execute()` 参数解析失败 → 返回错误
+4. LLM 收到错误后，后续 tool call 放弃标准格式，fallback 到 DSML
 
-| 尝试 | 做法 | 失败原因 |
-|------|------|---------|
-| 逐 chunk 检测 | 每个 SSE chunk 搜 `<DSML|` | 标签跨 chunk 分割，`indexOf` 找不到 |
-| 流结束扫完整 buffer | 全部缓冲后一次性扫描 | DSML 在流式过程已显示到前端；且模型先发空 `delta.tool_calls`（`name=""`），`tcName[0]=""` 非 null 绕过了 DSML 检测 |
-| 微批量缓冲 + 前缀残留 + 空名拦截 | 见下方 | ✅ |
+**修复**（2026-06-26）：
+- 流式解析改为按 `delta.tool_calls[].index` 分组独立累积参数
+- `handleToolCallAndContinue` 接收 `List<ToolCall>` 合并处理并行调用
+- `buildMessagesWithTools` 构建的 assistant 消息包含所有 tool_calls + 对应 tool 结果
 
-**最终方案**：
-- **前缀残留缓冲**：每片末尾检查 `<`、`<D`、`<DS` 等标签前缀，剥下来留到下一片拼接
-- **微批量 flush**：攒到 200 字符或句子边界再扫，标签完整
-- **空名拦截**：`delta.tool_calls` 只认非空 name；空名不拦截 content 流
-- **IN_DSML 截留**：状态标记，块内内容不 emit 到前端
-- **DsmlParser 提取**：最终独立为 `com.jiang.tool.DsmlParser`
-
-**细节坑**：
-- 全角竖线 `｜`（U+FF5C）与半角 `|`（U+007C）肉眼难辨
-- 正则用 `[^<]` 等宽松匹配比精确字符可靠
-- 判空：`"" != null`，必须用 `== null || isEmpty()`
+**仅剩的防御**：在 content 流中过滤 `<tool_calls>` `<invoke ` `</tool_calls>` 标签，防止 DSML 泄露到前端。
 
 ---
 
@@ -70,13 +62,14 @@
 |------|------|
 | `@Tool` 注解 | name + description + JSON Schema |
 | `ToolRegistry` | `ApplicationReadyEvent` 时扫描、运行时反射执行 |
-| `ToolContext` | ThreadLocal 传递 userId/convoId |
-| `DsmlParser` | DSML 格式解析 |
-| `ChatService` 双通道 | `delta.tool_calls`（标准）+ DSML（DeepSeek） |
+| `ToolContext` | ThreadLocal 传递 userId/convoId/reasoningContent |
+| `ChatService` | 标准 `delta.tool_calls` 解析 + 工具执行 + 消息注入 + LLM 重调 |
 
-注册 12 个工具：`create_todo`、`list_todos`、`complete_todo`、`delete_todo`、`get_current_time`、`search_knowledge`、`read_web_page`、`create_reminder`、`list_reminders`、`cancel_reminder`、`search_conversation`、`export_conversation`。
+现注册 **17 个工具**（P3 新增 GraphTool 3 个，SystemTool 2 个）。
 
 流程：模型输出 tool_call → 解析执行 → 结果注入 messages → 二次 LLM → 最终回答，最多 5 轮。
+
+**schema 规范**（2026-06-26 统一）：所有工具必须含 `"type":"object"` + `"required"` 字段（即使为空数组），不再依赖 `ToolRegistry` 字符串拼接兜底。
 
 ---
 
@@ -145,12 +138,50 @@ curl -X PUT http://localhost:6333/collections/jiang_i_agent_knowledge \
 
 ---
 
+## 11. DeepSeekStreamService 替换为 Spring AI DeepSeek 类型
+
+**背景**（2026-06-26）：Spring AI 2.0 的 `spring-ai-deepseek` 模块自带 `ChatCompletionMessage` 和 `ChatCompletionChunk`，内置 `reasoningContent` 字段，能正确反序列化 DeepSeek 流式响应。
+
+**改动**：
+- 删除 `DeepSeekStreamService`（87 行 HTTP 传输 + SSE 解析）
+- `ChatService` 流式解析从手动 `JsonNode` 遍历换为 `ChatCompletionChunk`
+- `ChatCompletionMessage` 类型替代 `delta.path("content").asText()` 写法
+- 保留了自研的 `buildRequestBody()`（Map 构建）、`ToolRegistry`、工具编排逻辑
+
+**启示**：**用框架的类型解析，保留自己的编排控制**——类型安全但不失灵活性。
+
+---
+
+## 12. v4-flash 默认思考模式
+
+**发现**：`deepseek-v4-flash` **不传 `thinking: {type: "enabled"}` 也返回 `reasoning_content`**——模型默认开启思考。这意味着 `DeepSeekChatOptions` 没有 thinking 选项不是问题，不需要额外参数。
+
+---
+
+## 13. 并行 tool_calls 参数粘连（DSML 根因）
+
+**症状**：模型并行调用多个工具时，参数粘在一起形成非法 JSON：
+```
+args={"keyword": "Redis持久化"}{"query": "Redis持久化策略 AOF RDB", "topK": 5}
+```
+
+**根因**：流式解析用单个 `StringBuilder` 累积所有 tool_call 的 arguments，不分 index。
+
+**修复**（2026-06-26）：
+- 用 `Map<Integer, String> tcNames` + `Map<Integer, StringBuilder> tcArgsMap` 按 tool_call index 独立累积
+- `handleToolCallAndContinue` 接收 `List<ToolCall>`，多工具合并到一个 assistant 消息
+- `buildMessagesWithTools` 构建含多 tool_calls 的 assistant 消息，逐一追加 tool 结果
+
+**这也是 DSML 出现的根本原因**：工具执行失败 → 模型失去信心 → fallback 到 DSML。
+
+---
+
 ## 教训
 
-1. **非标准字段不信任任何 SDK** — 直接从 HTTP 层验证
-2. **框架越厚排查越难** — HttpClient 直连虽然多写代码但透明可控
+1. **非标准字段不信任任何 SDK** — 直接从 HTTP 层验证（reasoning_content 至今只有 DeepSeek 专用类型支持）
+2. **用框架的类型，保留自己的控制** — `DeepSeekApi.ChatCompletionChunk` 做解析，`buildRequestBody()` 做请求构建
 3. **先验证最底层再往上走** — 别猜，写测试
 4. **模型能力差异藏得深** — DSML vs tool_calls，文档不一定写
 5. **空字符串 != null** — 判空永远加 `isEmpty()`
-6. **全角字符睁眼瞎** — `｜` vs `|` 肉眼难辨，宽松匹配保平安
-7. **流式标签不走逐 chunk** — 前缀缓冲 + 批量 flush + 状态标记是正解
+6. **并行 tool_calls 参数别粘一起** — 按 index 独立累积
+7. **DSML 不是 bug，是症状** — 工具执行失败 → 模型失信 → fallback；修好了工具循环，DSML 自然少

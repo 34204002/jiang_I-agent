@@ -429,6 +429,36 @@ DELETE /api/conversations/{id}
 
 ---
 
+### 5.4 批量删除会话
+
+```
+POST /api/conversations/batch-delete
+```
+
+**请求体：**
+
+```json
+{
+  "ids": [1, 2, 3]
+}
+```
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "deleted": 3,
+    "total": 3
+  }
+}
+```
+
+> 逐一校验归属，跳过无权或已删除的会话。
+
+---
+
 ## 六、错误码
 
 | code | 说明 | 触发场景 |
@@ -456,15 +486,18 @@ DELETE /api/conversations/{id}
 | 阶段 | 方法 | 路径 | 说明 |
 |------|------|------|------|
 | P1 | POST | `/api/chat` | 同步对话 |
-| P1 | GET | `/api/chat/stream` | SSE 流式对话 |
+| P1 | GET | `/api/chat/stream` | SSE 流式对话（支持 thinking 模式） |
 | P2 | POST | `/api/knowledge/documents` | 上传文档 |
 | P2 | GET | `/api/knowledge/documents` | 文档列表 |
 | P2 | DELETE | `/api/knowledge/documents/{id}` | 删除文档 |
 | P2 | POST | `/api/knowledge/search` | RAG 知识库问答 |
-| P3 | GET | `/api/graph/concepts` | 概念列表 |
+| P3 | GET | `/api/graph/concepts` | 概念列表/搜索 |
 | P3 | GET | `/api/graph/concepts/{name}` | 概念详情+关联 |
 | P3 | GET | `/api/graph/concepts/{name}/path` | 知识链查询 |
+| P3 | POST | `/api/graph/concepts` | 手动添加概念 |
+| P3 | POST | `/api/graph/concepts/{name}/relations` | 添加关系 |
 | P4 | GET | `/api/tools` | 工具列表 |
 | P4 | GET | `/api/conversations` | 会话列表 |
 | P4 | GET | `/api/conversations/{id}/messages` | 消息列表 |
 | P4 | DELETE | `/api/conversations/{id}` | 删除会话 |
+| P4 | POST | `/api/conversations/batch-delete` | 批量删除会话 |
