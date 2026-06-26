@@ -42,14 +42,14 @@ async function submit() {
 <template>
 <div class="login-page">
   <div class="login-card">
-    <h2>{{ mode === 'login' ? '登录' : '注册' }}</h2>
+    <h1>{{ mode === 'login' ? '登录' : '注册' }}</h1>
     <div class="sub">Jiang I-Agent · 个人 AI 知识库助手</div>
     <div class="field" v-if="mode==='register'"><label>昵称</label><input v-model="nickname" placeholder="给自己取个名字"></div>
     <div class="field"><label>用户名</label><input v-model="username" placeholder="输入用户名" autocomplete="username" @keydown.enter="submit"></div>
     <div class="field"><label>密码</label><input v-model="password" type="password" placeholder="输入密码" autocomplete="current-password" @keydown.enter="submit"></div>
     <button class="login-btn" :disabled="loading" @click="submit">{{ loading ? '处理中…' : (mode==='login'?'登录':'注册') }}</button>
     <div :class="['login-msg', msgType]">{{ msg }}</div>
-    <div class="login-switch">{{ mode==='login' ? '没有账号？' : '已有账号？' }}<a @click="toggleMode">{{ mode==='login' ? '去注册' : '去登录' }}</a></div>
+    <div class="login-switch">{{ mode==='login' ? '没有账号？' : '已有账号？' }}<button type="button" class="login-switch-btn" @click="toggleMode">{{ mode==='login' ? '去注册' : '去登录' }}</button></div>
   </div>
 </div>
 </template>
@@ -57,7 +57,7 @@ async function submit() {
 <style scoped>
 .login-page { display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg-body,#FDF2F8) }
 .login-card { background:#fff;border-radius:12px;padding:40px 36px;width:100%;max-width:400px;box-shadow:0 4px 24px rgba(30,41,59,.08) }
-.login-card h2 { text-align:center;font-size:22px;font-weight:800;margin-bottom:6px }
+.login-card h1 { text-align:center;font-size:22px;font-weight:800;margin-bottom:6px }
 .login-card .sub { text-align:center;font-size:13px;color:var(--text-secondary,#64748B);margin-bottom:28px }
 .field { margin-bottom:16px }
 .field label { display:block;font-size:13px;font-weight:600;margin-bottom:5px }
@@ -70,5 +70,5 @@ async function submit() {
 .login-msg.error { color:#EF4444 }
 .login-msg.ok { color:#22C55E }
 .login-switch { text-align:center;font-size:13px;color:#64748B;margin-top:20px }
-.login-switch a { color:#EC4899;font-weight:600;cursor:pointer }
+.login-switch-btn { background:none;border:none;color:var(--accent,#EC4899);font-weight:600;cursor:pointer;font-size:13px;padding:0 }
 </style>

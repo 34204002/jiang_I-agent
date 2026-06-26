@@ -16,6 +16,8 @@ async function load() {
   }
 }
 
+const fileInput = ref(null)
+
 async function uploadAvatar(e) {
   const file = e.target.files[0]; if (!file) return
   const form = new FormData(); form.append('file', file)
@@ -42,12 +44,17 @@ onMounted(load)
 </script>
 
 <template>
+<div style="flex:1;overflow-y:auto">
 <div class="settings-page">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+    <router-link to="/chat" style="font-size:13px;color:var(--accent);text-decoration:none;font-weight:600">← 返回对话</router-link>
+    <span style="font-size:16px;font-weight:700">个人设置</span>
+  </div>
   <div v-if="toast" class="toast ok">{{ toast }}</div>
   <div class="card"><h3>个人资料</h3>
     <div class="avatar-area">
       <img class="avatar-preview" :src="avatar||''" alt="头像">
-      <div><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none" ref="fileInput" @change="uploadAvatar"><button class="btn-outline" @click="$refs.fileInput.click()" style="font-size:13px;padding:8px 16px">更换头像</button>
+      <div><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none" ref="fileInput" @change="uploadAvatar"><button class="btn-outline" @click="fileInput.click()" style="font-size:13px;padding:8px 16px">更换头像</button>
       <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">JPG/PNG/WebP/GIF</div></div>
     </div>
     <div class="field"><label>用户名</label><input :value="username" disabled style="opacity:.5"></div>
@@ -55,6 +62,7 @@ onMounted(load)
     <div class="field"><label>角色</label><input :value="role" disabled style="opacity:.5"></div>
     <button class="btn" @click="save">保存</button>
   </div>
+</div>
 </div>
 </template>
 

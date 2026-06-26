@@ -26,6 +26,8 @@ async function loadAgent() {
   if (json.code === 200) agent.value = json.data
 }
 
+const agentFile = ref(null)
+
 async function uploadAgentAvatar(e) {
   const file = e.target.files[0]; if (!file) return
   const form = new FormData(); form.append('file', file)
@@ -43,7 +45,12 @@ onMounted(() => { loadUsers(); loadAgent() })
 </script>
 
 <template>
+<div style="flex:1;overflow-y:auto">
 <div class="admin-page">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+    <router-link to="/chat" style="font-size:13px;color:var(--accent);text-decoration:none;font-weight:600">← 返回对话</router-link>
+    <span style="font-size:16px;font-weight:700">管理后台</span>
+  </div>
   <div v-if="toast" class="toast ok">{{ toast }}</div>
   <div class="card">
     <div class="tabs">
@@ -52,6 +59,7 @@ onMounted(() => { loadUsers(); loadAgent() })
     </div>
     <div v-if="tab==='users'">
       <h3>用户列表</h3>
+      <div style="overflow-x:auto">
       <table><thead><tr><th>ID</th><th>用户名</th><th>昵称</th><th>角色</th><th>注册时间</th><th>操作</th></tr></thead>
       <tbody>
         <tr v-for="u in users" :key="u.id">
@@ -61,12 +69,13 @@ onMounted(() => { loadUsers(); loadAgent() })
           <td><button class="btn-sm" @click="deleteUser(u.id, u.username)">删除</button></td>
         </tr>
       </tbody></table>
+      </div>
     </div>
     <div v-if="tab==='agent'">
       <h3>Agent 全局配置</h3>
       <div class="avatar-area">
         <img class="avatar-preview" :src="agent.avatar||''" alt="">
-        <div><input type="file" accept="image/*" style="display:none" ref="agentFile" @change="uploadAgentAvatar"><button class="btn-outline" @click="$refs.agentFile.click()" style="font-size:13px;padding:8px 16px">更换头像</button></div>
+        <div><input type="file" accept="image/*" style="display:none" ref="agentFile" @change="uploadAgentAvatar"><button class="btn-outline" @click="agentFile.click()" style="font-size:13px;padding:8px 16px">更换头像</button></div>
       </div>
       <div class="row">
         <div class="field"><label>Agent 名称</label><input v-model="agent.agentName"></div>
@@ -77,6 +86,7 @@ onMounted(() => { loadUsers(); loadAgent() })
       <button class="btn" @click="saveAgent">保存配置</button>
     </div>
   </div>
+</div>
 </div>
 </template>
 

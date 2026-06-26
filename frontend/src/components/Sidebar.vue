@@ -44,20 +44,23 @@ async function batchDelete() {
       @click="state.batchMode ? toggleSel(c.id) : selectConvo(c.id)"
       :title="c.title||'新对话'">
       <input v-if="state.batchMode" type="checkbox" :checked="!!state.batchSelected[c.id]" class="batch-cb" @click.stop="toggleSel(c.id)">
-      <span style="font-size:14px">💬</span><span class="text">{{ c.title || '新对话' }}</span>
-      <span v-if="!state.batchMode" class="del" @click.stop="deleteConvo(c.id)" title="删除">✕</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:middle"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> <span class="text">{{ c.title || '新对话' }}</span>
+      <span v-if="!state.batchMode" class="del" @click.stop="deleteConvo(c.id)" title="删除"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
     </div>
   </div>
   <div class="sidebar-footer">
     <div class="sidebar-profile">
       <img class="sidebar-avatar" :src="USER.avatar||''" alt="">
       <div class="sidebar-profile-info"><span class="sidebar-profile-name">{{ USER.nickname||'用户' }}</span><span v-if="USER.role==='ADMIN'" class="sidebar-profile-role">ADMIN</span></div>
-      <div class="sidebar-profile-actions"><router-link to="/settings" class="sidebar-action-btn" title="设置">⚙</router-link></div>
+      <div class="sidebar-profile-actions">
+        <router-link to="/settings" class="sidebar-action-btn" title="设置"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></router-link>
+        <button type="button" class="sidebar-action-btn sidebar-logout-btn" title="退出登录" @click="logout"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+      </div>
     </div>
-    <router-link v-if="USER.role==='ADMIN'" to="/admin" class="sidebar-admin-link">⚙ 管理后台</router-link>
+    <router-link v-if="USER.role==='ADMIN'" to="/admin" class="sidebar-admin-link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> 管理后台</router-link>
     <div style="display:flex;gap:6px">
       <button class="sidebar-new" @click="newChat" style="flex:1">+ 新对话</button>
-      <button class="sidebar-new" @click="state.batchMode=!state.batchMode;state.batchSelected={}" title="批量管理" style="flex:0;padding:0 12px">🗑</button>
+      <button class="sidebar-new" @click="state.batchMode=!state.batchMode;state.batchSelected={}" title="批量管理" style="flex:0;padding:0 12px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
     </div>
   </div>
 </aside>
