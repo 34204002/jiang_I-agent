@@ -13,7 +13,6 @@ import com.jiang.model.PageResult;
 import com.jiang.model.req.SearchRequest;
 import com.jiang.model.resp.SearchResponse;
 import com.jiang.model.vo.DocumentVO;
-import com.jiang.util.DeepSeekStreamService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
@@ -23,13 +22,19 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -50,7 +55,6 @@ public class KnowledgeService {
 
     private final DocumentMapper documentMapper;
     private final DocumentChunkMapper documentChunkMapper;
-    private final DeepSeekStreamService apiClient;
     private final AgentConfigMapper agentConfigMapper;
     private final OssService ossService;
     private final ObjectMapper objectMapper;
@@ -58,6 +62,16 @@ public class KnowledgeService {
 
     @Qualifier("defaultSystemPrompt")
     private final String defaultSystemPrompt;
+
+    @Value("${spring.ai.openai.base-url}")
+    private String baseUrl;
+
+    @Value("${spring.ai.openai.api-key}")
+    private String apiKey;
+
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
 
     @Value("${spring.ai.openai.chat.model}")
     private String defaultModel;
@@ -262,7 +276,7 @@ public class KnowledgeService {
         String answer;
         try {
             String body = buildSearchRequestBody(systemPrompt, userPrompt);
-            String resp = apiClient.sync(body);
+            String resp = syncHttp(body);
             answer = objectMapper.readTree(resp)
                     .path("choices").get(0).path("message").path("content").asText();
         } catch (Exception e) {
@@ -378,5 +392,29 @@ public class KnowledgeService {
                 doc.getOssKey() != null && !doc.getOssKey().isEmpty()
                         ? ossService.getPublicUrl(doc.getOssKey()) : "");
         return vo;
+    }
+
+    /** 同步 HTTP 请求（替代已删除的 DeepSeekStreamService） */
+    private String syncHttp(String body) {
+        try {
+            var req = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/chat/completions"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .timeout(Duration.ofMinutes(5))
+                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                    .build();
+            var resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                log.error("API 返回 {}: {}", resp.statusCode(), resp.body());
+                throw new RuntimeException("API " + resp.statusCode());
+            }
+            return resp.body();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("同步请求失败", e);
+            throw new RuntimeException("AI 调用失败: " + e.getMessage());
+        }
     }
 }

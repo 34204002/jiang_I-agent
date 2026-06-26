@@ -50,6 +50,11 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
+        <!-- DeepSeek 专用 API — ChatCompletion/Chunk 带 reasoningContent，替代自研 HTTP 解析 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-deepseek</artifactId>
+        </dependency>
         <!-- 对话记忆（ChatMemory 接口） -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
