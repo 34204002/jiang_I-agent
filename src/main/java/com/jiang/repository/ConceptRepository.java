@@ -91,4 +91,14 @@ public interface ConceptRepository extends Neo4jRepository<ConceptEntity, String
          + "SET c.documentIds = CASE WHEN $docId IN c.documentIds THEN c.documentIds "
          + "ELSE c.documentIds + $docId END")
     void linkDocument(@Param("conceptName") String conceptName, @Param("docId") Long docId);
+
+    /** 删除两个概念之间的指定类型关系 */
+    @Query("MATCH (a:Concept {name: $from})-[r]->(b:Concept {name: $to}) "
+         + "WHERE type(r) = $type DELETE r")
+    void deleteRelation(@Param("from") String from, @Param("to") String to, @Param("type") String type);
+
+    /** 检查两个概念之间是否存在某种关系 */
+    @Query("MATCH (a:Concept {name: $from})-[r]->(b:Concept {name: $to}) "
+         + "WHERE type(r) = $type RETURN count(r) > 0")
+    boolean hasRelation(@Param("from") String from, @Param("to") String to, @Param("type") String type);
 }

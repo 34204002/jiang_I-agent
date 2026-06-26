@@ -97,4 +97,21 @@ public class GraphController {
         Long documentId = docIdObj instanceof Number n ? n.longValue() : Long.parseLong(docIdObj.toString());
         return Result.success(graphService.extractFromDocument(documentId));
     }
+
+    /** 删除概念（级联删除所有关联关系） */
+    @DeleteMapping("/concepts/{name}")
+    public Result<Map<String, Object>> deleteConcept(@PathVariable String name) {
+        graphService.deleteConcept(name);
+        return Result.success(Map.of("name", name, "message", "概念已删除"));
+    }
+
+    /** 删除关系 */
+    @DeleteMapping("/concepts/{name}/relations")
+    public Result<Map<String, Object>> deleteRelation(
+            @PathVariable String name,
+            @RequestParam String target,
+            @RequestParam(defaultValue = "RELATED_TO") String type) {
+        graphService.deleteRelation(name, target, type);
+        return Result.success(Map.of("from", name, "to", target, "type", type, "message", "关系已删除"));
+    }
 }

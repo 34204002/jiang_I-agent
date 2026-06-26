@@ -228,25 +228,104 @@ public class GraphService {
         return conceptRepo.save(c);
     }
 
-    /** 添加前置关系 */
+    /** 添加前置关系（含校验 + 传递化简） */
     public void addPrerequisite(String from, String to) {
+        String err = validateRelationship(from, to, "PREREQUISITE_OF");
+        if (err != null) throw new IllegalArgumentException(err);
         ensureExists(from);
         ensureExists(to);
         conceptRepo.addPrerequisite(from, to);
         log.info("图谱关系: {} --[PREREQUISITE_OF]--> {}", from, to);
+        removeTransitiveRedundancy(from, to);
     }
 
-    /** 添加相关关系 */
+    /** 添加相关关系（含校验 + 限流） */
     public void addRelated(String from, String to) {
+        String err = validateRelationship(from, to, "RELATED_TO");
+        if (err != null) throw new IllegalArgumentException(err);
         ensureExists(from);
         ensureExists(to);
         conceptRepo.addRelated(from, to);
         log.info("图谱关系: {} --[RELATED_TO]--> {}", from, to);
     }
 
+    /**
+     * 关系校验：自环、循环（PREREQUISITE_OF 仅限 DAG）、重复关系。
+     * @return 错误消息，null 表示通过
+     */
+    public String validateRelationship(String from, String to, String type) {
+        if (from == null || to == null || from.isBlank() || to.isBlank()) {
+            return "概念名称不能为空";
+        }
+        // 自环
+        if (from.equals(to)) {
+            return "不能添加自环：" + from + " → " + to;
+        }
+        // 循环检测：添加 A→B 前，检查是否已有 B→A 路径
+        if ("PREREQUISITE_OF".equals(type)) {
+            var paths = findPathWithRel(to, from, 10, "PREREQUISITE_OF");
+            if (!paths.isEmpty()) {
+                return to + " 已经是 " + from + " 的前置知识（直接或间接），再添加反向关系会导致循环";
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 传递化简：添加 PREQ(A,B) 后，自动删除可通过传递推导的冗余边。
+     * <p>
+     * 方向1：查 B 的所有直接前置 C（即 PREQ(B,C)），若 PREQ(A,C) 存在 → 冗余（A→B→C 可推导 A→C）
+     * 方向2：查 A 的所有直接前置 P（即 PREQ(P,A)），若 PREQ(P,B) 存在 → 冗余（P→A→B 可推导 P→B）
+     */
+    private void removeTransitiveRedundancy(String from, String to) {
+        int removed = 0;
+        try {
+            // 方向1: 查 B 是哪些概念的前置 → 看 A 是否已有直达边
+            for (var c : conceptRepo.findDirectPrerequisites(to)) {
+                String target = c.getName();
+                if (!target.equals(from) && conceptRepo.hasRelation(from, target, "PREREQUISITE_OF")) {
+                    conceptRepo.deleteRelation(from, target, "PREREQUISITE_OF");
+                    log.info("传递化简: 移除冗余边 {} → {}（可通过 {}→{}→{} 推导）",
+                            from, target, from, to, target);
+                    removed++;
+                }
+            }
+            // 方向2: 查 A 有哪些前置 → 看 P 是否现在也连到了 B
+            for (var p : conceptRepo.findDirectPrerequisites(from)) {
+                String source = p.getName();
+                if (!source.equals(to) && conceptRepo.hasRelation(source, to, "PREREQUISITE_OF")) {
+                    conceptRepo.deleteRelation(source, to, "PREREQUISITE_OF");
+                    log.info("传递化简: 移除冗余边 {} → {}（可通过 {}→{}→{} 推导）",
+                            source, to, source, from, to);
+                    removed++;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("传递化简出错（不影响主流程）: {}", e.getMessage());
+        }
+        if (removed > 0) {
+            log.info("传递化简完成: 共移除 {} 条冗余前置边", removed);
+        }
+    }
+
     /** 关联文档 */
     public void linkDocument(String conceptName, Long documentId) {
         conceptRepo.linkDocument(conceptName, documentId);
+    }
+
+    /** 删除概念（级联删除所有关联关系） */
+    public void deleteConcept(String name) {
+        if (!conceptRepo.findById(name).isPresent()) {
+            throw new NoSuchElementException("概念不存在: " + name);
+        }
+        conceptRepo.deleteById(name);
+        log.info("图谱: 已删除概念 {}", name);
+    }
+
+    /** 删除关系 */
+    public void deleteRelation(String from, String to, String type) {
+        conceptRepo.deleteRelation(from, to, type != null ? type : "RELATED_TO");
+        log.info("图谱: 已删除关系 {} --[{}]--> {}", from, type, to);
     }
 
     // ==================== 图可视化 ====================

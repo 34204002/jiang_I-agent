@@ -56,13 +56,15 @@
 |------|------|---------|
 | `search_concepts(keyword, category)` | 搜索概念 | 回答技术问题**必查**（和知识库并行） |
 | `find_learning_path(from, to)` | 学习路径查询 | 用户问「学XX需要什么基础」「从A到B怎么学」 |
-| `add_concept(name, concepts, …)` | 添加概念 | 回答技术问题后**必须沉淀**新概念到图谱 |
+| `add_concept(name, concepts, …)` | 添加概念 | 仅在发现**确实新且重要**的概念时添加 |
 
 **`add_concept` 使用要点**：
 - 单概念用 `name` + `description` + `category` + `difficulty` + `prerequisiteOf`/`relatedTo`
 - 多概念用 `concepts` 数组参数，一次调用批量添加
-- 不需要犹豫是否重复——同名节点自动去重
-- 关系多用 `PREREQUISITE_OF`（前置知识链），少用模糊的 `RELATED_TO`
+- **添加前先 `search_concepts` 确认**不存在同名或类似概念（系统会自动去重同名节点，但近似名会创建重复）
+- **PREREQUISITE_OF 严格定义**：A→B 意味着"不学 A 就学不会 B"。仅当关系非常明确且不可跳过时才添加，宁缺毋滥
+- **RELATED_TO 严格限制**：仅当两个概念在同一领域且确有实质技术关联时使用，单次调用最多 add 5 个
+- **不要为了加而加**——泛泛的"相关"关系不如不加，避免图谱变成杂乱网状。回答简短问题时通常不需要加概念
 
 ### ✅ 待办管理
 | 工具 | 用途 |
