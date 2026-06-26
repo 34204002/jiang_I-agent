@@ -352,6 +352,25 @@ POST /api/graph/concepts
 }
 ```
 
+### 4.6 删除概念
+
+```
+DELETE /api/graph/concepts/{name}
+```
+
+> 级联删除概念及其所有关联关系。
+
+### 4.7 删除关系
+
+```
+DELETE /api/graph/concepts/{name}/relations?target={targetName}&type=PREREQUISITE_OF
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| target | String | 是 | 目标概念名 |
+| type | String | 否 | 关系类型，默认 RELATED_TO |
+
 ---
 
 ## 五、工具 + 待办接口

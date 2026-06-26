@@ -198,6 +198,30 @@ RETURN c, d
 MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 ```
 
+### 图谱防护机制
+
+为防 AI 自主维护导致图谱杂乱，后端实现了三层自动防护：
+
+| 防护 | 机制 | 触发时机 |
+|------|------|---------|
+| 循环检测 | 添加 PREQ(A,B) 前检查 B→A 路径是否存在 | `addPrerequisite()` |
+| 自环预防 | `from.equals(to)` 直接拒绝 | `addPrerequisite()` / `addRelated()` |
+| 传递化简 | 添加 PREQ(A,B) 后检测冗余：若 A→B→C 且 A→C 存在 → 删除 A→C | `addPrerequisite()` 后自动执行 |
+
+传递化简算法：
+```
+方向1: B 有前置 B→C → 若 A→C 存在 → 删除 A→C（A→B→C 可推导）
+方向2: P 有前置 P→A → 若 P→B 存在 → 删除 P→B（P→A→B 可推导）
+```
+
+### 图可视化
+
+前端 vis-network 配置：
+- **布局**：hierarchical LR（左→右树形），physics disabled 保持稳定
+- **过滤**：默认"仅前置"（最干净），可切换"仅相关"/"全部"
+- **交互**：双击节点加载邻居（去重），拖拽节点，缩放平移
+- **删除**：列表页 ✕ 按钮 → `DELETE /api/graph/concepts/{name}`
+
 ---
 
 ## 四、Qdrant 向量库

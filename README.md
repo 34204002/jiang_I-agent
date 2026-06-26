@@ -22,8 +22,9 @@
 ### 知识图谱（Neo4j）
 - 概念节点 + PREREQUISITE_OF / RELATED_TO 关系
 - **知识链查询**："学 Redis 前需要先学什么" → 前置知识路径
-- vis-network 力导向图可视化：双击节点加载邻居，拖拽缩放
-- AI 对话自动沉淀概念，手动添加/编辑
+- vis-network 层次化树形图（LR）：双击节点加载邻居，关系过滤（仅前置/仅相关/全部）
+- 循环检测 + 传递化简 + 自环预防：后端自动清理冗余边
+- AI 对话自动沉淀概念，手动添加/编辑/删除
 
 ### 工具 & 待办
 - 17 个 Agent 工具（待办/提醒/知识库/图谱/时间/网络/对话/系统）
@@ -83,7 +84,7 @@
 | 模型 | DeepSeek v4-flash | 默认思考模式，工具调用 |
 | 嵌入 | BAAI/bge-m3 (硅基流动) | 1024 维 |
 | 前端 | Vue 3 + Vite 8 | SFC 组件 + vue-router SPA |
-| 图谱可视化 | vis-network + vis-data | 力导向图 |
+| 图谱可视化 | vis-network + vis-data | 层次化树形图（LR） |
 | Markdown | marked | 消息渲染 |
 | 关系库 | MySQL 8 + MyBatis-Plus | 用户/会话/消息/文档/待办 |
 | 缓存 | Redis 7 + Lettuce | ChatMemory |
@@ -202,7 +203,7 @@ jiang_I-agent/
 |------|------|
 | `ChatPanel.vue` | SSE 流式聊天：thinking/content/tool_call 事件分派、思考框折叠、打字机光标、marked 渲染 |
 | `Sidebar.vue` | 会话列表 + 批量删除 + 登出按钮 + 设置/管理入口（SVG 图标） |
-| `GraphPanel.vue` | Neo4j 图谱：模糊搜索、分页、知识链查询、vis-network 力导向图、Teleport 模态框 |
+| `GraphPanel.vue` | Neo4j 图谱：层次化树形图 + 关系过滤 + 概念删除 + 搜索/分页/路径查询 + Teleport 模态框 |
 | `KnowledgePanel.vue` | RAG 知识库：文档上传/搜索/列表/删除/下载（SVG 文件图标） |
 | `ToolsPanel.vue` | 工具标签卡片（名称+描述）+ 待办 checkbox CRUD |
 | `LoginView.vue` | 登录/注册切换、JWT 存储 |
@@ -244,6 +245,8 @@ jiang_I-agent/
 | GET | `/api/graph/concepts/{name}/path` | 知识链查询 |
 | GET | `/api/graph/concepts/{name}/graph` | 子图 (vis-network) |
 | POST | `/api/graph/concepts` | 添加概念 |
+| DELETE | `/api/graph/concepts/{name}` | 删除概念（级联） |
+| DELETE | `/api/graph/concepts/{name}/relations` | 删除关系 |
 | GET | `/api/tools` | 工具列表 |
 | GET/POST/PUT/DELETE | `/api/todos[/{id}/complete]` | 待办 CRUD |
 | GET | `/api/conversations` | 会话列表 |

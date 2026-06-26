@@ -13,7 +13,7 @@
 - **对话**：多轮对话 + SSE 流式输出（DeepSeek v4-flash thinking 思考模式），Redis 会话记忆 + MySQL 持久化
 - **工具调用**：自研 `@Tool` 注解框架，17 个工具自动注册，LLM 自主选择调用，最多 10 轮工具循环
 - **RAG 知识库**：文档上传 → Tika 解析 → 分片 → BAAI/bge-m3 向量化 → Qdrant 语义检索增强回答
-- **知识图谱**：Neo4j 概念关联建模 + 前置知识链查询（"学 Redis 前需要先学什么"），对话自动沉淀 + vis-network 可视化
+- **知识图谱**：Neo4j 概念关联建模 + 前置知识链查询（"学 Redis 前需要先学什么"），AI 对话自动沉淀 + 循环检测 + 传递化简 + vis-network 层次化可视化 + 关系过滤
 - **待办 & 提醒**：CRUD 待办管理 + 定时提醒（`@Scheduled` 每分钟检查）
 
 **差异化**：不是"查文档 + 喂 LLM"的普通 RAG。Neo4j 图谱返回的是**知识结构**和**学习路径**，纯向量检索做不到。
@@ -79,7 +79,7 @@ frontend/src/
 ├── components/
 │   ├── ChatPanel.vue    # SSE 流式聊天: thinking/content/tool_call 事件分派 + 打字机光标
 │   ├── Sidebar.vue      # 会话列表 + 批量删除 + 登出 (SVG 图标)
-│   ├── GraphPanel.vue   # Neo4j 图谱: 搜索/路径查询/vis-network 力导向图 + Teleport 模态框
+│   ├── GraphPanel.vue   # Neo4j 图谱: 层次化树形图 + 关系过滤 + 概念删除 + Teleport 模态框
 │   ├── KnowledgePanel.vue # RAG 知识库: 文档上传/搜索/列表/删除 (SVG 图标)
 │   └── ToolsPanel.vue   # 工具标签卡片 + 待办 CRUD
 └── views/
@@ -109,7 +109,7 @@ frontend/src/
 | 待办 | `create_todo` `list_todos` `complete_todo` `delete_todo` | 全生命周期管理 |
 | 提醒 | `create_reminder` `list_reminders` `cancel_reminder` | 定时提醒，@Scheduled 检查 |
 | 知识库 | `search_knowledge` `list_knowledge` | Qdrant 语义检索 + 文档列表 |
-| 知识图谱 | `search_concepts` `find_learning_path` `add_concept` | Neo4j 概念搜索 + 路径 + 沉淀 |
+| 知识图谱 | `search_concepts` `find_learning_path` `add_concept` | 搜索/路径/沉淀 + 循环检测 + 传递化简 |
 | 时间 | `get_current_time` | 当前时间 |
 | 网络 | `read_web_page` | 抓取网页内容 |
 | 对话 | `search_conversation` `export_conversation` | 历史搜索 + Markdown 导出 |
@@ -135,6 +135,8 @@ frontend/src/
 | GET | `/api/graph/concepts/{name}/path` | 知识链查询 |
 | GET | `/api/graph/concepts/{name}/graph` | 子图（vis-network） |
 | POST | `/api/graph/concepts` | 手动添加概念 |
+| DELETE | `/api/graph/concepts/{name}` | 删除概念（级联删关系） |
+| DELETE | `/api/graph/concepts/{name}/relations` | 删除关系 |
 | GET | `/api/tools` | 工具列表 |
 | GET/PUT/DELETE | `/api/todos/*` | 待办 CRUD |
 | GET | `/api/conversations` | 会话列表 |
