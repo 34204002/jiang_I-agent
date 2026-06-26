@@ -46,6 +46,7 @@ import java.util.Map;
  */
 @Slf4j
 @Service
+@org.springframework.transaction.annotation.Transactional
 public class ChatService {
 
     private final ChatMemory chatMemory;

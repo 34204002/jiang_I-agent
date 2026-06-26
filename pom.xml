@@ -119,6 +119,12 @@
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- Bucket4j 令牌桶限流 -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j-core</artifactId>
+            <version>8.7.0</version>
+        </dependency>
         <!-- Neo4j 知识图谱 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

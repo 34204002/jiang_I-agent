@@ -6,17 +6,23 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * 注册登录拦截器。
- * 放行路径：登录/注册/静态资源/Swagger 等。
+ * 注册拦截器——先限流、后鉴权（顺序很重要）。
  */
 @Configuration
 @RequiredArgsConstructor
 public class WebConfig implements WebMvcConfigurer {
 
+    private final RateLimitInterceptor rateLimitInterceptor;
     private final LoginInterceptor loginInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // 限流 — 拦截所有 /api/**（先过滤）
+        registry.addInterceptor(rateLimitInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/auth/login", "/api/auth/register");
+
+        // 鉴权 — 需要登录的路径
         registry.addInterceptor(loginInterceptor)
                 .addPathPatterns(
                         "/api/user/**",

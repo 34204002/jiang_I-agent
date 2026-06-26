@@ -18,6 +18,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@org.springframework.transaction.annotation.Transactional
 public class TodoService {
 
     private final TodoItemMapper todoItemMapper;

@@ -21,6 +21,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@org.springframework.transaction.annotation.Transactional
 public class ConversationService {
 
     private final ConversationMapper conversationMapper;

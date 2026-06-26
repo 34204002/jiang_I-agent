@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@org.springframework.transaction.annotation.Transactional
 public class KnowledgeService {
 
     private final DocumentMapper documentMapper;
