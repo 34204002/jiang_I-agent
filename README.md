@@ -37,9 +37,11 @@
 - SVG 图标（无 emoji），响应式，WCAG 无障碍
 - 思考框折叠动画 + 打字机光标
 
-### 鉴权
+### 鉴权 & 安全
 - JWT 无状态认证，BCrypt 密码加密
 - USER / ADMIN 角色隔离
+- Bucket4j 令牌桶限流（30 tokens，≈60 req/min 每用户，429 超限）
+- `@Transactional` 全覆盖写入操作（6 个 Service，事务回滚保护）
 - 个人设置（头像/昵称/密码）+ 管理后台
 
 ---
@@ -53,8 +55,13 @@
 │  ToolsPanel │ LoginView │ SettingsView │ AdminView   │
 └──────────────────┬──────────────────────────────────┘
                    │ SSE / REST
+          ┌────────▼────────┐
+          │  Bucket4j 限流   │  30 tokens / 1/s refill
+          │  JWT 鉴权 Filter │  USER / ADMIN
+          └────────┬────────┘
 ┌──────────────────▼──────────────────────────────────┐
 │              Spring Boot 4.1 (Java 21)               │
+│              @Transactional 事务保护                   │
 │                                                      │
 │  ChatController ──→ ChatService (Agent 核心)         │
 │                        │                             │
@@ -92,6 +99,8 @@
 | 图数据库 | Neo4j 5 | 概念关系 + 路径查询 |
 | 对象存储 | 阿里云 OSS | 文档 + 头像 |
 | 鉴权 | JWT Filter + BCrypt | 无状态认证 |
+| 限流 | Bucket4j | 令牌桶（30cap, 1/s refill） |
+| 事务 | Spring @Transactional | 6 Service 写入保护 |
 
 ---
 
