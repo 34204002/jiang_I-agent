@@ -17,7 +17,13 @@ export const state = reactive({
   todoFilter: 'pending',
 })
 
+export const TOKEN = localStorage.getItem('token') || ''
 export const AGENT_NAME = window.AGENT_NAME || 'Jiang I-Agent'
 export const AGENT_AVATAR = window.AGENT_AVATAR || ''
-export const USER = window.USER || {}
-export const TOKEN = window.TOKEN || ''
+export const USER = JSON.parse(localStorage.getItem('user') || 'null') || {}
+
+export function logout() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  window.location.href = '/'
+}

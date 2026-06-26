@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { state, USER } from '../stores/state'
+import { state, USER, logout } from '../stores/state'
 import { api } from '../utils/api'
 import { newChat, loadConversations, selectConvo } from '../utils/chat'
 
@@ -52,9 +52,9 @@ async function batchDelete() {
     <div class="sidebar-profile">
       <img class="sidebar-avatar" :src="USER.avatar||''" alt="">
       <div class="sidebar-profile-info"><span class="sidebar-profile-name">{{ USER.nickname||'用户' }}</span><span v-if="USER.role==='ADMIN'" class="sidebar-profile-role">ADMIN</span></div>
-      <div class="sidebar-profile-actions"><a href="settings.html" class="sidebar-action-btn" title="设置">⚙</a></div>
+      <div class="sidebar-profile-actions"><router-link to="/settings" class="sidebar-action-btn" title="设置">⚙</router-link></div>
     </div>
-    <a v-if="USER.role==='ADMIN'" href="admin.html" class="sidebar-admin-link">⚙ 管理后台</a>
+    <router-link v-if="USER.role==='ADMIN'" to="/admin" class="sidebar-admin-link">⚙ 管理后台</router-link>
     <div style="display:flex;gap:6px">
       <button class="sidebar-new" @click="newChat" style="flex:1">+ 新对话</button>
       <button class="sidebar-new" @click="state.batchMode=!state.batchMode;state.batchSelected={}" title="批量管理" style="flex:0;padding:0 12px">🗑</button>
