@@ -11,9 +11,11 @@ const adding = ref(false), newName = ref(''), newDesc = ref(''), newCat = ref(''
 const pathFrom = ref(''), pathTo = ref('')
 const pathResults = ref([])
 const detail = ref(null)
+const graphRelFilter = ref('prereq')  // 'all' | 'prereq' | 'related'
 let graphNetwork = null
+let currentGraphData = null
 
-const COLORS = { '中间件':'#f59e0b','编程语言':'#3b82f6','数据库':'#10b981','算法':'#8b5cf6','网络':'#ef4444','操作系统':'#06b6d4','架构':'#f97316','前端':'#ec4899','安全':'#dc2626','其他':'#6b7280' }
+const COLORS = { '中间件':'#d97706','编程语言':'#2563eb','数据库':'#059669','算法':'#7c3aed','网络':'#dc2626','操作系统':'#0891b2','架构':'#ea580c','前端':'#db2777','安全':'#b91c1c','其他':'#4b5563' }
 
 async function search() {
   const p = state.graphKeyword ? `keyword=${encodeURIComponent(state.graphKeyword)}&` : ''
@@ -54,21 +56,127 @@ async function toggleGraphView() {
 }
 
 function renderGraph(data) {
+  currentGraphData = data  // 保存以便过滤切换
   const el = document.getElementById('graphNetContainer')
   if (!el) return; if (graphNetwork) graphNetwork.destroy()
-  const nodes = new DataSet(data.nodes.map(n => ({
-    id:n.id, label:n.id, color:{ background:n.center?'#ec4899':(COLORS[n.category]||'#6b7280'), border:n.center?'#be185d':'#555' },
-    font:{ color:'#fff', size:13 }, borderWidth:n.center?3:1, shape:n.center?'star':'dot', size:n.center?35:20
-  })))
-  const edges = new DataSet(data.edges.map((e,i) => ({
-    id:i, from:e.from, to:e.to, label:e.label==='PREREQUISITE_OF'?'前置':e.label==='RELATED_TO'?'相关':e.label,
-    arrows:'to', color:{ color:e.label==='PREREQUISITE_OF'?'#7c3aed':'#94a3b8' }, font:{ size:10, color:'#64748b' }
-  })))
+  const filter = graphRelFilter.value
+
+  const nodeOpts = (cat, center) => {
+    const bg = center ? '#ec4899' : (COLORS[cat] || '#4b5563')
+    return {
+      color: {
+        background: bg,
+        border: center ? '#be185d' : '#1e293b',
+        highlight: { background: bg, border: '#000' },
+        hover: { background: bg, border: '#000' }
+      },
+      font: { color: '#fff', size: 13, face: 'Inter', bold: { color: '#fff', size: 13, face: 'Inter', mod: 'bold' } },
+      borderWidth: center ? 3 : 2,
+      shape: 'box',
+      shapeProperties: { borderRadius: 8 },
+      margin: { top: 8, right: 14, bottom: 8, left: 14 },
+      shadow: { enabled: true, color: 'rgba(0,0,0,.15)', size: 6, x: 0, y: 2 },
+      fixed: center ? { x: true, y: true } : false  // keep center node in position
+    }
+  }
+
+  const nodes = new DataSet(data.nodes.map(n => {
+    const isCenter = n.center === true
+    return { id: n.id, label: n.id, level: n.level, ...nodeOpts(n.category, isCenter) }
+  }))
+
+  const existingEdges = new Set()
+  const addEdgeSet = (from, to, label) => existingEdges.add(`${from}|||${to}|||${label}`)
+  const hasEdge = (from, to, label) => existingEdges.has(`${from}|||${to}|||${label}`)
+
+  // 关系类型过滤
+  const edgeVisible = (label) => {
+    if (filter === 'prereq') return label === 'PREREQUISITE_OF'
+    if (filter === 'related') return label === 'RELATED_TO'
+    return true
+  }
+  const edges = new DataSet(data.edges.filter(e => edgeVisible(e.label)).map((e, i) => {
+    addEdgeSet(e.from, e.to, e.label)
+    return {
+      id: i, from: e.from, to: e.to,
+      label: e.label === 'PREREQUISITE_OF' ? '← 前置' : e.label === 'RELATED_TO' ? '相关' : e.label,
+      arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+      smooth: { type: 'cubicBezier', forceDirection: 'horizontal' },
+      color: {
+        color: e.label === 'PREREQUISITE_OF' ? '#7c3aed' : '#cbd5e1',
+        highlight: e.label === 'PREREQUISITE_OF' ? '#6d28d9' : '#94a3b8'
+      },
+      font: { size: 10, color: '#64748b', strokeWidth: 2, strokeColor: '#fff', align: 'middle' },
+      width: e.label === 'PREREQUISITE_OF' ? 2.5 : 1.5,
+      dashes: e.label === 'RELATED_TO'
+    }
+  }))
+
   graphNetwork = new Network(el, { nodes, edges }, {
-    physics:{ solver:'forceAtlas2Based', forceAtlas2Based:{ gravitationalConstant:-40, centralGravity:0.01, springLength:150, springConstant:0.08 } },
-    interaction:{ hover:true, zoomView:true, dragView:true }, layout:{ improvedLayout:true }
+    layout: {
+      hierarchical: {
+        enabled: true,
+        direction: 'LR',
+        sortMethod: 'directed',
+        nodeSpacing: 120,
+        levelSeparation: 220,
+        treeSpacing: 80,
+        shakeTowards: 'roots'
+      }
+    },
+    physics: { enabled: false },
+    interaction: {
+      hover: true,
+      zoomView: true,
+      dragView: true,
+      navigationButtons: false,
+      dragNodes: true
+    },
+    edges: {
+      smooth: { type: 'cubicBezier', forceDirection: 'horizontal' }
+    }
   })
-  graphNetwork.on('doubleClick', p => { if (p.nodes.length) fetch(`/api/graph/concepts/${encodeURIComponent(p.nodes[0])}/graph`).then(r=>r.json()).then(res=>{ if(res.code!==200)return;(res.data.nodes||[]).forEach(n=>{if(nodes.getIds().indexOf(n.id)===-1)nodes.add({id:n.id,label:n.id,color:{background:(COLORS[n.category]||'#6b7280'),border:'#555'},font:{color:'#fff',size:13},shape:'dot',size:20})});(res.data.edges||[]).forEach(e=>edges.add({id:'e'+Date.now()+Math.random().toString(36).slice(2),from:e.from,to:e.to,label:e.label==='PREREQUISITE_OF'?'前置':'相关',arrows:'to',color:{color:e.label==='PREREQUISITE_OF'?'#7c3aed':'#94a3b8'},font:{size:10,color:'#64748b'}}))})})
+
+  graphNetwork.on('doubleClick', p => {
+    if (!p.nodes.length) return
+    fetch(`/api/graph/concepts/${encodeURIComponent(p.nodes[0])}/graph`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.code !== 200) return
+        const newNodes = [], newEdges = []
+        ;(res.data.nodes || []).forEach(n => {
+          if (nodes.getIds().indexOf(n.id) === -1) newNodes.push({ id: n.id, label: n.id, ...nodeOpts(n.category, false) })
+        })
+        ;(res.data.edges || []).forEach(e => {
+          if (!hasEdge(e.from, e.to, e.label)) {
+            addEdgeSet(e.from, e.to, e.label)
+            newEdges.push({
+              id: `e_${e.from}_${e.to}`, from: e.from, to: e.to,
+              label: e.label === 'PREREQUISITE_OF' ? '← 前置' : e.label === 'RELATED_TO' ? '相关' : e.label,
+              arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+              smooth: { type: 'cubicBezier', forceDirection: 'horizontal' },
+              color: { color: e.label === 'PREREQUISITE_OF' ? '#7c3aed' : '#cbd5e1', highlight: e.label === 'PREREQUISITE_OF' ? '#6d28d9' : '#94a3b8' },
+              font: { size: 10, color: '#64748b', strokeWidth: 2, strokeColor: '#fff', align: 'middle' },
+              width: e.label === 'PREREQUISITE_OF' ? 2.5 : 1.5,
+              dashes: e.label === 'RELATED_TO'
+            })
+          }
+        })
+        if (newNodes.length) { nodes.add(newNodes); graphNetwork.storePositions() }
+        if (newEdges.length) edges.add(newEdges)
+      })
+  })
+
+  graphNetwork.on('stabilized', () => { graphNetwork.storePositions() })
+}
+
+function refilterGraph() { if (currentGraphData) renderGraph(currentGraphData) }
+
+async function deleteConcept(name) {
+  if (!confirm(`确定删除概念 "${name}" 及其所有关系？`)) return
+  await api.del(`/api/graph/concepts/${encodeURIComponent(name)}`)
+  showToast(`已删除概念: ${name}`, 'ok')
+  concepts.value = concepts.value.filter(c => c.name !== name)
 }
 
 onMounted(search)
@@ -120,12 +228,19 @@ onMounted(search)
   </div>
 
   <!-- Graph view -->
+  <div v-if="state.graphViewMode" class="graph-filter-bar">
+    <button type="button" class="graph-filter-btn" :class="{ active: graphRelFilter==='prereq' }" @click="graphRelFilter='prereq'; refilterGraph()">仅前置</button>
+    <button type="button" class="graph-filter-btn" :class="{ active: graphRelFilter==='related' }" @click="graphRelFilter='related'; refilterGraph()">仅相关</button>
+    <button type="button" class="graph-filter-btn" :class="{ active: graphRelFilter==='all' }" @click="graphRelFilter='all'; refilterGraph()">全部</button>
+    <span style="font-size:11px;color:var(--text-tertiary);margin-left:auto">双击节点展开</span>
+  </div>
   <div v-if="state.graphViewMode" id="graphNetContainer" class="graph-net"></div>
 
   <!-- List view -->
   <div v-if="!state.graphViewMode" class="doc-list">
     <div v-for="c in concepts" :key="c.name" class="graph-concept-card" @click="showDetail(c.name)">
       <span class="graph-concept-name">{{ c.name }}</span><span class="graph-cat-tag">{{ c.category }}</span>
+      <button type="button" class="graph-concept-del" @click.stop="deleteConcept(c.name)" title="删除概念"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       <span class="graph-concept-rel">{{ c.relationCount }} 关系</span>
       <div class="graph-concept-desc">{{ c.description }}</div>
     </div>
@@ -228,4 +343,28 @@ onMounted(search)
   font-size: 13px; color: var(--text-secondary);
   display: flex; align-items: center; gap: 6px;
 }
+
+/* ---- Filter bar ---- */
+.graph-filter-bar {
+  display: flex; gap: 6px; align-items: center;
+  padding: 8px 0; margin-bottom: 4px;
+}
+.graph-filter-btn {
+  padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  border: 1.5px solid var(--border); background: var(--bg-surface);
+  color: var(--text-tertiary); cursor: pointer; transition: all .2s;
+}
+.graph-filter-btn:hover { border-color: var(--accent-light); color: var(--accent) }
+.graph-filter-btn.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+
+/* ---- Concept delete ---- */
+.graph-concept-del {
+  width: 26px; height: 26px; display: flex; align-items: center;
+  justify-content: center; border-radius: 6px; color: var(--text-tertiary);
+  cursor: pointer; transition: all .15s; flex-shrink: 0;
+  margin-left: auto; margin-right: 8px;
+}
+.graph-concept-del:hover { background: #FEE2E2; color: #EF4444 }
 </style>
