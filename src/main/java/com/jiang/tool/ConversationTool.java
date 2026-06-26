@@ -60,7 +60,9 @@ public class ConversationTool {
 
     @Tool(name = "export_conversation",
           description = "导出当前对话为 Markdown 格式。当用户说「导出对话」「保存对话」「整理成文档」时使用。",
-          parameters = "{}")
+          parameters = """
+              {"type":"object","properties":{},"required":[]}
+              """)
     public String exportConversation() {
         Long convoId = ToolContext.getConversation();
         if (convoId == null) {

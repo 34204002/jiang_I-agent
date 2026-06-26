@@ -55,7 +55,8 @@ public class TodoTool {
                   "type": "object",
                   "properties": {
                       "status": {"type": "string", "description": "筛选状态: pending(未完成) / done(已完成) / all(全部)，默认 pending"}
-                  }
+                  },
+                  "required": []
               }
               """)
     public String listTodos(String status) {

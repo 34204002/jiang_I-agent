@@ -55,7 +55,8 @@ public class ReminderTool {
                   "type": "object",
                   "properties": {
                       "status": {"type": "string", "description": "pending(未触发)/all(全部)，默认 pending"}
-                  }
+                  },
+                  "required": []
               }
               """)
     public String listReminders(String status) {

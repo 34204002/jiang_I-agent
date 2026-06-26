@@ -26,7 +26,9 @@ public class SystemTool {
 
     @Tool(name = "list_knowledge",
           description = "查询知识库中已上传的文档列表。当用户问「有哪些文档」「知识库有什么」「已上传的文件」时使用。",
-          parameters = "{}")
+          parameters = """
+              {"type":"object","properties":{},"required":[]}
+              """)
     public String listKnowledge() {
         var docs = documentMapper.selectList(null);
         if (docs.isEmpty()) return "知识库中还没有上传任何文档。";
@@ -45,7 +47,9 @@ public class SystemTool {
     @Tool(name = "get_status",
           description = "查询当前用户的状态概览。当用户问「我的状态」「有什么待办」「系统状态」时使用。"
                   + "返回待办数、提醒数、知识库文档数。",
-          parameters = "{}")
+          parameters = """
+              {"type":"object","properties":{},"required":[]}
+              """)
     public String getStatus() {
         Long userId = ToolContext.getUser();
         var todos = todoService.listByUser(userId, false);  // pending only

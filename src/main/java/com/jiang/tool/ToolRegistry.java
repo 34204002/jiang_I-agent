@@ -118,7 +118,8 @@ public class ToolRegistry {
                 if (val == null || val.isNull()) {
                     args[i] = null;
                 } else if (type == String.class) {
-                    args[i] = val.asText();
+                    // 字符串参数：如果是数组或对象节点，序列化为 JSON 字符串（如 concepts 数组）
+                    args[i] = val.isArray() || val.isObject() ? val.toString() : val.asText();
                 } else if (type == Integer.class || type == int.class) {
                     args[i] = val.asInt();
                 } else if (type == Long.class || type == long.class) {
