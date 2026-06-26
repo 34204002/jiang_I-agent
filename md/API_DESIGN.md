@@ -2,13 +2,61 @@
 
 > Base URL: `http://localhost:8080`
 > Content-Type: `application/json`
+> 鉴权 Header: `Authorization: Bearer <token>`（除 `/api/auth/*` 外所有 `/api/**` 需要）
 > 统一响应格式: `{"code": 200, "message": "success", "data": {...}}`
 
 ---
 
-## 一、对话接口（Phase 1）
+## 一、鉴权接口
 
-### 1.1 同步对话
+### 1.1 登录
+
+```
+POST /api/auth/login
+```
+
+**请求体：**
+
+```json
+{
+  "username": "admin",
+  "password": "123456"
+}
+```
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "user": { "id": 1, "username": "admin", "nickname": "Admin", "role": "ADMIN", "avatar": "" }
+  }
+}
+```
+
+### 1.2 注册
+
+```
+POST /api/auth/register
+```
+
+**请求体：**
+
+```json
+{
+  "username": "newuser",
+  "password": "123456",
+  "nickname": "新用户"
+}
+```
+
+---
+
+## 二、对话接口
+
+### 2.1 同步对话
 
 ```
 POST /api/chat
@@ -19,75 +67,81 @@ POST /api/chat
 ```json
 {
   "message": "帮我记一下明天下午3点面试",
-  "conversationId": "abc123"
+  "conversationId": 1
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | message | String | 是 | 用户消息 |
-| conversationId | String | 否 | 会话 ID，不传则自动创建新会话 |
+| conversationId | Long | 否 | 会话 ID，不传则自动创建新会话 |
 
 **响应：**
 
 ```json
 {
   "code": 200,
-  "message": "success",
   "data": {
-    "content": "已帮你记下待办：明天下午3点面试 [1]",
-    "conversationId": "abc123",
-    "toolsCalled": ["todoManager"]
+    "content": "已帮你记下待办：明天下午3点面试",
+    "conversationId": 1,
+    "toolsCalled": ["create_todo"]
   }
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| content | String | AI 回复正文 |
-| conversationId | String | 会话 ID（后续请求带上可延续上下文） |
-| toolsCalled | String[] | 本次调用的工具名称列表，无工具调用时为空数组 |
-
 ---
 
-### 1.2 流式对话（SSE）
+### 2.2 流式对话（SSE）★ 核心
 
 ```
-GET /api/chat/stream?message={msg}&conversationId={cid}
+GET /api/chat/stream?message={msg}&conversationId={cid}&token={jwt}&thinking=true
 ```
 
 **请求参数：**
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| message | String | 是 | 用户消息 |
-| conversationId | String | 否 | 会话 ID |
+| message | String | 是 | 用户消息（需 URL encode） |
+| conversationId | Long | 否 | 会话 ID |
+| token | String | 是 | JWT token |
+| thinking | Boolean | 否 | 是否开启思考模式（默认 false，传 true 启用） |
 
-**响应：** `text/event-stream`，每个 data 块为一个 token：
+**响应：** `text/event-stream`，每个 data 块为 JSON 对象：
 
 ```
-data: 已
-data: 帮
-data: 你
-data: 记下
-data: 待办...
+data: {"type":"thinking","content":"用户问的是Redis持久化..."}
+data: {"type":"content","content":"Redis"}
+data: {"type":"content","content":" 提供"}
+data: {"type":"content","content":"三种持久化方式"}
+data: {"type":"tool_call","name":"search_knowledge","args":"{\"query\":\"Redis持久化\"}"}
+data: {"type":"content","content":"根据知识库..."}
 ```
+
+| type | 说明 | 前端行为 |
+|------|------|---------|
+| `thinking` | DeepSeek reasoning_content 增量 | 追加到思考框 |
+| `content` | 回复正文增量（实时逐 chunk，打字机效果） | 追加到消息气泡 + 光标闪烁 |
+| `tool_call` | 工具调用开始 | 更新 thinkHdr，清空 content 暂存 |
 
 **前端接入示例：**
 
 ```javascript
-const eventSource = new EventSource(
-  '/api/chat/stream?message=你好&conversationId=abc123'
-);
-eventSource.onmessage = (e) => console.log(e.data);  // 逐 token 输出
-eventSource.onerror = () => eventSource.close();      // 出错或结束时关闭
+const url = `/api/chat/stream?message=${encodeURIComponent(text)}&token=${token}&thinking=true`
+const es = new EventSource(url)
+es.onmessage = e => {
+  const evt = JSON.parse(e.data)
+  if (evt.type === 'thinking') streamThinking += evt.content
+  if (evt.type === 'content') streamContent += evt.content
+  if (evt.type === 'tool_call') { /* 清 content, 显示工具名 */ }
+}
+es.onerror = () => { es.close(); /* 保存消息到 state */ }
 ```
 
 ---
 
-## 二、知识库接口（Phase 2 — RAG）
+## 三、知识库接口（RAG）
 
-### 2.1 上传文档
+### 3.1 上传文档
 
 ```
 POST /api/knowledge/documents
@@ -96,7 +150,7 @@ Content-Type: multipart/form-data
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| file | File | 是 | 支持 .md / .txt / .pdf（最大 20MB） |
+| file | File | 是 | 支持 .md / .txt / .pdf / .docx |
 
 **响应：**
 
@@ -116,69 +170,31 @@ Content-Type: multipart/form-data
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| id | Long | 文档 ID |
-| filename | String | 原始文件名 |
-| fileType | String | md / txt / pdf / docx |
-| fileSize | Long | 字节数 |
-| chunkCount | Integer | 文本分片数 |
 | status | Integer | 0-待处理 1-已解析 2-已向量化 |
 
----
-
-### 2.2 文档列表
+### 3.2 文档列表
 
 ```
 GET /api/knowledge/documents?page=1&size=20
 ```
 
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "total": 12,
-    "page": 1,
-    "size": 20,
-    "records": [
-      {
-        "id": 1,
-        "filename": "Redis实战笔记.md",
-        "fileType": "md",
-        "fileSize": 15360,
-        "chunkCount": 5,
-        "status": 2,
-        "summary": "Redis核心数据结构与持久化方案总结",
-        "uploadedAt": "2026-06-17T10:00:00"
-      }
-    ]
-  }
-}
-```
-
----
-
-### 2.3 删除文档
+### 3.3 删除文档
 
 ```
 DELETE /api/knowledge/documents/{id}
 ```
 
-**响应：**
+> 删除时同步清除 Qdrant 向量和 MySQL 分片记录。
 
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": null
-}
+### 3.4 下载文档
+
+```
+GET /api/knowledge/documents/{id}/download
 ```
 
-> 删除时同步清除向量库中的关联向量和 MySQL 分片记录。
+> 从阿里云 OSS 302 重定向下载。
 
----
-
-### 2.4 知识库问答（RAG 检索）
+### 3.5 知识库问答（RAG 检索）
 
 ```
 POST /api/knowledge/search
@@ -192,11 +208,6 @@ POST /api/knowledge/search
   "topK": 5
 }
 ```
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| query | String | 是 | 自然语言查询 |
-| topK | Integer | 否 | 返回片段数，默认 5 |
 
 **响应：**
 
@@ -218,21 +229,14 @@ POST /api/knowledge/search
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| answer | String | LLM 增强后的回答 |
-| sources[].documentId | Long | 来源文档 ID |
-| sources[].filename | String | 来源文件名 |
-| sources[].score | Double | 向量相似度（0~1） |
-
 ---
 
-## 三、知识图谱接口（Phase 3）
+## 四、知识图谱接口（Neo4j）
 
-### 3.1 概念列表
+### 4.1 概念列表/搜索
 
 ```
-GET /api/graph/concepts?category={cat}&page=1&size=20
+GET /api/graph/concepts?keyword={kw}&category={cat}&page=1&size=20
 ```
 
 **响应：**
@@ -255,9 +259,9 @@ GET /api/graph/concepts?category={cat}&page=1&size=20
 }
 ```
 
----
+> 搜索使用 Neo4j `=~` 操作符进行模糊正则匹配。
 
-### 3.2 概念详情（含关联）
+### 4.2 概念详情（含关联）
 
 ```
 GET /api/graph/concepts/{name}
@@ -270,16 +274,14 @@ GET /api/graph/concepts/{name}
   "code": 200,
   "data": {
     "name": "Redis",
-    "description": "内存键值数据库，支持持久化、主从、哨兵、集群模式",
+    "description": "...",
     "category": "中间件",
     "difficulty": 3,
     "prerequisites": [
-      { "name": "数据结构", "difficulty": 2 },
-      { "name": "网络编程", "difficulty": 3 }
+      { "name": "数据结构", "difficulty": 2 }
     ],
-    "relatedConcepts": [
-      { "name": "Memcached", "relation": "同类竞品" },
-      { "name": "Redisson", "relation": "Java客户端" }
+    "related": [
+      { "name": "Memcached", "relation": "同类竞品" }
     ],
     "documents": [
       { "documentId": 1, "filename": "Redis实战笔记.md" }
@@ -288,12 +290,10 @@ GET /api/graph/concepts/{name}
 }
 ```
 
----
-
-### 3.3 知识链查询（核心差异化）
+### 4.3 知识链查询（核心差异化）
 
 ```
-GET /api/graph/concepts/{name}/path?target={targetName}&maxHops=3
+GET /api/graph/concepts/{name}/path?target={targetName}&maxHops=5
 ```
 
 **示例：** `GET /api/graph/concepts/数据结构/path?target=Redis&maxHops=5`
@@ -305,26 +305,58 @@ GET /api/graph/concepts/{name}/path?target={targetName}&maxHops=3
   "code": 200,
   "data": {
     "paths": [
-      {
-        "nodes": [
-          { "name": "数据结构", "difficulty": 2 },
-          { "name": "哈希表", "difficulty": 2 },
-          { "name": "Redis", "difficulty": 3 }
-        ],
-        "length": 2
-      }
+      ["数据结构", "哈希表", "Redis"]
     ]
   }
 }
 ```
 
-> **面试要点**：这个接口是 Neo4j 知识图谱的核心价值——返回"学习路径"而非"文档相似度"。
+> 查询策略：PREREQUISITE_OF → RELATED_TO → 任意关系 fallback。
+
+### 4.4 子图（vis-network 可视化）
+
+```
+GET /api/graph/concepts/{name}/graph
+```
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "nodes": [
+      { "id": "Redis", "category": "中间件", "center": true }
+    ],
+    "edges": [
+      { "from": "数据结构", "to": "Redis", "label": "PREREQUISITE_OF" }
+    ]
+  }
+}
+```
+
+### 4.5 手动添加概念
+
+```
+POST /api/graph/concepts
+```
+
+**请求体：**
+
+```json
+{
+  "name": "Redis",
+  "description": "内存键值数据库",
+  "category": "中间件",
+  "difficulty": 3
+}
+```
 
 ---
 
-## 四、工具接口（Phase 4）
+## 五、工具 + 待办接口
 
-### 4.1 可用工具列表
+### 5.1 工具列表
 
 ```
 GET /api/tools
@@ -335,58 +367,38 @@ GET /api/tools
 ```json
 {
   "code": 200,
-  "data": {
-    "tools": [
-      {
-        "name": "todoManager",
-        "description": "管理用户待办任务，支持创建/列表/完成/删除"
-      },
-      {
-        "name": "knowledgeQA",
-        "description": "基于知识库的语义问答，检索相关文档后回答"
-      }
-    ]
-  }
+  "data": [
+    { "name": "search_knowledge", "description": "搜索知识库" },
+    { "name": "create_todo", "description": "创建待办" }
+  ]
 }
 ```
 
----
+> 注：`data` 是数组（不是 `{tools: [...]}` 对象）。
 
-## 五、历史记录接口（Phase 4）
+### 5.2 待办 CRUD
 
-### 5.1 会话列表
-
-```
-GET /api/conversations?page=1&size=20
-```
-
-**响应：**
-
-```json
-{
-  "code": 200,
-  "data": {
-    "total": 30,
-    "records": [
-      {
-        "id": 1,
-        "title": "Redis持久化方式讨论",
-        "model": "deepseek-chat",
-        "messageCount": 12,
-        "createdAt": "2026-06-17T09:00:00",
-        "updatedAt": "2026-06-17T10:30:00"
-      }
-    ]
-  }
-}
-```
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/todos?done=false&page=1&size=50` | 待办列表 |
+| POST | `/api/todos` | 创建待办 `{"title":"..."}` |
+| PUT | `/api/todos/{id}/complete` | 标记完成 |
+| DELETE | `/api/todos/{id}` | 删除待办 |
 
 ---
 
-### 5.2 会话消息列表
+## 六、历史记录接口
+
+### 6.1 会话列表
 
 ```
-GET /api/conversations/{id}/messages?page=1&size=50
+GET /api/conversations?page=1&size=50
+```
+
+### 6.2 会话消息列表
+
+```
+GET /api/conversations/{id}/messages?page=1&size=200
 ```
 
 **响应：**
@@ -400,36 +412,34 @@ GET /api/conversations/{id}/messages?page=1&size=50
         "id": 1,
         "role": "user",
         "content": "Redis持久化有哪几种方式",
-        "createdAt": "2026-06-17T10:00:00"
+        "thinking": null,
+        "createdAt": "2026-06-26T10:00:00"
       },
       {
         "id": 2,
         "role": "assistant",
         "content": "Redis提供三种持久化方式...",
-        "toolCalls": [
-          { "name": "knowledgeQA", "input": {"query":"Redis持久化"}, "output":"..." }
-        ],
+        "thinking": "用户询问Redis持久化方案，需要从知识库检索...",
+        "toolCalls": null,
         "tokenCount": 256,
-        "createdAt": "2026-06-17T10:00:05"
+        "createdAt": "2026-06-26T10:00:05"
       }
     ]
   }
 }
 ```
 
----
+> **thinking 字段**：独立字段，存储 DeepSeek reasoning_content。前端在思考框中渲染，默认折叠。
 
-### 5.3 删除会话
+### 6.3 删除会话
 
 ```
 DELETE /api/conversations/{id}
 ```
 
-响应同 2.3。级联删除关联消息。
+> 校验归属，级联删除消息。
 
----
-
-### 5.4 批量删除会话
+### 6.4 批量删除会话
 
 ```
 POST /api/conversations/batch-delete
@@ -443,61 +453,73 @@ POST /api/conversations/batch-delete
 }
 ```
 
-**响应：**
+---
 
-```json
-{
-  "code": 200,
-  "data": {
-    "deleted": 3,
-    "total": 3
-  }
-}
+## 七、管理接口
+
+### 7.1 Agent 配置
+
+```
+GET /api/admin/agent        # 获取配置
+PUT /api/admin/agent        # 更新配置 {"agentName":"...","model":"...","temperature":0.7,"systemPrompt":"..."}
 ```
 
-> 逐一校验归属，跳过无权或已删除的会话。
+### 7.2 用户管理
+
+```
+GET /api/admin/users?page=1&size=100    # 用户列表
+DELETE /api/admin/users/{id}            # 删除用户
+```
+
+### 7.3 个人设置
+
+```
+GET /api/profile             # 获取个人信息
+POST /api/profile/avatar     # 上传头像 (multipart)
+PUT /api/profile             # 更新信息 {"nickname":"...","password":"..."}
+```
 
 ---
 
-## 六、错误码
+## 八、错误码
 
 | code | 说明 | 触发场景 |
 |------|------|---------|
 | 200 | 成功 | - |
 | 400 | 参数错误 | message 为空、文件格式不支持 |
-| 413 | 文件过大 | 超过 20MB |
-| 429 | 请求过于频繁 | 触发令牌桶限流 |
-| 500 | 服务器内部错误 | 未捕获异常 |
-
-**错误响应示例：**
-
-```json
-{
-  "code": 400,
-  "message": "文件格式不支持，仅支持 md/txt/pdf/docx",
-  "data": null
-}
-```
+| 401 | 未登录 | token 缺失或过期 |
+| 403 | 无权访问 | 越权访问他人会话 |
+| 404 | 资源不存在 | 会话/文档/概念不存在 |
+| 413 | 文件过大 | 超过上传限制 |
+| 429 | 请求频繁 | 触发限流 |
+| 500 | 服务器错误 | 未捕获异常 |
 
 ---
 
-## 七、接口汇总
+## 九、接口汇总
 
-| 阶段 | 方法 | 路径 | 说明 |
-|------|------|------|------|
-| P1 | POST | `/api/chat` | 同步对话 |
-| P1 | GET | `/api/chat/stream` | SSE 流式对话（支持 thinking 模式） |
-| P2 | POST | `/api/knowledge/documents` | 上传文档 |
-| P2 | GET | `/api/knowledge/documents` | 文档列表 |
-| P2 | DELETE | `/api/knowledge/documents/{id}` | 删除文档 |
-| P2 | POST | `/api/knowledge/search` | RAG 知识库问答 |
-| P3 | GET | `/api/graph/concepts` | 概念列表/搜索 |
-| P3 | GET | `/api/graph/concepts/{name}` | 概念详情+关联 |
-| P3 | GET | `/api/graph/concepts/{name}/path` | 知识链查询 |
-| P3 | POST | `/api/graph/concepts` | 手动添加概念 |
-| P3 | POST | `/api/graph/concepts/{name}/relations` | 添加关系 |
-| P4 | GET | `/api/tools` | 工具列表 |
-| P4 | GET | `/api/conversations` | 会话列表 |
-| P4 | GET | `/api/conversations/{id}/messages` | 消息列表 |
-| P4 | DELETE | `/api/conversations/{id}` | 删除会话 |
-| P4 | POST | `/api/conversations/batch-delete` | 批量删除会话 |
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/auth/login` | 登录 |
+| POST | `/api/auth/register` | 注册 |
+| POST | `/api/chat` | 同步对话 |
+| GET | `/api/chat/stream` | SSE 流式对话 (?thinking=true) |
+| POST | `/api/knowledge/documents` | 上传文档 |
+| GET | `/api/knowledge/documents` | 文档列表 |
+| DELETE | `/api/knowledge/documents/{id}` | 删除文档 |
+| GET | `/api/knowledge/documents/{id}/download` | 下载文档 |
+| POST | `/api/knowledge/search` | RAG 知识库问答 |
+| GET | `/api/graph/concepts` | 概念列表/搜索 |
+| GET | `/api/graph/concepts/{name}` | 概念详情 |
+| GET | `/api/graph/concepts/{name}/path` | 知识链查询 |
+| GET | `/api/graph/concepts/{name}/graph` | 子图 (vis-network) |
+| POST | `/api/graph/concepts` | 添加概念 |
+| GET | `/api/tools` | 工具列表 |
+| GET/POST/PUT/DELETE | `/api/todos[/{id}/complete]` | 待办 CRUD |
+| GET | `/api/conversations` | 会话列表 |
+| GET | `/api/conversations/{id}/messages` | 消息列表 (含 thinking) |
+| DELETE | `/api/conversations/{id}` | 删除会话 |
+| POST | `/api/conversations/batch-delete` | 批量删除 |
+| GET/PUT | `/api/admin/agent` | Agent 配置 |
+| GET/DELETE | `/api/admin/users/*` | 用户管理 |
+| GET/POST/PUT | `/api/profile/*` | 个人设置 |

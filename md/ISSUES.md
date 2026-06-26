@@ -4,94 +4,54 @@
 
 **症状**：DeepSeek 思考模式流式输出时 `reasoning_content` 丢失，同步调用正常。
 
-**排查**：
+**根因**：Spring AI 2.0 底层使用 OpenAI 官方 Java SDK，SDK 对象模型不含 `reasoning_content` 非标准字段，直接丢弃。
 
-| 轮次 | 判断 | 结论 |
-|------|------|------|
-| 怀疑 ChunkMerger 丢字段 | 盯错了地方 — reasoning_content 不在 additionalProperties 里 |
-| 怀疑用错了 API 层级 | 部分正确 — 应该用 `ChatModel.stream()` 而非 `ChatClient.stream().content()` |
-| HTTP 层验证 | 硅基流动原始响应中 `reasoning_content` 完整存在 ✅ |
-| Spring AI 层验证 | `metadata["reasoningContent"]` key 存在但值为 `""` ❌ |
-
-**根因**：Spring AI 2.0 底层使用 **OpenAI 官方 Java SDK**，SDK 对象模型不含 `reasoning_content` 这个非标准字段，直接丢弃。
-
-**尝试过的方案**：
-
-| 方案 | 结果 |
-|------|------|
-| OpenAI 适配器（`spring-ai-starter-model-openai`） | ❌ |
-| DeepSeek 原生适配器（`spring-ai-starter-model-deepseek`） | ❌ 开不了思考或同样拿不到 |
-| `HttpClient` 直连硅基流动 | ✅ |
-
-**测试代码**：`src/test/java/com/jiang/ReasoningContentRawTest.java`、`SpringAIReasoningTest.java`
+**修复**：切换到 `spring-ai-deepseek` 专用模块，`ChatCompletionMessage.reasoningContent()` 原生支持。
 
 ---
 
 ## 2. DSML 格式函数调用 + 根因定位
 
-**症状**：DeepSeek 在 `delta.content` 里输出自创标签格式的工具调用，不入 `delta.tool_calls`。
-
-```
+**症状**：DeepSeek 在 `delta.content` 输出自创标签格式工具调用：
+```xml
 <tool_calls>
 <invoke name="add_concept"><parameter name="name">Redis</parameter></invoke>
 </tool_calls>
 ```
 
-**最终根因**（2026-06-26 定位）：**流式代码并行 tool_calls 参数粘连导致工具执行失败，模型后续 fallback 到 DSML。**
+**最终根因**（2026-06-26 定位）：**流式代码并行 tool_calls 参数粘连导致工具执行失败，模型 fallback 到 DSML。**
 
-详细链：
-1. DeepSeek 在流式模式下并行返回多个 tool_call（如 2 个 `search_knowledge`）
-2. 自研流式解析用**单个 `StringBuilder` 累积所有 tool_call 的 arguments**，参数串接成非法 JSON
-3. `ToolRegistry.execute()` 参数解析失败 → 返回错误
-4. LLM 收到错误后，后续 tool call 放弃标准格式，fallback 到 DSML
+**修复**：按 `delta.tool_calls[].index` 分组独立累积参数（`Map<Integer,StringBuilder>`），工具执行成功后 DSML 自然消失。
 
-**修复**（2026-06-26）：
-- 流式解析改为按 `delta.tool_calls[].index` 分组独立累积参数
-- `handleToolCallAndContinue` 接收 `List<ToolCall>` 合并处理并行调用
-- `buildMessagesWithTools` 构建的 assistant 消息包含所有 tool_calls + 对应 tool 结果
-
-**仅剩的防御**：在 content 流中过滤 `<tool_calls>` `<invoke ` `</tool_calls>` 标签，防止 DSML 泄露到前端。
+**仅剩防御**：content 流中过滤 `<tool_calls>` `<invoke ` `</tool_calls>` 标签。
 
 ---
 
 ## 3. 自建 Tool 体系
 
-绕过 Spring AI 后，`@Tool` 自动发现/执行体系无法使用，自建：
+绕过 Spring AI 后自建 `@Tool` 注解框架：
 
 | 组件 | 职责 |
 |------|------|
 | `@Tool` 注解 | name + description + JSON Schema |
 | `ToolRegistry` | `ApplicationReadyEvent` 时扫描、运行时反射执行 |
 | `ToolContext` | ThreadLocal 传递 userId/convoId/reasoningContent |
-| `ChatService` | 标准 `delta.tool_calls` 解析 + 工具执行 + 消息注入 + LLM 重调 |
 
-现注册 **17 个工具**（P3 新增 GraphTool 3 个，SystemTool 2 个）。
-
-流程：模型输出 tool_call → 解析执行 → 结果注入 messages → 二次 LLM → 最终回答，最多 5 轮。
-
-**schema 规范**（2026-06-26 统一）：所有工具必须含 `"type":"object"` + `"required"` 字段（即使为空数组），不再依赖 `ToolRegistry` 字符串拼接兜底。
+现注册 **17 个工具**，最多 **10 轮**工具循环。schema 规范：所有工具含 `"type":"object"` + `"required"` 字段。
 
 ---
 
 ## 4. ToolRegistry 循环依赖
 
-**症状**：`@SpringBootTest` 启动失败：
-```
-BeanCurrentlyInCreationException: chatController → chatService → toolRegistry
-  → ctx.getBean(name) → chatController（循环）
-```
+**症状**：`ApplicationContextAware.setApplicationContext()` 中 `ctx.getBean()` 触发未就绪 bean → `BeanCurrentlyInCreationException`。
 
-**根因**：`ApplicationContextAware.setApplicationContext()` 里调 `ctx.getBean()` 触发未就绪 bean。
-
-**修复**：改为 `@EventListener(ApplicationReadyEvent.class)`，上下文完全就绪后再扫描。
+**修复**：改为 `@EventListener(ApplicationReadyEvent.class)`。
 
 ---
 
 ## 5. Jackson DefaultTyping 污染 API 请求
 
-**症状**：硅基流动 API 返回 400。
-
-**根因**：`RedisConfig` 的 `ObjectMapper` 开了 `activateDefaultTyping`，注入 `ChatService` 后序列化 JSON 带 Jackson 类型注解。
+**症状**：RedisConfig 的 ObjectMapper 开 `activateDefaultTyping`，注入 ChatService 后序列化 JSON 带 Jackson 类型注解 → API 400。
 
 **修复**：API 请求用 `new ObjectMapper()` 干净实例。
 
@@ -99,11 +59,7 @@ BeanCurrentlyInCreationException: chatController → chatService → toolRegistr
 
 ## 6. Flux.create() 流式阻塞
 
-**症状**：SSE 内容积压到 API 结束后一次性吐出。
-
-**根因**：`Flux.create()` + `subscribeOn(boundedElastic)` 的阻塞 readLine 循环无法背压。
-
-**修复**：换 `HttpClient.sendAsync()` + `BodyHandlers.ofLines()` + `Flux.fromStream()` 惰性拉取。
+**症状**：SSE 内容积压到 API 结束后一次性吐出。**修复**：换 `HttpClient.sendAsync()` + `BodyHandlers.ofLines()` + `Flux.fromStream()`。
 
 ---
 
@@ -115,73 +71,127 @@ BeanCurrentlyInCreationException: chatController → chatService → toolRegistr
 
 ## 8. 硅基流动 Embedding 模型
 
-`text-embedding-3-small` 是 OpenAI 模型，硅基流不支持。换为 `BAAI/bge-m3`（1024 维）。
+`text-embedding-3-small` 是 OpenAI 模型，硅基流动不支持。换为 `BAAI/bge-m3`（1024 维）。
 
 ---
 
 ## 9. Qdrant Collection 手动创建
 
 Spring AI 不自动建 collection。Qdrant gRPC（6334）和 REST（6333）端口不同。
-```bash
-curl -X PUT http://localhost:6333/collections/jiang_i_agent_knowledge \
-  -H 'Content-Type: application/json' \
-  -d '{"vectors":{"size":1024,"distance":"Cosine"}}'
-```
 
 ---
 
-## 10. 前端 SSE 流式问题
+## 10. 前端 SSE 流式问题（vanilla JS 时期）
 
-- **跨消息串流**：`#streamBubble`/`#thinkingBlock` id 未清理 → `onSend()` 开头清旧 id
-- **打字机被杀死**：`es.onerror` 中 `clearInterval` 丢残留文本 → 改用状态标记让 `pumpType()` 自然收尾
-- **思考块重复**：`es.onerror` 用 `innerHTML` 新建 block 与原有 `#thinkingBlock` 共存 → 就地更新
+- 跨消息串流：`#streamBubble` id 未清理 → `onSend()` 开头清旧 id
+- 打字机被杀死：`es.onerror` 中 `clearInterval` 丢残留文本
+- 思考块重复：`es.onerror` 用 `innerHTML` 新建 block 与原有共存
 
 ---
 
-## 11. DeepSeekStreamService 替换为 Spring AI DeepSeek 类型
+## 11. DeepSeekStreamService 替换
 
-**背景**（2026-06-26）：Spring AI 2.0 的 `spring-ai-deepseek` 模块自带 `ChatCompletionMessage` 和 `ChatCompletionChunk`，内置 `reasoningContent` 字段，能正确反序列化 DeepSeek 流式响应。
-
-**改动**：
-- 删除 `DeepSeekStreamService`（87 行 HTTP 传输 + SSE 解析）
-- `ChatService` 流式解析从手动 `JsonNode` 遍历换为 `ChatCompletionChunk`
-- `ChatCompletionMessage` 类型替代 `delta.path("content").asText()` 写法
-- 保留了自研的 `buildRequestBody()`（Map 构建）、`ToolRegistry`、工具编排逻辑
-
-**启示**：**用框架的类型解析，保留自己的编排控制**——类型安全但不失灵活性。
+用 Spring AI `spring-ai-deepseek` 的 `ChatCompletionMessage`/`ChatCompletionChunk` 替代手动 JsonNode 解析。保留自研 `buildRequestBody()` 和工具编排。
 
 ---
 
 ## 12. v4-flash 默认思考模式
 
-**发现**：`deepseek-v4-flash` **不传 `thinking: {type: "enabled"}` 也返回 `reasoning_content`**——模型默认开启思考。这意味着 `DeepSeekChatOptions` 没有 thinking 选项不是问题，不需要额外参数。
+`deepseek-v4-flash` 不传 `thinking: {type: "enabled"}` 也返回 `reasoning_content`——模型默认开启思考。
 
 ---
 
 ## 13. 并行 tool_calls 参数粘连（DSML 根因）
 
-**症状**：模型并行调用多个工具时，参数粘在一起形成非法 JSON：
-```
-args={"keyword": "Redis持久化"}{"query": "Redis持久化策略 AOF RDB", "topK": 5}
-```
+用 `Map<Integer, String> tcNames` + `Map<Integer, StringBuilder> tcArgsMap` 按 index 独立累积。
 
-**根因**：流式解析用单个 `StringBuilder` 累积所有 tool_call 的 arguments，不分 index。
+---
 
-**修复**（2026-06-26）：
-- 用 `Map<Integer, String> tcNames` + `Map<Integer, StringBuilder> tcArgsMap` 按 tool_call index 独立累积
-- `handleToolCallAndContinue` 接收 `List<ToolCall>`，多工具合并到一个 assistant 消息
-- `buildMessagesWithTools` 构建含多 tool_calls 的 assistant 消息，逐一追加 tool 结果
+## 14. Content 缓冲破坏打字机效果 ★
 
-**这也是 DSML 出现的根本原因**：工具执行失败 → 模型失去信心 → fallback 到 DSML。
+**症状**（2026-06-26）：修复 DSML 后，前端内容一次性闪现，无逐字打字机效果。
+
+**根因**：`ChatService.streamWithPossibleTools()` 和 `streamToolFollowup()` 中 content chunk 只 append 到 `contentBuf`，注释写明"不立即发射——缓冲到流结束"。然后在 `.concatWith(Flux.defer(...))` 中一次性 `Flux.just(content)` 发送整个正文。
+
+**修复**：content 改为实时 `sink.next("type":"content",...)` 逐 chunk 发射，终轮只持久化不重发。前端 `tool_call` 事件时清 `streamContent`。
+
+---
+
+## 15. thinking 字段从 content 中分离 ★
+
+**症状**：思考内容用 `<thinking>...</thinking>` HTML 标签包裹在 content 字段中，marked 渲染时当作 HTML 处理，思考混入正文。
+
+**根因**：Message 实体没有独立 thinking 字段，后端 `saveMessage` 拼接 `<thinking>` + content，前端靠正则解析但 marked 已吞掉标签。
+
+**修复**（全链路）：
+- DB: `ALTER TABLE t_message ADD COLUMN thinking MEDIUMTEXT`
+- Entity: `Message.thinking` 字段
+- VO: `MessageVO.thinking` 字段
+- ChatService: `saveMessage()` 加 thinking 参数，不再拼接 `<thinking>` 标签
+- 前端: `m.thinking` 直接渲染思考框，`m.content` 渲染正文气泡
+
+---
+
+## 16. Vue 3 SPA 迁移
+
+**背景**：原前端 5 个 vanilla JS 文件（~1630 行），无组件化、无路由、emoji 作图标、innerHTML 拼接 XSS 风险。
+
+**迁移内容**：
+- Vite 项目 + 8 个 .vue SFC 组件 + vue-router SPA
+- 全局 CSS 设计系统（自定义属性）
+- 所有 emoji → SVG（Heroicons 风格）
+- getElementById → Vue ref
+- alert() → showToast()
+- innerHTML v-html → Teleport + 模板渲染（XSS 修复）
+- 30+ UI 问题修复（accessibility、contrast、touch target）
+
+---
+
+## 17. Sidebar + Welcome 图标不可见
+
+**症状**：Sidebar 品牌 SVG 和欢迎页 robot SVG 使用 `stroke="currentColor"`，但父元素未设置 `color`，currentColor 回退到 body `#1E293B`（深灰），在粉色→紫色渐变背景上不可见。
+
+**修复**：`.sidebar-brand .icon` 加 `color:#fff`；`.welcome-emoji` 加 `color:var(--accent)`；SVG `stroke-width` `.8` → `1.5`。
+
+---
+
+## 18. 工具列表 API 响应格式不匹配
+
+**症状**：ToolsPanel 显示"加载工具列表…"但实际已拿到数据。
+
+**根因**：后端 `GET /api/tools` → `Result.success(List)`，data 是数组 `[{name,description},...]`。前端检查 `json.data?.tools`（期望 `{tools: [...]}`），永远 undefined。
+
+**修复**：`Array.isArray(json.data) ? json.data : json.data?.tools`。
+
+---
+
+## 19. 输入框样式未应用
+
+**症状**：ChatPanel 的消息输入框显示浏览器默认样式（白底黑框），与粉色设计系统不协调。
+
+**根因**：`.input-row` CSS 子选择器只匹配 `textarea`，模板中使用的是 `<input>`。
+
+**修复**：选择器改为 `.input-row input, .input-row textarea`。
+
+---
+
+## 20. Vue Router 无限重定向
+
+**症状**：`router.replace()` 在组件 `setup()` 阶段调用，与 vue-router 初始化竞争 → 无限循环。
+
+**修复**：移到 `onMounted()` 中执行。
 
 ---
 
 ## 教训
 
-1. **非标准字段不信任任何 SDK** — 直接从 HTTP 层验证（reasoning_content 至今只有 DeepSeek 专用类型支持）
-2. **用框架的类型，保留自己的控制** — `DeepSeekApi.ChatCompletionChunk` 做解析，`buildRequestBody()` 做请求构建
+1. **非标准字段不信任任何 SDK** — 直接从 HTTP 层验证
+2. **用框架的类型，保留自己的控制** — DeepSeekApi 做解析，buildRequestBody 做编排
 3. **先验证最底层再往上走** — 别猜，写测试
-4. **模型能力差异藏得深** — DSML vs tool_calls，文档不一定写
+4. **并行 tool_calls 参数别粘一起** — 按 index 独立累积
 5. **空字符串 != null** — 判空永远加 `isEmpty()`
-6. **并行 tool_calls 参数别粘一起** — 按 index 独立累积
-7. **DSML 不是 bug，是症状** — 工具执行失败 → 模型失信 → fallback；修好了工具循环，DSML 自然少
+6. **DSML 不是 bug，是症状** — 工具执行失败 → 模型失信 → fallback
+7. **流式不要缓冲** — 实时发射维持打字机效果
+8. **思考独立存储** — 不要用 HTML 标签包裹在正文中
+9. **API 响应格式要对齐** — 前后端数据结构不一致是最常见的 bug
+10. **SVG currentColor 必设 color** — 否则继承不可预期的 body 颜色

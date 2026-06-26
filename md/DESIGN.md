@@ -1,6 +1,6 @@
 # Jiang I-Agent — 技术设计文档
 
-> 版本选型决策 + 数据库设计 + Neo4j 图谱模型 + Redis 键设计 + 向量库选型
+> 版本选型决策 + 数据库设计 + Neo4j 图谱模型 + Redis 键设计 + 向量库选型 + 前端架构
 
 ---
 
@@ -8,10 +8,11 @@
 
 | 决策 | 选项 | 原因 |
 |------|------|------|
-| Spring Boot 版本 | **4.1.0** | 阿里云 Maven 镜像全量支持，Java 21 + Virtual Threads |
-| Spring AI 版本 | **2.0.0** | 使用 `spring-ai-deepseek` 专用 API（ChatCompletion/Chunk 带 reasoningContent） |
-| 大模型接入 | **DeepSeek 官方 API** | 直接 `api.deepseek.com`，HttpClient 构建请求 + Spring AI 类型解析 |
-| 嵌入模型 | **BAAI/bge-m3** | 硅基流动提供，1024 维向量（text-embedding-3-small 是 OpenAI 模型，硅基不支持） |
+| Spring Boot 版本 | **4.1.0** | Java 21 + Virtual Threads |
+| Spring AI 版本 | **2.0.0** | `spring-ai-deepseek` 专用 API（ChatCompletionMessage.reasoningContent()） |
+| 大模型接入 | **DeepSeek 官方 API** | `api.deepseek.com`，`buildRequestBody()` 构建 + Spring AI 类型解析 |
+| 嵌入模型 | **BAAI/bge-m3** | 硅基流动提供，1024 维（text-embedding-3-small 是 OpenAI 模型，不支持） |
+| 前端框架 | **Vue 3 + Vite** | SFC 组件 + vue-router SPA + 设计系统 CSS 自定义属性 |
 | 序列化 | **Jackson** | API 请求/响应序列化，工具调用参数解析 |
 
 ---
@@ -20,25 +21,54 @@
 
 全部表使用 InnoDB + utf8mb4，主键统一 `BIGINT UNSIGNED AUTO_INCREMENT`。
 
-### 2.1 对话表
+### 2.1 用户认证
+
+```sql
+CREATE TABLE t_user (
+    id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    username      VARCHAR(50)     NOT NULL,
+    password      VARCHAR(200)    NOT NULL,              -- BCrypt 密文
+    nickname      VARCHAR(100)    NOT NULL DEFAULT '',
+    avatar        VARCHAR(500)    NOT NULL DEFAULT '',    -- 阿里云 OSS URL
+    role          VARCHAR(20)     NOT NULL DEFAULT 'USER',-- ADMIN / USER
+    created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_username (username)
+);
+
+CREATE TABLE t_agent_config (
+    id            INT PRIMARY KEY,                       -- 固定为 1
+    agent_name    VARCHAR(100)    NOT NULL DEFAULT 'Jiang I-Agent',
+    avatar        VARCHAR(500)    NOT NULL DEFAULT '',
+    system_prompt TEXT            NULL,
+    model         VARCHAR(50)     NOT NULL DEFAULT 'deepseek-v4-flash',
+    temperature   DECIMAL(3,2)    NOT NULL DEFAULT 0.7,
+    updated_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
+
+### 2.2 对话表
 
 ```sql
 CREATE TABLE t_conversation (
     id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id       BIGINT UNSIGNED NOT NULL,              -- 所属用户
     title         VARCHAR(200)    NOT NULL DEFAULT '',
     model         VARCHAR(50)     NOT NULL DEFAULT '',
     message_count INT UNSIGNED    NOT NULL DEFAULT 0,
     created_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_created (created_at)
+    INDEX idx_user (user_id),
+    INDEX idx_created (created_at),
+    FOREIGN KEY (user_id) REFERENCES t_user(id) ON DELETE CASCADE
 );
 
 CREATE TABLE t_message (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     conversation_id BIGINT UNSIGNED NOT NULL,
     role            VARCHAR(20)     NOT NULL,              -- user / assistant / tool
-    content         MEDIUMTEXT      NULL,
-    tool_calls      JSON            NULL,                  -- [{name, input, output}]
+    content         MEDIUMTEXT      NULL,                  -- 消息正文
+    thinking        MEDIUMTEXT      NULL,                  -- DeepSeek reasoning_content
+    tool_calls      JSON            NULL,                  -- 工具调用 JSON
     token_count     INT UNSIGNED    NOT NULL DEFAULT 0,
     created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_conv_msg (conversation_id, created_at),
@@ -46,20 +76,23 @@ CREATE TABLE t_message (
 );
 ```
 
-### 2.2 文档表（RAG）
+> **thinking 字段**：2026-06-26 新增。之前思考内容用 `<thinking>` HTML 标签包裹在 content 字段中，现在独立存储。
+
+### 2.3 文档表（RAG）
 
 ```sql
 CREATE TABLE t_document (
     id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     filename     VARCHAR(255)    NOT NULL,
-    file_type    VARCHAR(20)     NOT NULL,                  -- md / pdf / txt
+    file_type    VARCHAR(20)     NOT NULL,                  -- md / pdf / txt / docx
     file_size    BIGINT UNSIGNED NOT NULL DEFAULT 0,
     content_hash VARCHAR(64)     NOT NULL DEFAULT '',       -- SHA-256 去重
     chunk_count  INT UNSIGNED    NOT NULL DEFAULT 0,
     status       TINYINT         NOT NULL DEFAULT 0,        -- 0-待处理 1-已解析 2-已向量化
     summary      VARCHAR(500)    NOT NULL DEFAULT '',
+    oss_key      VARCHAR(200)    NOT NULL DEFAULT '',       -- OSS 存储 key
     uploaded_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_hash (content_hash),
+    UNIQUE KEY uk_content_hash (content_hash),
     INDEX idx_status (status)
 );
 
@@ -69,27 +102,29 @@ CREATE TABLE t_document_chunk (
     chunk_index  INT UNSIGNED    NOT NULL,
     content      TEXT            NOT NULL,
     token_count  INT UNSIGNED    NOT NULL DEFAULT 0,
-    embedding_id VARCHAR(100)    NOT NULL DEFAULT '',       -- Qdrant point ID
+    embedding_id VARCHAR(100)    NOT NULL DEFAULT '',       -- Qdrant Point ID
     UNIQUE KEY uk_doc_chunk (document_id, chunk_index),
     FOREIGN KEY (document_id) REFERENCES t_document(id) ON DELETE CASCADE
 );
 ```
 
-### 2.3 待办表
+### 2.4 待办表
 
 ```sql
 CREATE TABLE t_todo_item (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
     conversation_id BIGINT UNSIGNED NULL,
     title           VARCHAR(500)    NOT NULL,
     due_date        DATE            NULL,
     is_done         TINYINT         NOT NULL DEFAULT 0,
     created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at    DATETIME        NULL,
     INDEX idx_done (is_done, due_date)
 );
 ```
 
-### 2.4 工具调用日志（可观测性）
+### 2.5 工具调用日志（可观测性）
 
 ```sql
 CREATE TABLE t_tool_usage_log (
@@ -110,9 +145,11 @@ CREATE TABLE t_tool_usage_log (
 
 | 索引 | 原因 |
 |------|------|
-| `idx_conv_msg(conversation_id, created_at)` | 按会话查消息是最高频查询，等值在前、排序在后 |
-| `uk_hash(content_hash)` | SHA-256 唯一，防止重复上传同一文件 |
+| `uk_username` | 用户名唯一，登录查询 |
+| `idx_conv_msg(conversation_id, created_at)` | 按会话查消息是最高频查询 |
+| `uk_content_hash` | SHA-256 唯一，防止重复上传同一文件 |
 | `idx_done(is_done, due_date)` | 查未完成待办按截止日期排序 |
+| `idx_user(user_id)` | 按用户隔离会话数据 |
 | `idx_tool_time(tool_name, created_at)` | 按工具名统计调用量 |
 
 ---
@@ -156,6 +193,9 @@ RETURN path
 -- 某概念关联的所有文档
 MATCH (c:Concept {name: "Redis"})-[:MENTIONED_IN]->(d:Document)
 RETURN c, d
+
+-- 模糊搜索概念（前端 GraphPanel 用）
+MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 ```
 
 ---
@@ -181,33 +221,83 @@ RETURN c, d
 }
 ```
 
-### Spring AI 配置
-
-```yaml
-spring.ai.vectorstore.qdrant:
-  host: localhost
-  port: 6334
-  initialize-schema: true       # 首次启动自动建 Collection
-```
-
 ---
 
 ## 五、Redis 键设计
 
 | Key 模式 | 类型 | TTL | 用途 |
 |----------|------|-----|------|
-| `agent:chat:memory:{convId}` | List | 30min | ChatMemory 对话历史（官方 Starter 自动管理） |
+| `agent:chat:memory:{convId}` | List | 30min | ChatMemory 对话历史 |
 | `agent:rate_limit:{key}:{min}` | String | 60s | 令牌桶限流计数器 |
 | `agent:session:{sessionId}` | Hash | 30min | 会话元数据 |
-| `agent:embedding_cache:{hash}` | String | 24h | 向量化结果缓存（节省 API 费用） |
 
 ---
 
-## 六、分阶段建表策略
+## 六、鉴权设计
 
-| 阶段 | 建表 | Qdrant | Neo4j |
-|------|------|--------|-------|
-| P1（框架） | 不建表 | 不操作 | 不操作 |
-| P2（RAG） | `t_document` + `t_document_chunk` | 建 Collection + 写入向量 | 不操作 |
-| P3（图谱） | 不新增 | 只读 | 建节点+关系 |
-| P4（工程化） | `t_conversation` + `t_message` + `t_todo_item` + `t_tool_usage_log` | 读写 | 读写 |
+- **方案**：无状态 JWT Token
+- **Filter**：`JwtAuthFilter` 拦截 `/api/**`（白名单：`/api/auth/login`、`/api/auth/register`）
+- **前端**：`Authorization: Bearer <token>` header，token 存 localStorage
+- **用户角色**：USER / ADMIN（admin 可访问 `/api/admin/**`）
+
+---
+
+## 七、SSE 流式协议
+
+流式端点 `GET /api/chat/stream` 返回 `text/event-stream`，每个 `data` 块为 JSON：
+
+```json
+{"type":"thinking","content":"思考过程文本片段..."}
+{"type":"content","content":"回复文本片段..."}
+{"type":"tool_call","name":"search_knowledge","args":"{\"query\":\"...\"}"}
+```
+
+| type | 说明 | 前端处理 |
+|------|------|---------|
+| `thinking` | DeepSeek reasoning_content 增量 | 追加到思考框 |
+| `content` | 回复正文增量 | 追加到气泡（打字机效果） |
+| `tool_call` | 工具调用开始 | 显示 "调用: toolName"，清 content 暂存 |
+
+> **关键设计**：content 实时逐 chunk 发射（不是缓冲后再一次性发送），tool_call 事件时前端清空中间 content。详见 ISSUES.md §14。
+
+---
+
+## 八、思考框 UI 设计
+
+| 状态 | 行为 |
+|------|------|
+| **流式中** | 思考框展开，标题 "思考中..." 或 "调用: toolName"，chevron 旋转 |
+| **流式结束** | 自动折叠（`thinkingCollapsed[i] = true`），标题 "思考内容" |
+| **历史消息** | 默认折叠，点击标题展开/折叠，chevron 旋转动画 200ms |
+| **数据存储** | `Message.thinking` 字段独立存储，前端 `m.thinking` 渲染 |
+
+---
+
+## 九、前端设计系统
+
+全局 CSS 自定义属性（`frontend/src/assets/style.css`，26KB）：
+
+```
+:root {
+  --accent: #F472B6;        --accent-deep: #EC4899;     --accent-light: #FBCFE8;
+  --lavender: #8B5CF6;      --lavender-light: #A78BFA;
+  --color-error: #EF4444;   --color-success: #22C55E;   --color-warning: #F59E0B;
+  --text-primary: #1E293B;  --text-secondary: #64748B;  --text-tertiary: #94A3B8;
+  --bg-body: #FDF2F8;       --bg-surface: #FFFFFF;
+  --radius-sm: 8px;         --radius: 12px;             --radius-lg: 18px;
+  --font-sans: "Inter", ...; --font-mono: "SF Mono", ...;
+  /* + 间距/字重/阴影/过渡 scale */
+}
+```
+
+---
+
+## 十、分阶段建表策略
+
+| 阶段 | 建表 | 外部系统 |
+|------|------|---------|
+| P1（框架） | `t_user` `t_agent_config` | Redis |
+| P2（RAG） | `t_document` `t_document_chunk` | Qdrant |
+| P3（图谱） | — | Neo4j |
+| P4（工程化） | `t_conversation` `t_message` `t_todo_item` `t_tool_usage_log` | — |
+| P5（前端） | `t_message.thinking` 列 | — |
