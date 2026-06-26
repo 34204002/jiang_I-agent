@@ -18,6 +18,8 @@ public class MessageVO {
     private String role;
     /** 消息正文 */
     private String content;
+    /** 思考内容（DeepSeek reasoning_content） */
+    private String thinking;
     /** 工具调用记录 */
     private List<ToolCall> toolCalls;
     /** Token 消耗估算 */

@@ -75,6 +75,7 @@ public class ConversationService {
             vo.setId(m.getId());
             vo.setRole(m.getRole());
             vo.setContent(m.getContent());
+            vo.setThinking(m.getThinking());
             vo.setTokenCount(m.getTokenCount());
             vo.setCreatedAt(m.getCreatedAt());
             return vo;

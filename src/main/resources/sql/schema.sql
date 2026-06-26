@@ -69,6 +69,7 @@ CREATE TABLE t_message (
     conversation_id BIGINT UNSIGNED NOT NULL                 COMMENT '所属会话',
     role            VARCHAR(20)     NOT NULL                 COMMENT 'user / assistant / tool',
     content         MEDIUMTEXT      NULL                     COMMENT '消息正文',
+    thinking        MEDIUMTEXT      NULL                     COMMENT '思考内容（DeepSeek reasoning_content）',
     tool_calls      JSON            NULL                     COMMENT '工具调用 JSON',
     token_count     INT UNSIGNED    NOT NULL DEFAULT 0       COMMENT 'Token 消耗',
     created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,

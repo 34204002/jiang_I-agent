@@ -148,23 +148,27 @@ public class ChatService {
     private ConversationContext prepareConversation(ChatRequest request, Long userId) {
         Long convoId = resolveConversationId(request.getConversationId(), request.getMessage(), userId);
         String memoryKey = String.valueOf(convoId);
-        saveMessage(convoId, "user", request.getMessage(), null);
+        saveMessage(convoId, "user", request.getMessage(), null, null);
         var history = chatMemory.get(memoryKey);
         chatMemory.add(memoryKey, List.of(new UserMessage(request.getMessage())));
         return new ConversationContext(convoId, memoryKey, history);
     }
 
     private void saveAssistantMessage(ConversationContext ctx, String content) {
-        saveMessage(ctx.convoId, "assistant", content, null);
+        saveMessage(ctx.convoId, "assistant", content, null, null);
         chatMemory.add(ctx.memoryKey, List.of(new AssistantMessage(content)));
         updateConversationMeta(ctx.convoId);
     }
 
     private record ConversationContext(Long convoId, String memoryKey, List<Message> history) {}
 
-    private void persistAssistant(Long convoId, String memoryKey, String content) {
-        saveMessage(convoId, "assistant", content, null);
-        chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
+    private void persistAssistant(Long convoId, String memoryKey, String content, String thinking) {
+        saveMessage(convoId, "assistant", content, thinking, null);
+        if (thinking != null && !thinking.isEmpty()) {
+            chatMemory.add(memoryKey, List.of(new AssistantMessage("<thinking>" + thinking + "</thinking>\n" + content)));
+        } else {
+            chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
+        }
         updateConversationMeta(convoId);
     }
 
@@ -241,37 +245,38 @@ public class ChatService {
                             log.info("[DSML_FILTER] 拦截 DSML 片段: {}", c.length() > 200 ? c.substring(0,200)+"..." : c);
                             return;
                         }
+                        // 实时发射 content（支持打字机效果），同时缓冲用于持久化
                         contentBuf.append(c);
-                        // 不立即发射——缓冲到流结束，确认无 tool_call 才发射（避免中间轮次污染）
+                        try {
+                            sink.next("{\"type\":\"content\",\"content\":"
+                                    + MAPPER.writeValueAsString(c) + "}");
+                        } catch (Exception ignored) {}
 
                     } catch (Exception ignored) {}
                 })
                 .concatWith(Flux.defer(() -> {
                     if (tcNames.isEmpty()) {
-                        // 终轮：发射缓冲的正文，持久化
+                        // 终轮：正文已实时发射，只需持久化
                         if (dsmlBuf.length() > 0) {
                             log.info("[DSML_SUMMARY] 本轮共拦截 DSML {} 字符，对话正常结束。"
                                     + " DSML 前300字: {}", dsmlBuf.length(),
                                     dsmlBuf.substring(0, Math.min(300, dsmlBuf.length())));
                         }
                         String content = contentBuf.toString();
-                        if (thinking && thinkingBuf != null) {
-                            String full = thinkingBuf.isEmpty() ? content
-                                    : "<thinking>" + thinkingBuf + "</thinking>\n" + content;
-                            saveMessage(convoId, "assistant", full, null);
+                        String thinkingStr = (thinking && thinkingBuf != null && !thinkingBuf.isEmpty())
+                                ? thinkingBuf.toString() : null;
+                        saveMessage(convoId, "assistant", content, thinkingStr, null);
+                        if (thinkingStr != null) {
+                            chatMemory.add(memoryKey, List.of(new AssistantMessage(
+                                    "<thinking>" + thinkingStr + "</thinking>\n" + content)));
                         } else {
-                            persistAssistant(convoId, memoryKey, content);
+                            chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
                         }
-                        if (!content.isEmpty()) {
-                            try {
-                                return Flux.just("{\"type\":\"content\",\"content\":"
-                                        + MAPPER.writeValueAsString(content) + "}");
-                            } catch (Exception ignored) {}
-                        }
+                        updateConversationMeta(convoId);
                         return Flux.empty();
                     }
 
-                    // 中间轮：内容已缓冲但不发射（过渡回答，对用户无意义）
+                    // 中间轮：发送 clear 事件让前端清掉中间轮次的内容
                     List<ToolCall> calls = new ArrayList<>();
                     for (var idx : tcNames.keySet().stream().sorted().toList()) {
                         String name = tcNames.get(idx);
@@ -290,7 +295,8 @@ public class ChatService {
                 .doOnError(e -> {
                     log.warn("流式中断: conversationId={}", convoId);
                     if (contentBuf.length() > 0) {
-                        persistAssistant(convoId, memoryKey, contentBuf.toString());
+                        persistAssistant(convoId, memoryKey, contentBuf.toString(),
+                                thinkingBuf != null ? thinkingBuf.toString() : null);
                     }
                 })
                 .onErrorResume(e ->
@@ -409,14 +415,18 @@ public class ChatService {
                             log.info("[DSML_FILTER] followup 拦截 DSML: {}...", c.substring(0, Math.min(100,c.length())));
                             return;
                         }
+                        // 实时发射 content，同时缓冲用于持久化
                         contentBuf.append(c);
-                        // 缓冲不发射——确认终轮再说
+                        try {
+                            sink.next("{\"type\":\"content\",\"content\":"
+                                    + MAPPER.writeValueAsString(c) + "}");
+                        } catch (Exception ignored) {}
 
                     } catch (Exception ignored) {}
                 })
                 .concatWith(Flux.defer(() -> {
                     if (!tcNames.isEmpty()) {
-                        // 中间轮：不发射 content，直接递归
+                        // 中间轮：递归执行工具（不清空缓冲——前端在 tool_call 事件时自动重置）
                         List<ToolCall> calls = new ArrayList<>();
                         for (var idx : tcNames.keySet().stream().sorted().toList()) {
                             String name = tcNames.get(idx);
@@ -442,20 +452,15 @@ public class ChatService {
                         return streamToolFollowup(messages, round + 1, thinking, convoId, memoryKey, userId);
                     }
 
-                    // 终轮：发射缓冲的正文，持久化
+                    // 终轮：正文已实时发射，只需持久化
                     String content = contentBuf.toString();
-                    if (!thinkingBuf.isEmpty()) {
-                        String full = "<thinking>" + thinkingBuf + "</thinking>\n" + content;
-                        saveMessage(convoId, "assistant", full, null);
+                    String thinkingStr = !thinkingBuf.isEmpty() ? thinkingBuf.toString() : null;
+                    saveMessage(convoId, "assistant", content, thinkingStr, null);
+                    if (thinkingStr != null) {
+                        chatMemory.add(memoryKey, List.of(new AssistantMessage(
+                                "<thinking>" + thinkingStr + "</thinking>\n" + content)));
                     } else {
-                        saveMessage(convoId, "assistant", content, null);
-                    }
-                    chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
-                    if (!content.isEmpty()) {
-                        try {
-                            return Flux.just("{\"type\":\"content\",\"content\":"
-                                    + MAPPER.writeValueAsString(content) + "}");
-                        } catch (Exception ignored) {}
+                        chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
                     }
                     return Flux.<String>empty();
                 }));
@@ -747,11 +752,12 @@ public class ChatService {
         return convo.getId();
     }
 
-    private void saveMessage(Long conversationId, String role, String content, String toolCalls) {
+    private void saveMessage(Long conversationId, String role, String content, String thinking, String toolCalls) {
         com.jiang.entity.Message msg = new com.jiang.entity.Message();
         msg.setConversationId(conversationId);
         msg.setRole(role);
         msg.setContent(content);
+        msg.setThinking(thinking);
         msg.setToolCalls(toolCalls);
         messageMapper.insert(msg);
     }
