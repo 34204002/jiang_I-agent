@@ -18,9 +18,21 @@ export const state = reactive({
 })
 
 export const TOKEN = localStorage.getItem('token') || ''
-export const AGENT_NAME = window.AGENT_NAME || 'Jiang I-Agent'
-export const AGENT_AVATAR = window.AGENT_AVATAR || ''
-export const USER = JSON.parse(localStorage.getItem('user') || 'null') || {}
+export const USER = reactive(JSON.parse(localStorage.getItem('user') || 'null') || {})
+
+export const agent = reactive({ name: 'Jiang I-Agent', avatar: '' })
+
+export async function loadAgentConfig() {
+  if (!TOKEN) return
+  try {
+    const r = await fetch('/api/admin/agent', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+    const json = await r.json()
+    if (json.code === 200 && json.data) {
+      if (json.data.agentName) agent.name = json.data.agentName
+      if (json.data.avatar) agent.avatar = json.data.avatar
+    }
+  } catch (_) {}
+}
 
 export function logout() {
   localStorage.removeItem('token')

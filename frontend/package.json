@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "rm -rf ../src/main/resources/static/assets && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

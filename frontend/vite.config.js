@@ -7,11 +7,6 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': 'http://localhost:8080',
-      '/css': 'http://localhost:8080',
-      '/js': 'http://localhost:8080',
-      '/login.html': 'http://localhost:8080',
-      '/settings.html': 'http://localhost:8080',
-      '/admin.html': 'http://localhost:8080',
     }
   },
   build: {

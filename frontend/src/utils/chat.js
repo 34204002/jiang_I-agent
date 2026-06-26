@@ -16,5 +16,7 @@ export async function selectConvo(id) {
   state.streaming = false; state.conversationId = String(id); state.activeTab = 'chat'
   loadConversations()
   const json = await api.get(`/api/conversations/${id}/messages?page=1&size=200`)
-  if (json.code === 200 && json.data) state.messages = json.data.records.map(m => ({ role: m.role, content: m.content }))
+  if (json.code === 200 && json.data) state.messages = json.data.records.map(m => ({
+    role: m.role, thinking: m.thinking || '', content: m.content
+  }))
 }

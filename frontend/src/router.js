@@ -10,6 +10,7 @@ const routes = [
   { path: '/login', name:'Login', component: () => import('./views/LoginView.vue'), meta: { guest: true } },
   { path: '/settings', name:'Settings', component: () => import('./views/SettingsView.vue'), meta: { auth: true } },
   { path: '/admin', name:'Admin', component: () => import('./views/AdminView.vue'), meta: { auth: true, admin: true } },
+  { path: '/chat', component: { template:'<div/>' } },
   { path: '/', redirect: '/chat' },
   { path: '/:pathMatch(.*)', redirect: '/chat' },
 ]
