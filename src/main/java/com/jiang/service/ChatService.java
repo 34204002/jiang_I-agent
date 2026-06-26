@@ -1,6 +1,5 @@
 package com.jiang.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiang.entity.AgentConfig;
 import com.jiang.entity.Conversation;
@@ -11,20 +10,28 @@ import com.jiang.model.req.ChatRequest;
 import com.jiang.model.resp.ChatResponse;
 import com.jiang.tool.ToolContext;
 import com.jiang.tool.ToolRegistry;
-import com.jiang.util.DeepSeekStreamService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletion;
+import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletionChunk;
+import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletionMessage;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,30 +39,51 @@ import java.util.Map;
 
 /**
  * 对话服务 — Agent 核心调度。
- * 请求构建、SSE 解析、工具调用、消息持久化全部在此；HTTP 传输委托给 {@link DeepSeekStreamService}。
+ * <p>
+ * 请求构建、SSE 解析、工具调用、消息持久化全部在此。
+ * 响应解析使用 Spring AI DeepSeek 专用类型（{@link ChatCompletionChunk} / {@link ChatCompletion}），
+ * 自带 reasoningContent 字段，替代了之前的手动 JsonNode 遍历。
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ChatService {
 
-    private final DeepSeekStreamService apiClient;
     private final ChatMemory chatMemory;
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final AgentConfigMapper agentConfigMapper;
-    private final ObjectMapper objectMapper;
     private final VectorStore vectorStore;
     private final ToolRegistry toolRegistry;
-
-    @Qualifier("defaultSystemPrompt")
     private final String defaultSystemPrompt;
 
     @Value("${spring.ai.openai.chat.model}")
     private String defaultModel;
 
-    private static final int MAX_TOOL_ROUNDS = 5;
-    private static final ObjectMapper CLEAN_MAPPER = new ObjectMapper();
+    private static final int MAX_TOOL_ROUNDS = 10;
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
+
+    @Value("${spring.ai.openai.base-url}")
+    private String baseUrl;
+
+    @Value("${spring.ai.openai.api-key}")
+    private String apiKey;
+
+    public ChatService(ChatMemory chatMemory, ConversationMapper conversationMapper,
+                       MessageMapper messageMapper, AgentConfigMapper agentConfigMapper,
+                       VectorStore vectorStore, ToolRegistry toolRegistry,
+                       @Qualifier("defaultSystemPrompt") String defaultSystemPrompt) {
+        this.chatMemory = chatMemory;
+        this.conversationMapper = conversationMapper;
+        this.messageMapper = messageMapper;
+        this.agentConfigMapper = agentConfigMapper;
+        this.vectorStore = vectorStore;
+        this.toolRegistry = toolRegistry;
+        this.defaultSystemPrompt = defaultSystemPrompt;
+    }
 
     // ==================== 提示词 / 模型读取 ====================
 
@@ -65,9 +93,7 @@ public class ChatService {
             if (config != null && config.getSystemPrompt() != null && !config.getSystemPrompt().isBlank()) {
                 return config.getSystemPrompt();
             }
-        } catch (Exception e) {
-            log.debug("DB AgentConfig 读取失败", e);
-        }
+        } catch (Exception e) { log.debug("DB AgentConfig 读取失败", e); }
         return null;
     }
 
@@ -88,12 +114,10 @@ public class ChatService {
 
     // ==================== 公开接口 ====================
 
-    /** 同步对话 */
     public ChatResponse chat(ChatRequest request, Long userId) {
         var ctx = prepareConversation(request, userId);
         String aiContent = doCall(ctx.history, request.getMessage(), userId, ctx.convoId);
         saveAssistantMessage(ctx, aiContent);
-
         return ChatResponse.builder()
                 .content(aiContent)
                 .conversationId(String.valueOf(ctx.convoId))
@@ -101,7 +125,6 @@ public class ChatService {
                 .build();
     }
 
-    /** 普通流式对话 */
     public Flux<String> streamChat(ChatRequest request, Long userId) {
         var ctx = prepareConversation(request, userId);
         ToolContext.setUser(userId);
@@ -111,7 +134,6 @@ public class ChatService {
                 .doFinally(s -> ToolContext.clear());
     }
 
-    /** 思考模式流式对话 */
     public Flux<String> streamChatWithThinking(ChatRequest request, Long userId) {
         var ctx = prepareConversation(request, userId);
         ToolContext.setUser(userId);
@@ -121,7 +143,7 @@ public class ChatService {
                 .doFinally(s -> ToolContext.clear());
     }
 
-    // ==================== 会话准备 & 持久化辅助 ====================
+    // ==================== 会话准备 & 持久化 ====================
 
     private ConversationContext prepareConversation(ChatRequest request, Long userId) {
         Long convoId = resolveConversationId(request.getConversationId(), request.getMessage(), userId);
@@ -146,101 +168,123 @@ public class ChatService {
         updateConversationMeta(convoId);
     }
 
-    // ==================== LLM 调用 ====================
+    // ==================== LLM 调用（同步） ====================
 
-    /** 同步调用 */
     private String doCall(List<Message> history, String userMsg, Long userId, Long convoId) {
         String body = buildRequestBody(history, userMsg, false, false);
-        String resp = apiClient.sync(body);
+        String resp = syncHttp(body);
         try {
-            JsonNode root = objectMapper.readTree(resp);
-            JsonNode msg = root.path("choices").get(0).path("message");
-            // 处理工具调用
-            if (msg.has("tool_calls") && !msg.get("tool_calls").isNull()) {
-                String answer = runToolLoop(history, userMsg, msg.get("tool_calls"), userId, convoId);
-                return answer;
+            var completion = MAPPER.readValue(resp, ChatCompletion.class);
+            var msg = completion.choices().get(0).message();
+
+            if (msg.toolCalls() != null && !msg.toolCalls().isEmpty()) {
+                return runToolLoop(history, userMsg, msg, userId, convoId);
             }
-            return msg.path("content").asText();
+            return stripDsml(msg.content());
         } catch (Exception e) {
             throw new RuntimeException("解析同步响应失败", e);
         }
     }
 
-    /**
-     * 统一流式入口：先流式调用 LLM，如果模型返回 tool_calls 则在流结束后执行工具并链路调用。
-     */
+    // ==================== LLM 调用（流式） ====================
+
     private Flux<String> streamWithPossibleTools(List<Message> history, String userMsg,
-                                                   Long convoId, String memoryKey, boolean thinking,
-                                                   Long userId) {
-        // Mutable accumulators
-        final String[] tcName = {null};
-        final StringBuilder tcArgs = new StringBuilder();
-        final StringBuilder contentBuf = new StringBuilder();  // 持久化用的完整文本
+                                                   Long convoId, String memoryKey,
+                                                   boolean thinking, Long userId) {
+        // 按 tool_call index 分组累积，支持并行工具调用（避免参数粘在一起）
+        final Map<Integer, String> tcNames = new LinkedHashMap<>();
+        final Map<Integer, StringBuilder> tcArgsMap = new LinkedHashMap<>();
+        final StringBuilder contentBuf = new StringBuilder();
         final StringBuilder thinkingBuf = thinking ? new StringBuilder() : null;
+        final StringBuilder dsmlBuf = new StringBuilder();  // 记录被过滤的 DSML 内容
         String body = buildRequestBody(history, userMsg, thinking, true);
 
-        return apiClient.stream(body)
-                .<String>handle((data, sink) -> {
+        return streamHttp(body)
+                .<String>handle((chunk, sink) -> {
                     try {
-                        JsonNode root = new ObjectMapper().readTree(data);
-                        JsonNode delta = root.path("choices").get(0).path("delta");
+                        var delta = chunk.choices().get(0).delta();
 
-                        // === OpenAI 标准 tool_calls（兼容未来） ===
-                        JsonNode tcArray = delta.path("tool_calls");
-                        if (tcArray.isArray() && tcArray.size() > 0) {
-                            JsonNode tc = tcArray.get(0);
-                            JsonNode func = tc.path("function");
-                            if (func.has("name") && !func.get("name").isNull()) {
-                                String n = func.get("name").asText();
-                                if (n != null && !n.isEmpty()) tcName[0] = n;
-                            }
-                            if (func.has("arguments") && !func.get("arguments").isNull()) {
-                                tcArgs.append(func.get("arguments").asText());
-                            }
-                            if (tcName[0] != null && !tcName[0].isEmpty()) return;
-                        }
-
-                        // Thinking mode: reasoning_content
-                        if (thinking) {
-                            if (delta.has("reasoning_content") && !delta.get("reasoning_content").isNull()) {
-                                String reasoning = delta.get("reasoning_content").asText();
-                                if (!reasoning.isEmpty()) {
-                                    thinkingBuf.append(reasoning);
-                                    sink.next("{\"type\":\"thinking\",\"content\":"
-                                            + CLEAN_MAPPER.writeValueAsString(reasoning) + "}");
+                        // tool_calls — 按 index 独立累积每个工具的名称和参数
+                        if (delta.toolCalls() != null) {
+                            for (var tc : delta.toolCalls()) {
+                                int idx = tc.index() != null ? tc.index() : 0;
+                                String tcName = tc.function().name();
+                                String tcArg = tc.function().arguments();
+                                if (tcName != null && !tcName.isEmpty()) {
+                                    log.info("[TOOL_DELTA] index={} name={} args={}", idx, tcName,
+                                            tcArg != null ? tcArg : "(null)");
+                                    tcNames.put(idx, tcName);
+                                }
+                                if (tcArg != null && !tcArg.isEmpty()) {
+                                    tcArgsMap.computeIfAbsent(idx, k -> new StringBuilder()).append(tcArg);
                                 }
                             }
+                            if (!tcNames.isEmpty()) return;
                         }
 
-                        // === Content ===
-                        if (delta.has("content") && !delta.get("content").isNull()) {
-                            String c = delta.get("content").asText();
-                            if (c.isEmpty()) return;
-                            contentBuf.append(c);
-                            try { sink.next("{\"type\":\"content\",\"content\":"
-                                    + CLEAN_MAPPER.writeValueAsString(c) + "}"); } catch (Exception ignored) {}
+                        // reasoning_content
+                        if (thinking) {
+                            String rc = delta.reasoningContent();
+                            if (rc != null && !rc.isEmpty()) {
+                                thinkingBuf.append(rc);
+                                sink.next("{\"type\":\"thinking\",\"content\":"
+                                        + MAPPER.writeValueAsString(rc) + "}");
+                            }
                         }
+
+                        // content
+                        String c = delta.content();
+                        if (c == null || c.isEmpty()) return;
+                        // DSML 过滤 — 加日志记录被拦截的内容
+                        if (c.contains("<tool_calls>") || c.contains("<invoke ") || c.contains("</tool_calls>")) {
+                            dsmlBuf.append(c);
+                            log.info("[DSML_FILTER] 拦截 DSML 片段: {}", c.length() > 200 ? c.substring(0,200)+"..." : c);
+                            return;
+                        }
+                        contentBuf.append(c);
+                        // 不立即发射——缓冲到流结束，确认无 tool_call 才发射（避免中间轮次污染）
+
                     } catch (Exception ignored) {}
                 })
-                .concatWith(Flux.<String>defer(() -> {
-                    // After first stream ends: check if tool was called
-                    if ((tcName[0] == null || tcName[0].isEmpty())) {
-                        // No tool call — normal path, persist and done
+                .concatWith(Flux.defer(() -> {
+                    if (tcNames.isEmpty()) {
+                        // 终轮：发射缓冲的正文，持久化
+                        if (dsmlBuf.length() > 0) {
+                            log.info("[DSML_SUMMARY] 本轮共拦截 DSML {} 字符，对话正常结束。"
+                                    + " DSML 前300字: {}", dsmlBuf.length(),
+                                    dsmlBuf.substring(0, Math.min(300, dsmlBuf.length())));
+                        }
                         String content = contentBuf.toString();
                         if (thinking && thinkingBuf != null) {
                             String full = thinkingBuf.isEmpty() ? content
-                                    : "<thinking>" + thinkingBuf.toString() + "</thinking>\n" + content;
+                                    : "<thinking>" + thinkingBuf + "</thinking>\n" + content;
                             saveMessage(convoId, "assistant", full, null);
-                            chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
                         } else {
                             persistAssistant(convoId, memoryKey, content);
                         }
-                        return Flux.<String>empty();
+                        if (!content.isEmpty()) {
+                            try {
+                                return Flux.just("{\"type\":\"content\",\"content\":"
+                                        + MAPPER.writeValueAsString(content) + "}");
+                            } catch (Exception ignored) {}
+                        }
+                        return Flux.empty();
                     }
 
-                    // === Tool call path ===
+                    // 中间轮：内容已缓冲但不发射（过渡回答，对用户无意义）
+                    List<ToolCall> calls = new ArrayList<>();
+                    for (var idx : tcNames.keySet().stream().sorted().toList()) {
+                        String name = tcNames.get(idx);
+                        String args = tcArgsMap.getOrDefault(idx, new StringBuilder()).toString();
+                        if (name != null && !name.isEmpty()) calls.add(new ToolCall(name, args));
+                    }
+                    log.info("[TOOL_CALLS] 流式累积完成: {} 个工具调用, 中间内容 {} 字符（不发射）",
+                            calls.size(), contentBuf.length());
+                    for (var tc : calls) {
+                        log.info("[TOOL_CALL] name={} args={}", tc.name(), tc.arguments());
+                    }
                     ToolContext.setReasoning(thinkingBuf != null ? thinkingBuf.toString() : null);
-                    return handleToolCallAndContinue(tcName[0], tcArgs.toString(),
+                    return handleToolCallAndContinue(calls,
                             history, userMsg, convoId, memoryKey, userId);
                 }))
                 .doOnError(e -> {
@@ -253,46 +297,43 @@ public class ChatService {
                         Flux.just("{\"type\":\"content\",\"content\":\"\\n\\n（AI 回复因网络原因中断，请重试）\"}"));
     }
 
-    /**
-     * 工具调用后的处理：
-     * 1. 发送 tool_call 事件给前端
-     * 2. 执行工具
-     * 3. 构建新消息列表注入工具结果
-     * 4. 循环调用 LLM（最多 MAX_TOOL_ROUNDS 轮）
-     * 5. 最终回答流式输出给前端
-     */
-    private Flux<String> handleToolCallAndContinue(String toolName, String toolArgs,
-                                                     List<Message> history, String userMsg,
-                                                     Long convoId, String memoryKey,
-                                                     Long userId) {
-        log.info("工具调用: name={}, args={}", toolName, toolArgs);
+    // ==================== 工具调用处理 ====================
 
-        // 1. 通知前端有工具调用
+    /**
+     * 单次工具调用（流式累积的结果）。
+     */
+    private record ToolCall(String name, String arguments) {}
+
+    /**
+     * 处理流式累积的工具调用列表（支持并行调用）。
+     * 每个工具独立执行，结果合并为一个 assistant tool_calls 消息发送给 LLM。
+     */
+    private Flux<String> handleToolCallAndContinue(List<ToolCall> toolCalls,
+                                                     List<Message> history, String userMsg,
+                                                     Long convoId, String memoryKey, Long userId) {
+        for (var tc : toolCalls) {
+            log.info("工具调用: name={}, args={}", tc.name(), tc.arguments());
+        }
+
+        // 发送 tool_call 事件（合并为数组）
         Flux<String> toolEvent;
         try {
             toolEvent = Flux.just("{\"type\":\"tool_call\",\"name\":\""
-                    + toolName + "\",\"args\":" + CLEAN_MAPPER.writeValueAsString(toolArgs) + "}");
+                    + toolCalls.get(0).name() + "\",\"args\":"
+                    + MAPPER.writeValueAsString(toolCalls.size() == 1
+                    ? toolCalls.get(0).arguments()
+                    : toolCalls.stream().map(ToolCall::arguments).toList().toString()) + "}");
         } catch (Exception e) {
-            toolEvent = Flux.just("{\"type\":\"tool_call\",\"name\":\"" + toolName + "\"}");
+            toolEvent = Flux.just("{\"type\":\"tool_call\",\"name\":\"" + toolCalls.get(0).name() + "\"}");
         }
 
-        // 2-4. 工具执行循环 → 最终 LLM 调用
-        Flux<String> answerFlux = Flux.defer(() -> {
+        // 工具执行 + 流式 follow-up（支持思考内容和递归工具调用）
+        Flux<String> followupFlux = Flux.defer(() -> {
             try {
-                // 构建增强消息列表（history + user + tool results）
                 List<Map<String, Object>> messages = buildMessagesWithTools(
-                        history, userMsg, toolName, toolArgs, userId, convoId);
-
-                // 工具循环调用（同步，最多 MAX_TOOL_ROUNDS 轮）
-                String finalAnswer = callLlmWithTools(messages, 0);
-
-                // 持久化
-                persistAssistant(convoId, memoryKey, finalAnswer);
-
-                // 流式输出最终回答
-                return Flux.just("{\"type\":\"content\",\"content\":"
-                        + CLEAN_MAPPER.writeValueAsString(finalAnswer) + "}");
-
+                        history, userMsg, toolCalls, userId, convoId);
+                boolean thinking = ToolContext.getReasoning() != null;
+                return streamToolFollowup(messages, 0, thinking, convoId, memoryKey, userId);
             } catch (Exception e) {
                 log.error("工具调用 loop 失败", e);
                 return Flux.just("{\"type\":\"content\",\"content\":\"\\n（工具执行失败: "
@@ -300,15 +341,129 @@ public class ChatService {
             }
         });
 
-        return toolEvent.concatWith(answerFlux);
+        return toolEvent.concatWith(followupFlux);
     }
 
     /**
-     * 构建包含工具调用结果的消息列表（Map 格式，用于二次请求）。
+     * 流式工具 follow-up：用给定的消息列表做流式调用，支持思考 + 递归工具调用。
+     * 这是 {@link #callLlmWithTools} 的流式替代。
      */
+    private Flux<String> streamToolFollowup(List<Map<String, Object>> messages, int round,
+                                             boolean thinking, Long convoId,
+                                             String memoryKey, Long userId) {
+        if (round >= MAX_TOOL_ROUNDS) {
+            log.warn("工具调用超过最大轮次 {}，强制终止", MAX_TOOL_ROUNDS);
+            return Flux.just("{\"type\":\"content\",\"content\":\"（工具调用次数过多，已终止）\"}");
+        }
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", getModel());
+        body.put("messages", messages);
+        body.put("stream", true);
+        if (toolRegistry.hasTools()) {
+            body.put("tools", toolRegistry.getToolsJson());
+        }
+
+        String json;
+        try { json = MAPPER.writeValueAsString(body); }
+        catch (Exception e) { return Flux.error(e); }
+        log.info("[TOOL_FOLLOWUP] round={} tools={} msgs={}", round, toolRegistry.count(), messages.size());
+
+        final Map<Integer, String> tcNames = new LinkedHashMap<>();
+        final Map<Integer, StringBuilder> tcArgsMap = new LinkedHashMap<>();
+        final StringBuilder contentBuf = new StringBuilder();
+        final StringBuilder thinkingBuf = new StringBuilder();
+
+        return streamHttp(json)
+                .<String>handle((chunk, sink) -> {
+                    try {
+                        var delta = chunk.choices().get(0).delta();
+
+                        if (delta.toolCalls() != null) {
+                            for (var tc : delta.toolCalls()) {
+                                int idx = tc.index() != null ? tc.index() : 0;
+                                String tcName = tc.function().name();
+                                String tcArg = tc.function().arguments();
+                                if (tcName != null && !tcName.isEmpty()) {
+                                    log.info("[TOOL_DELTA] followup round={} index={} name={}", round, idx, tcName);
+                                    tcNames.put(idx, tcName);
+                                }
+                                if (tcArg != null && !tcArg.isEmpty()) {
+                                    tcArgsMap.computeIfAbsent(idx, k -> new StringBuilder()).append(tcArg);
+                                }
+                            }
+                            if (!tcNames.isEmpty()) return;
+                        }
+
+                        String rc = delta.reasoningContent();
+                        if (rc != null && !rc.isEmpty()) {
+                            thinkingBuf.append(rc);
+                            sink.next("{\"type\":\"thinking\",\"content\":"
+                                    + MAPPER.writeValueAsString(rc) + "}");
+                        }
+
+                        String c = delta.content();
+                        if (c == null || c.isEmpty()) return;
+                        // DSML 过滤（follow-up 也加）
+                        if (c.contains("<tool_calls>") || c.contains("<invoke ") || c.contains("</tool_calls>")) {
+                            log.info("[DSML_FILTER] followup 拦截 DSML: {}...", c.substring(0, Math.min(100,c.length())));
+                            return;
+                        }
+                        contentBuf.append(c);
+                        // 缓冲不发射——确认终轮再说
+
+                    } catch (Exception ignored) {}
+                })
+                .concatWith(Flux.defer(() -> {
+                    if (!tcNames.isEmpty()) {
+                        // 中间轮：不发射 content，直接递归
+                        List<ToolCall> calls = new ArrayList<>();
+                        for (var idx : tcNames.keySet().stream().sorted().toList()) {
+                            String name = tcNames.get(idx);
+                            String args = tcArgsMap.getOrDefault(idx, new StringBuilder()).toString();
+                            if (name != null && !name.isEmpty()) calls.add(new ToolCall(name, args));
+                        }
+                        // 执行工具，追加结果到 messages，递归调用
+                        for (var tc : calls) {
+                            String result = toolRegistry.execute(tc.name(), tc.arguments());
+                            log.info("[TOOL_RESULT] followup name={} result={}", tc.name(),
+                                    result.length() > 200 ? result.substring(0, 200) + "..." : result);
+
+                            Map<String, Object> asst = new LinkedHashMap<>();
+                            asst.put("role", "assistant");
+                            asst.put("tool_calls", List.of(Map.of(
+                                    "id", "call_f_" + round, "type", "function",
+                                    "function", Map.of("name", tc.name(), "arguments", tc.arguments()))));
+                            String reasoning = thinkingBuf.toString();
+                            if (!reasoning.isEmpty()) asst.put("reasoning_content", reasoning);
+                            messages.add(asst);
+                            messages.add(Map.of("role", "tool", "tool_call_id", "call_f_" + round, "content", result));
+                        }
+                        return streamToolFollowup(messages, round + 1, thinking, convoId, memoryKey, userId);
+                    }
+
+                    // 终轮：发射缓冲的正文，持久化
+                    String content = contentBuf.toString();
+                    if (!thinkingBuf.isEmpty()) {
+                        String full = "<thinking>" + thinkingBuf + "</thinking>\n" + content;
+                        saveMessage(convoId, "assistant", full, null);
+                    } else {
+                        saveMessage(convoId, "assistant", content, null);
+                    }
+                    chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
+                    if (!content.isEmpty()) {
+                        try {
+                            return Flux.just("{\"type\":\"content\",\"content\":"
+                                    + MAPPER.writeValueAsString(content) + "}");
+                        } catch (Exception ignored) {}
+                    }
+                    return Flux.<String>empty();
+                }));
+    }
+
     private List<Map<String, Object>> buildMessagesWithTools(List<Message> history,
                                                                String userMsg,
-                                                               String toolName, String toolArgs,
+                                                               List<ToolCall> toolCalls,
                                                                Long userId, Long convoId) {
         ToolContext.setUser(userId);
         ToolContext.setConversation(convoId);
@@ -325,35 +480,40 @@ public class ChatService {
         }
         messages.add(Map.of("role", "user", "content", userMsg != null ? userMsg : ""));
 
-        // Assistant 的工具调用请求（DeepSeek 要求带 reasoning_content）
+        // 构建 assistant 消息：所有并行 tool_calls 合并
         Map<String, Object> assistantMsg = new LinkedHashMap<>();
         assistantMsg.put("role", "assistant");
-        assistantMsg.put("tool_calls", List.of(Map.of(
-                "id", "call_1",
-                "type", "function",
-                "function", Map.of("name", toolName, "arguments", toolArgs))));
+        List<Map<String, Object>> tcList = new ArrayList<>();
+        for (int i = 0; i < toolCalls.size(); i++) {
+            var tc = toolCalls.get(i);
+            tcList.add(Map.of(
+                    "id", "call_" + (i + 1), "type", "function",
+                    "function", Map.of("name", tc.name(), "arguments", tc.arguments())));
+        }
+        assistantMsg.put("tool_calls", tcList);
         String rc = ToolContext.getReasoning();
         if (rc != null && !rc.isEmpty()) {
+            log.info("[TOOL_MSG] assistant 消息含 reasoning_content: {} 字符", rc.length());
             assistantMsg.put("reasoning_content", rc);
+        } else {
+            log.info("[TOOL_MSG] assistant 消息无 reasoning_content");
         }
         messages.add(assistantMsg);
 
-        // 执行工具
-        String result = toolRegistry.execute(toolName, toolArgs);
-        log.info("工具执行结果: name={}, result={}", toolName,
-                result.length() > 100 ? result.substring(0, 100) + "..." : result);
-
-        // Tool 结果消息
-        messages.add(Map.of("role", "tool",
-                "tool_call_id", "call_1",
-                "content", result));
-
+        // 执行每个工具，添加 tool 结果消息
+        for (int i = 0; i < toolCalls.size(); i++) {
+            var tc = toolCalls.get(i);
+            log.info("[TOOL_EXEC] 执行工具: name={} args={}", tc.name(), tc.arguments());
+            String result = toolRegistry.execute(tc.name(), tc.arguments());
+            log.info("[TOOL_RESULT] name={} result={}", tc.name(),
+                    result.length() > 200 ? result.substring(0, 200) + "..." : result);
+            messages.add(Map.of("role", "tool",
+                    "tool_call_id", "call_" + (i + 1), "content", result));
+        }
+        log.info("[TOOL_MSG] 构建完成: {} 个工具结果, 共 {} 条消息", toolCalls.size(), messages.size());
         return messages;
     }
 
-    /**
-     * 同步调用 LLM（支持工具循环，最多 maxRounds 轮）。
-     */
     private String callLlmWithTools(List<Map<String, Object>> messages, int round) {
         if (round >= MAX_TOOL_ROUNDS) {
             log.warn("工具调用超过最大轮次 {}，强制终止", MAX_TOOL_ROUNDS);
@@ -364,47 +524,40 @@ public class ChatService {
         body.put("model", getModel());
         body.put("messages", messages);
         body.put("stream", false);
+        // 关键：follow-up 请求也必须带 tools，否则模型想调工具只能 fallback 到 DSML
+        if (toolRegistry.hasTools()) {
+            body.put("tools", toolRegistry.getToolsJson());
+        }
 
         try {
-            String json = CLEAN_MAPPER.writeValueAsString(body);
-            String resp = apiClient.sync(json);
-            JsonNode root = CLEAN_MAPPER.readTree(resp);
-            JsonNode msg = root.path("choices").get(0).path("message");
+            String json = MAPPER.writeValueAsString(body);
+            log.info("[TOOL_FOLLOWUP] round={} tools={} msgs={}", round, toolRegistry.count(), messages.size());
+            String resp = syncHttp(json);
+            var completion = MAPPER.readValue(resp, ChatCompletion.class);
+            var msg = completion.choices().get(0).message();
 
-            // Check if LLM wants to call another tool
-            if (msg.has("tool_calls") && !msg.get("tool_calls").isNull()) {
-                JsonNode tcArray = msg.get("tool_calls");
-                for (JsonNode tc : tcArray) {
-                    JsonNode func = tc.path("function");
-                    String name = func.path("name").asText();
-                    String args = func.path("arguments").asText();
-
-                    // Execute
+            if (msg.toolCalls() != null && !msg.toolCalls().isEmpty()) {
+                for (var tc : msg.toolCalls()) {
+                    String name = tc.function().name();
+                    String args = tc.function().arguments();
                     String result = toolRegistry.execute(name, args);
 
-                    // Add assistant tool_call message + tool result (DeepSeek 要求 reasoning_content)
                     Map<String, Object> tcAssistant = new LinkedHashMap<>();
                     tcAssistant.put("role", "assistant");
                     tcAssistant.put("tool_calls", List.of(Map.of(
-                            "id", "call_" + (round + 1),
-                            "type", "function",
+                            "id", "call_" + (round + 1), "type", "function",
                             "function", Map.of("name", name, "arguments", args))));
-                    String tcReasoning = msg.has("reasoning_content") && !msg.get("reasoning_content").isNull()
-                            ? msg.get("reasoning_content").asText() : null;
-                    if (tcReasoning != null && !tcReasoning.isEmpty()) {
-                        tcAssistant.put("reasoning_content", tcReasoning);
+                    if (msg.reasoningContent() != null && !msg.reasoningContent().isEmpty()) {
+                        tcAssistant.put("reasoning_content", msg.reasoningContent());
                     }
                     messages.add(tcAssistant);
                     messages.add(Map.of("role", "tool",
-                            "tool_call_id", "call_" + (round + 1),
-                            "content", result));
+                            "tool_call_id", "call_" + (round + 1), "content", result));
                 }
-                // 递归处理后续工具调用
                 return callLlmWithTools(messages, round + 1);
             }
 
-            // 正常文本回答
-            return msg.path("content").asText("");
+            return stripDsml(msg.content());
 
         } catch (Exception e) {
             log.error("工具调用 LLM 请求失败", e);
@@ -412,28 +565,100 @@ public class ChatService {
         }
     }
 
-    /**
-     * 同步工具循环（给同步 chat() 方法用）。
-     */
+    /** 同步路径 DSML 过滤：如果 content 包含 DSML 标签，截断返回正文部分 */
+    private String stripDsml(String content) {
+        if (content == null || content.isEmpty()) return "";
+        if (content.contains("<tool_calls>") || content.contains("<invoke ")) {
+            int start = content.indexOf("<tool_calls>");
+            if (start < 0) start = content.indexOf("<invoke ");
+            if (start > 0) {
+                log.info("[DSML_SYNC] 同步路径拦截 DSML，截断前 {} 字符", start);
+                return content.substring(0, start).trim();
+            }
+            log.info("[DSML_SYNC] 同步路径拦截 DSML（无正文部分）");
+            return "";
+        }
+        return content;
+    }
+
     private String runToolLoop(List<Message> history, String userMsg,
-                                JsonNode toolCalls, Long userId, Long convoId) {
+                                ChatCompletionMessage msg, Long userId, Long convoId) {
         ToolContext.setUser(userId);
         ToolContext.setConversation(convoId);
         try {
-            // 提取第一个 tool_call
-            JsonNode tc = toolCalls.get(0);
-            String name = tc.path("function").path("name").asText();
-            String args = tc.path("function").path("arguments").asText();
+            List<ToolCall> toolCalls = new ArrayList<>();
+            for (var tc : msg.toolCalls()) {
+                toolCalls.add(new ToolCall(tc.function().name(), tc.function().arguments()));
+            }
+
+            // 同步路径也把 reasoning_content 存入 ToolContext（如有）
+            if (msg.reasoningContent() != null && !msg.reasoningContent().isEmpty()) {
+                ToolContext.setReasoning(msg.reasoningContent());
+            }
 
             List<Map<String, Object>> messages = buildMessagesWithTools(
-                    history, userMsg, name, args, userId, convoId);
+                    history, userMsg, toolCalls, userId, convoId);
             return callLlmWithTools(messages, 0);
         } finally {
             ToolContext.clear();
         }
     }
 
-    // ==================== 请求体 & SSE 解析 ====================
+    // ==================== HTTP 传输（替代 DeepSeekStreamService） ====================
+
+    private String syncHttp(String body) {
+        try {
+            var req = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/chat/completions"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .timeout(Duration.ofMinutes(5))
+                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                    .build();
+            var resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                log.error("API 返回 {}: {}", resp.statusCode(), resp.body());
+                throw new RuntimeException("API " + resp.statusCode());
+            }
+            return resp.body();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("同步请求失败", e);
+            throw new RuntimeException("AI 调用失败: " + e.getMessage());
+        }
+    }
+
+    /** 流式 HTTP，返回 Flux<ChatCompletionChunk>（用 Spring AI 类型解析，自带 reasoningContent） */
+    private Flux<ChatCompletionChunk> streamHttp(String body) {
+        var req = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/chat/completions"))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + apiKey)
+                .timeout(Duration.ofMinutes(5))
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+
+        return Mono.fromFuture(httpClient.sendAsync(req, HttpResponse.BodyHandlers.ofLines()))
+                .flatMapMany(resp -> {
+                    if (resp.statusCode() != 200) {
+                        String err = resp.body().findFirst().orElse("(empty body)");
+                        log.error("API 返回 {}: {}", resp.statusCode(), err);
+                        return Flux.error(new RuntimeException("API " + resp.statusCode() + ": " + err));
+                    }
+                    return Flux.fromStream(resp.body()
+                                    .filter(line -> line.startsWith("data: "))
+                                    .map(line -> line.substring(6)))
+                            .takeWhile(data -> !"[DONE]".equals(data))
+                            .map(data -> {
+                                try { return MAPPER.readValue(data, ChatCompletionChunk.class); }
+                                catch (Exception e) { throw new RuntimeException(e); }
+                            });
+                })
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    // ==================== 请求体构建 ====================
 
     private String buildRequestBody(List<Message> history, String userMsg, boolean thinking,
                                      boolean stream) {
@@ -469,7 +694,7 @@ public class ChatService {
             body.put("tools", toolRegistry.getToolsJson());
         }
         try {
-            String json = CLEAN_MAPPER.writeValueAsString(body);
+            String json = MAPPER.writeValueAsString(body);
             log.info("API请求: model={}, thinking={}, stream={}, tools={}, msgs={}, bodyLen={}",
                     model, thinking, stream, toolRegistry.count(), messages.size(), json.length());
             return json;
@@ -482,15 +707,10 @@ public class ChatService {
         try {
             var results = vectorStore.similaritySearch(
                     org.springframework.ai.vectorstore.SearchRequest.builder()
-                            .query(query)
-                            .topK(3)
-                            .similarityThreshold(0.6)
-                            .build());
+                            .query(query).topK(3).similarityThreshold(0.6).build());
             if (results.isEmpty()) return null;
-
             StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < results.size(); i++) {
-                var doc = results.get(i);
+            for (var doc : results) {
                 String filename = doc.getMetadata().getOrDefault("filename", "未知").toString();
                 sb.append("【来源: ").append(filename).append("】\n")
                         .append(doc.getText()).append("\n\n");
@@ -511,8 +731,7 @@ public class ChatService {
             if (existing == null) {
                 log.warn("会话不存在: id={}, 将创建新会话", id);
             } else if (!existing.getUserId().equals(userId)) {
-                log.warn("越权访问会话: userId={}, conversationId={}, owner={}",
-                        userId, id, existing.getUserId());
+                log.warn("越权访问会话: userId={}, conversationId={}, owner={}", userId, id, existing.getUserId());
                 throw new SecurityException("无权访问该会话");
             } else {
                 return id;
