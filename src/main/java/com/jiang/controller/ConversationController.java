@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 会话历史接口 — Phase 4
  */
@@ -54,5 +57,20 @@ public class ConversationController {
         } catch (SecurityException e) {
             return Result.fail(403, e.getMessage());
         }
+    }
+
+    /** 批量删除会话（POST，DELETE 请求体不被 Spring 默认解析） */
+    @PostMapping("/batch-delete")
+    public Result<Map<String, Object>> batchDelete(@RequestBody Map<String, Object> body,
+                                                    HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        @SuppressWarnings("unchecked")
+        List<Integer> rawIds = (List<Integer>) body.get("ids");
+        if (rawIds == null || rawIds.isEmpty()) {
+            return Result.fail(400, "ids 不能为空");
+        }
+        List<Long> ids = rawIds.stream().map(Long::valueOf).toList();
+        int deleted = conversationService.deleteConversations(ids, userId);
+        return Result.success(Map.of("deleted", deleted, "total", ids.size()));
     }
 }

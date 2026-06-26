@@ -99,4 +99,23 @@ public class ConversationService {
         conversationMapper.deleteById(id);
         log.info("会话已删除: id={}", id);
     }
+
+    /**
+     * 批量删除会话（逐一校验归属，跳过无权或已删除的）。
+     * @return 实际删除的数量
+     */
+    public int deleteConversations(List<Long> ids, Long userId) {
+        if (ids == null || ids.isEmpty()) return 0;
+        int deleted = 0;
+        for (Long id : ids) {
+            try {
+                deleteConversation(id, userId);
+                deleted++;
+            } catch (SecurityException e) {
+                log.warn("批量删除跳过: id={}, reason={}", id, e.getMessage());
+            }
+        }
+        log.info("批量删除完成: {} / {} 个会话", deleted, ids.size());
+        return deleted;
+    }
 }
