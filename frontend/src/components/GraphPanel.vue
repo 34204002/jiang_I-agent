@@ -8,8 +8,6 @@ import { DataSet } from 'vis-data'
 
 const concepts = ref([])
 const adding = ref(false), newName = ref(''), newDesc = ref(''), newCat = ref(''), newDiff = ref(3)
-const pathFrom = ref(''), pathTo = ref('')
-const pathResults = ref([])
 const detail = ref(null)
 const graphRelFilter = ref('prereq')  // 'all' | 'prereq' | 'related'
 let graphNetwork = null
@@ -34,14 +32,6 @@ async function showDetail(name) {
   const json = await api.get(`/api/graph/concepts/${encodeURIComponent(name)}`)
   if (json.code!==200) return
   detail.value = json.data
-}
-
-async function findPath() {
-  if (!pathFrom.value||!pathTo.value) return showToast('请输入起始和目标概念', 'error')
-  const json = await api.get(`/api/graph/concepts/${encodeURIComponent(pathFrom.value)}/path?target=${encodeURIComponent(pathTo.value)}&maxHops=5`)
-  if (json.code!==200) return
-  if (!json.data.paths?.length) { pathResults.value = []; showToast('未找到路径', 'info'); return }
-  pathResults.value = json.data.paths
 }
 
 async function toggleGraphView() {
@@ -207,26 +197,6 @@ onMounted(search)
     </div>
   </div>
 
-  <!-- Path finder -->
-  <div class="graph-path-bar">
-    <span class="graph-path-label">学习路径:</span>
-    <input class="kbase-search-input graph-path-input" v-model="pathFrom" placeholder="起始概念">
-    <span>→</span>
-    <input class="kbase-search-input graph-path-input" v-model="pathTo" placeholder="目标概念">
-    <button type="button" class="kbase-search-btn" @click="findPath">查询</button>
-  </div>
-
-  <!-- Path results -->
-  <div v-if="pathResults.length" class="graph-path-results">
-    <div v-for="(p, i) in pathResults" :key="i" class="graph-path-chain">
-      <span class="graph-path-label">路径{{ i+1 }}</span>
-      <template v-for="(n, j) in p" :key="j">
-        <span v-if="j>0" class="graph-path-arrow">→</span>
-        <span class="graph-path-node">{{ n.name }} {{ n.difficulty }}</span>
-      </template>
-    </div>
-  </div>
-
   <!-- Graph view -->
   <div v-if="state.graphViewMode" class="graph-filter-bar">
     <button type="button" class="graph-filter-btn" :class="{ active: graphRelFilter==='prereq' }" @click="graphRelFilter='prereq'; refilterGraph()">仅前置</button>
@@ -303,17 +273,6 @@ onMounted(search)
 .graph-add-actions {
   margin-top: 14px; display: flex; gap: 8px; justify-content: flex-end;
 }
-
-/* ---- Path bar ---- */
-.graph-path-bar {
-  display: flex; gap: 10px; align-items: center; margin-bottom: 16px;
-  padding: 12px 16px; background: #fff; border-radius: 12px; flex-wrap: wrap;
-}
-.graph-path-label { font-size: 13px; font-weight: 600 }
-.graph-path-input { max-width: 150px }
-
-/* ---- Path results ---- */
-.graph-path-results { margin-bottom: 16px }
 
 /* ---- Graph network ---- */
 .graph-net {
