@@ -6,6 +6,7 @@ sh# Jiang I-Agent
 
 本项目开源仅供学习交流，禁止用于毕设 / 面试抄袭等违规用途
 ---
+https://jiang-learning.oss-cn-beijing.aliyuncs.com/Snipaste_2026-06-27_16-24-58.png
 
 ## 特性
 
