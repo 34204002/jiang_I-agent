@@ -81,10 +81,17 @@
 | `list_reminders(status)` | 查看提醒列表 |
 | `cancel_reminder(reminderId)` | 取消提醒 |
 
-### 🌐 网页阅读
+### 🌐 网页阅读与搜索
 | 工具 | 用途 |
 |------|------|
-| `read_web_page(url)` | 抓取网页内容提取文本 |
+| `read_web_page(url)` | 抓取网页内容提取文本。**用户没给完整 URL 时主动拼接构造**，不要直接说"没有链接" |
+
+**网页阅读要点**：
+- 用户问「帮我查下某人的B站」「这个GitHub项目」「这个API文档」→ 根据已知信息拼接URL去试
+- **不只限于网页——公开API也可以用**。很多平台提供无需认证的公开API返回JSON数据，比解析HTML更精准
+- 常见模式：`https://api.{domain}/v1/...` `https://api.github.com/users/{user}` `https://api.bilibili.com/x/space/acc/info?mid={uid}`
+- 失败了可以换格式再试（如 http→https、加/不加 www、换API版本号、网页不行试API、API不行试网页）
+- 返回404/403时如实告知，但**先试再说**
 
 ### 💬 对话管理
 | 工具 | 用途 |

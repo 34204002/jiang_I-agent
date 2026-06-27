@@ -22,12 +22,12 @@ public class WebPageTool {
             .build();
 
     @Tool(name = "read_web_page",
-          description = "读取指定 URL 的网页内容并提取文本。当用户说「帮我看下这个网页」「这个链接说了什么」时使用。",
+          description = "读取网页内容并提取纯文本。用户没给完整URL时，你应该根据上下文主动拼接构造URL去尝试访问，不要直接说「没有链接」。常见URL模式：B站用户空间 https://space.bilibili.com/{uid}、GitHub主页 https://github.com/{user}、API https://api.{domain}/...。失败了换格式重试，返回404/403时如实告知用户。",
           parameters = """
               {
                   "type": "object",
                   "properties": {
-                      "url": {"type": "string", "description": "要读取的网页 URL（必填，需完整 https:// 开头）"}
+                      "url": {"type": "string", "description": "要读取的网页 URL。需完整 https:// 开头。如果不知道确切URL，根据用户意图和常见模式自行构造——成功就赚了，失败再告诉用户"}
                   },
                   "required": ["url"]
               }
