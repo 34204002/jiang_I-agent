@@ -29,15 +29,27 @@
 
 ## 3. 自建 Tool 体系
 
-绕过 Spring AI 后自建 `@Tool` 注解框架：
+**为什么不用 Spring AI 的 @Tool？**
+
+决策链：
+1. DeepSeek 的 `reasoning_content` 是 OpenAI 非标准字段
+2. Spring AI 2.0 OpenAI 适配器底层用 OpenAI Java SDK → 流式时直接丢弃 `reasoning_content`
+3. 切换到 `spring-ai-deepseek` 模块，`ChatCompletionMessage.reasoningContent()` 原生支持
+4. 但 DeepSeek 的 function calling 行为与 OpenAI 有差异（如并行 tool_calls、DSML fallback），Spring AI 的 `ChatClient` 抽象层无法精细控制
+5. **最终决策**：用 Spring AI 的 `ChatCompletionChunk` 类型做响应解析（类型安全），但自建 `buildRequestBody()` 控制请求构建和工具编排
+6. 脱离 `ChatClient` → `ChatModel` → `ToolCallback` 链路后，Spring AI 的 `@Tool` 注解自然不可用
+
+**自建方案：**
 
 | 组件 | 职责 |
 |------|------|
 | `@Tool` 注解 | name + description + JSON Schema |
-| `ToolRegistry` | `ApplicationReadyEvent` 时扫描、运行时反射执行 |
+| `ToolRegistry` | `ApplicationReadyEvent` 时扫描所有 `@Component` Bean、运行时反射执行 |
 | `ToolContext` | ThreadLocal 传递 userId/convoId/reasoningContent |
 
-现注册 **17 个工具**，最多 **10 轮**工具循环。schema 规范：所有工具含 `"type":"object"` + `"required"` 字段。
+> 核心思想：**用框架的类型解析，保留自己的编排控制**。类型安全但不失灵活性。
+
+现注册 **18 个工具**，最多 **10 轮**工具循环。schema 规范：所有工具含 `"type":"object"` + `"required"` 字段（即使为空数组）。
 
 ---
 

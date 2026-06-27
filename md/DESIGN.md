@@ -13,7 +13,29 @@
 | 大模型接入 | **DeepSeek 官方 API** | `api.deepseek.com`，`buildRequestBody()` 构建 + Spring AI 类型解析 |
 | 嵌入模型 | **BAAI/bge-m3** | 硅基流动提供，1024 维（text-embedding-3-small 是 OpenAI 模型，不支持） |
 | 前端框架 | **Vue 3 + Vite** | SFC 组件 + vue-router SPA + 设计系统 CSS 自定义属性 |
+| 工具框架 | **自研 @Tool** | 脱离 Spring AI ChatClient 链路后无法用官方 @Tool；自建注解扫描 + 反射执行 |
 | 序列化 | **Jackson** | API 请求/响应序列化，工具调用参数解析 |
+
+---
+
+## 一-补充：为什么自建 @Tool 框架
+
+Spring AI 2.0 的官方 `@Tool` 注解依赖 `ChatClient` → `ChatModel` → `ToolCallback` 调用链。本项目选择绕过该链路的原因：
+
+1. **reasoning_content 兼容性**：Spring AI OpenAI 适配器底层用 OpenAI Java SDK，该 SDK 不认识 DeepSeek 的 `reasoning_content` 非标准字段，流式时直接丢弃
+2. **切换到 spring-ai-deepseek**：该模块的 `ChatCompletionMessage.reasoningContent()` 原生支持，但此时已脱离标准 ChatClient 链路
+3. **精细控制**：DeepSeek 的 function calling 有特殊行为（并行 tool_calls、DSML fallback），用自建 HTTP 请求 + Spring AI 类型解析能同时获得类型安全和编排灵活性
+
+最终方案：**用 `DeepSeekApi.ChatCompletionChunk` 做响应类型解析，自建 `buildRequestBody()` 做请求构建**。工具层则自建注解框架补齐。
+
+```
+自建 @Tool 注解
+  → ApplicationReadyEvent 扫描所有 Bean 的 @Tool 方法
+  → 注册到 ToolRegistry (name → Method + bean + JSON Schema)
+  → ChatService 构建 tools 参数时调用 toolRegistry.getToolsJson()
+  → 执行时 toolRegistry.execute(name, args) 反射调用
+  → ToolContext (ThreadLocal) 传递 userId/convoId/reasoningContent
+```
 
 ---
 
