@@ -1,7 +1,7 @@
 <script setup>
-import { ref, reactive, computed, nextTick } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { state, agent, USER } from '../stores/state'
-import { loadConversations, newChat } from '../utils/chat'
+import { loadConversations } from '../utils/chat'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 

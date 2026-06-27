@@ -94,6 +94,9 @@ public class KnowledgeService {
         if (!ALLOWED_TYPES.contains(ext)) {
             throw new IllegalArgumentException("不支持的文件类型: " + ext + "，允许: " + ALLOWED_TYPES);
         }
+        if (file.isEmpty() || file.getSize() == 0) {
+            throw new IllegalArgumentException("文件为空，无法上传");
+        }
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new IllegalArgumentException("文件大小不能超过 20MB");
         }

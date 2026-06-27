@@ -38,7 +38,11 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/admin/**",
                         "/api/chat/**",
                         "/api/conversations/**",
-                        "/api/knowledge/**"
+                        "/api/knowledge/**",
+                        "/api/tools/**",
+                        "/api/todos/**",
+                        "/api/graph/**",
+                        "/api/profile/**"
                 )
                 .excludePathPatterns(
                         "/api/admin/agent/profile"

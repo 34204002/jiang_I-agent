@@ -511,6 +511,7 @@ input,textarea { font:inherit;color:inherit }
   display:flex;flex-direction:column;gap:10px;pointer-events:none;
 }
 .toast {
+  position:fixed;top:20px;right:20px;z-index:9999;
   padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:600;
   box-shadow:var(--shadow-lg);pointer-events:auto;animation:msgIn .3s ease;
   max-width:380px;
@@ -725,7 +726,7 @@ input,textarea { font:inherit;color:inherit }
 .graph-path-node { padding:3px 10px;background:var(--accent-light,#ede9fe);color:var(--accent,#7c3aed);border-radius:99px;font-weight:600 }
 
 /* Pager */
-.graph-page-active { background:var(--accent,#7c3aed)!important;color:#fff!important }
+.graph-page-active { background:var(--accent);color:#fff }
 
 /* ---- Batch Delete ---- */
 .batch-bar { display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--accent-subtle);border-radius:var(--radius-sm);margin-bottom:6px;font-size:12px }

@@ -17,8 +17,11 @@ export const state = reactive({
   todoFilter: 'pending',
 })
 
+function safeJsonParse(raw, fallback) {
+  try { return JSON.parse(raw) || fallback } catch (_) { return fallback }
+}
 export const TOKEN = localStorage.getItem('token') || ''
-export const USER = reactive(JSON.parse(localStorage.getItem('user') || 'null') || {})
+export const USER = reactive(safeJsonParse(localStorage.getItem('user'), {}))
 
 export const agent = reactive({ name: 'Jiang I-Agent', avatar: '' })
 

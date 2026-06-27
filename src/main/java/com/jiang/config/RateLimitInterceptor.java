@@ -5,6 +5,7 @@ import io.github.bucket4j.Bucket;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -54,5 +55,13 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         response.setContentType("application/json;charset=UTF-8");
         response.getWriter().write("{\"code\":429,\"message\":\"请求过于频繁，请稍后再试\"}");
         return false;
+    }
+
+    /** 每 10 分钟清理闲置桶（已满的 bucket 视为不活跃用户） */
+    @Scheduled(fixedRate = 600_000)
+    public void evict() {
+        int before = buckets.size();
+        buckets.values().removeIf(b -> b.getAvailableTokens() >= 30);
+        log.debug("限流桶清理: {} → {}", before, buckets.size());
     }
 }

@@ -73,6 +73,7 @@ public class ChatService {
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .build();
+    private static final Duration STREAM_REQUEST_TIMEOUT = Duration.ofMinutes(3);
 
     @Value("${spring.ai.openai.base-url}")
     private String baseUrl;
@@ -648,7 +649,7 @@ public class ChatService {
                 .uri(URI.create(baseUrl + "/chat/completions"))
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + apiKey)
-                .timeout(Duration.ofMinutes(5))
+                .timeout(STREAM_REQUEST_TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                 .build();
 

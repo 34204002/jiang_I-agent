@@ -30,6 +30,7 @@ public class ConversationController {
                                                                  @RequestParam(defaultValue = "20") int size,
                                                                  HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
+        page = Math.max(1, page); size = Math.min(Math.max(1, size), 200);
         return Result.success(conversationService.listConversations(userId, page, size));
     }
 
@@ -59,18 +60,24 @@ public class ConversationController {
         }
     }
 
-    /** 批量删除会话（POST，DELETE 请求体不被 Spring 默认解析） */
+    /** 批量删除会话（限制最多 100 个，防止长事务） */
     @PostMapping("/batch-delete")
     public Result<Map<String, Object>> batchDelete(@RequestBody Map<String, Object> body,
                                                     HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
-        @SuppressWarnings("unchecked")
-        List<Integer> rawIds = (List<Integer>) body.get("ids");
-        if (rawIds == null || rawIds.isEmpty()) {
+        Object raw = body.get("ids");
+        if (!(raw instanceof List<?> rawList) || rawList.isEmpty()) {
             return Result.fail(400, "ids 不能为空");
         }
-        List<Long> ids = rawIds.stream().map(Long::valueOf).toList();
-        int deleted = conversationService.deleteConversations(ids, userId);
-        return Result.success(Map.of("deleted", deleted, "total", ids.size()));
+        if (rawList.size() > 100) {
+            return Result.fail(400, "单次最多删除 100 个会话");
+        }
+        try {
+            List<Long> ids = rawList.stream().map(o -> Long.valueOf(o.toString())).toList();
+            int deleted = conversationService.deleteConversations(ids, userId);
+            return Result.success(Map.of("deleted", deleted, "total", ids.size()));
+        } catch (NumberFormatException e) {
+            return Result.fail(400, "ids 包含无效数字");
+        }
     }
 }

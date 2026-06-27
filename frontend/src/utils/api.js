@@ -7,7 +7,10 @@ function authHeaders(overrides) {
   return h
 }
 
-function handle(r) { return r.json().then(json => { if (!r.ok) throw new Error(json.message||'请求失败'); return json }) }
+function handle(r) {
+  if (r.status === 401) { localStorage.removeItem('token'); localStorage.removeItem('user'); location.href = '/' }
+  return r.json().then(json => { if (!r.ok) throw new Error(json.message||'请求失败'); return json })
+}
 
 export const api = {
   get: (url) => fetch(url, authHeaders()).then(handle).catch(e => ({ code:-1, message:e.message })),
