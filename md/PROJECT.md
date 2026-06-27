@@ -2,7 +2,7 @@
 
 > Spring Boot 4.1 + Spring AI 2.0 单智能体个人知识库助手。
 >
-> RAG 向量检索 + Neo4j 知识图谱双检索，17 个 Agent 工具，Vue 3 SPA 前端。
+> RAG 向量检索 + Neo4j 知识图谱双检索，18 个 Agent 工具，Vue 3 SPA 前端。
 
 ---
 
@@ -11,7 +11,7 @@
 面向程序员的个人 AI 助理：
 
 - **对话**：多轮对话 + SSE 流式输出（DeepSeek v4-flash thinking 思考模式），Redis 会话记忆 + MySQL 持久化
-- **工具调用**：自研 `@Tool` 注解框架，17 个工具自动注册，LLM 自主选择调用，最多 10 轮工具循环
+- **工具调用**：自研 `@Tool` 注解框架，18 个工具自动注册，LLM 自主选择调用，最多 10 轮工具循环
 - **RAG 知识库**：文档上传 → Tika 解析 → 分片 → BAAI/bge-m3 向量化 → Qdrant 语义检索增强回答
 - **知识图谱**：Neo4j 概念关联建模 + 前置知识链查询（"学 Redis 前需要先学什么"），AI 对话自动沉淀 + 循环检测 + 传递化简 + vis-network 层次化可视化 + 关系过滤
 - **待办 & 提醒**：CRUD 待办管理 + 定时提醒（`@Scheduled` 每分钟检查）
@@ -31,7 +31,7 @@
   │       ▼          ▼          ▼               ▼          ▼          ▼
   │    记忆层      工具层      知识层           图谱层      HTTP 层    鉴权层
   │    Redis      @Tool 自研   Qdrant          Neo4j     DeepSeekApi  JWT
-  │    Memory     17 个工具    向量检索         概念关系   (Spring AI)  Filter
+  │    Memory     18 个工具    向量检索         概念关系   (Spring AI)  Filter
   │
   ├── /api/knowledge/* ──→ KnowledgeController ──→ KnowledgeService
   ├── /api/graph/*     ──→ GraphController      ──→ GraphService
@@ -102,7 +102,7 @@ frontend/src/
 
 ---
 
-## 工具清单（17 个）
+## 工具清单（18 个）
 
 | 类别 | 工具 | 说明 |
 |------|------|------|
@@ -111,7 +111,7 @@ frontend/src/
 | 知识库 | `search_knowledge` `list_knowledge` | Qdrant 语义检索 + 文档列表 |
 | 知识图谱 | `search_concepts` `find_learning_path` `add_concept` | 搜索/路径/沉淀 + 循环检测 + 传递化简 |
 | 时间 | `get_current_time` | 当前时间 |
-| 网络 | `read_web_page` | 抓取网页内容 |
+| 网络 | `read_web_page` `search_web` | 网页抓取 + 联网搜索 |
 | 对话 | `search_conversation` `export_conversation` | 历史搜索 + Markdown 导出 |
 | 系统 | `get_status` | Agent 运行状态 |
 

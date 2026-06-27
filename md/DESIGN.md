@@ -299,7 +299,7 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 
 ## 九、前端设计系统
 
-全局 CSS 自定义属性（`frontend/src/assets/style.css`，26KB）：
+全局 CSS 自定义属性（`frontend/src/assets/style.css`，30KB）：
 
 ```
 :root {

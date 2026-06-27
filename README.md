@@ -2,7 +2,7 @@ sh# Jiang I-Agent
 
 > 个人 AI 知识库助手 —— Spring Boot 4.1 + DeepSeek v4-flash + Neo4j + Qdrant + Vue 3 SPA
 
-一个面向程序员的单智能体个人 AI 助理。支持多轮对话（SSE 流式 + thinking 思考模式）、RAG 知识库（Qdrant 向量检索）、Neo4j 知识图谱（概念建模 + 学习路径查询）、17 个 Agent 工具自主调用。前端 Vue 3 SPA，完整设计系统。
+一个面向程序员的单智能体个人 AI 助理。支持多轮对话（SSE 流式 + thinking 思考模式）、RAG 知识库（Qdrant 向量检索）、Neo4j 知识图谱（概念建模 + 学习路径查询）、18 个 Agent 工具自主调用。前端 Vue 3 SPA，完整设计系统。
 
 ---
 
@@ -27,7 +27,7 @@ sh# Jiang I-Agent
 - AI 对话自动沉淀概念，手动添加/编辑/删除
 
 ### 工具 & 待办
-- 17 个 Agent 工具（待办/提醒/知识库/图谱/时间/网络/对话/系统）
+- 18 个 Agent 工具（待办/提醒/知识库/图谱/时间/网络/对话/系统）
 - 待办 CRUD + 定时提醒（@Scheduled）
 - 工具调用日志可观测性
 
@@ -41,7 +41,7 @@ sh# Jiang I-Agent
 - JWT 无状态认证，BCrypt 密码加密
 - USER / ADMIN 角色隔离
 - Bucket4j 令牌桶限流（30 tokens，≈60 req/min 每用户，429 超限）
-- `@Transactional` 全覆盖写入操作（6 个 Service，事务回滚保护）
+- `@Transactional` 全覆盖写入操作（3 个 Service，事务回滚保护）
 - 个人设置（头像/昵称/密码）+ 管理后台
 
 ---
@@ -90,7 +90,7 @@ sh# Jiang I-Agent
 | AI | Spring AI 2.0 + DeepSeekApi | reasoning_content 原生支持 |
 | 模型 | DeepSeek v4-flash | 默认思考模式，工具调用 |
 | 嵌入 | BAAI/bge-m3 (硅基流动) | 1024 维 |
-| 前端 | Vue 3 + Vite 8 | SFC 组件 + vue-router SPA |
+| 前端 | Vue 3 + Vite 6 | SFC 组件 + vue-router SPA |
 | 图谱可视化 | vis-network + vis-data | 层次化树形图（LR） |
 | Markdown | marked | 消息渲染 |
 | 关系库 | MySQL 8 + MyBatis-Plus | 用户/会话/消息/文档/待办 |
@@ -170,7 +170,7 @@ jiang_I-agent/
 ├── src/main/java/com/jiang/
 │   ├── common/              # Result 统一响应 / 异常处理
 │   ├── config/              # Redis / MyBatis-Plus / Web / OSS 配置
-│   ├── controller/          # REST 控制器 (11 个)
+│   ├── controller/          # REST 控制器 (10 个)
 │   ├── entity/              # MySQL 实体
 │   ├── mapper/              # MyBatis-Plus Mapper
 │   ├── model/
@@ -178,8 +178,8 @@ jiang_I-agent/
 │   │   └── vo/              # 视图对象 (MessageVO, PageResult)
 │   ├── repository/          # Neo4j Repository
 │   ├── service/             # 业务服务
-│   │   └── ChatService.java # Agent 核心 (930行)
-│   └── tool/                # @Tool 注解 + ToolRegistry + 17 个工具实现
+│   │   └── ChatService.java # Agent 核心 (773行)
+│   └── tool/                # @Tool 注解 + ToolRegistry + 18 个工具实现
 ├── src/main/resources/
 │   ├── prompts/system.md    # Agent 系统提示词
 │   ├── sql/
@@ -230,9 +230,9 @@ jiang_I-agent/
 | 知识库 | `search_knowledge` `list_knowledge` | 2 |
 | 图谱 | `search_concepts` `find_learning_path` `add_concept` | 3 |
 | 时间 | `get_current_time` | 1 |
-| 网络 | `read_web_page` | 1 |
+| 网络 | `read_web_page` `search_web` | 2 |
 | 对话 | `search_conversation` `export_conversation` | 2 |
-| 系统 | `get_status` | 1 |
+| 系统 | `get_status` `list_knowledge` | 2 |
 
 ---
 
@@ -294,7 +294,7 @@ jiang_I-agent/
 | [PROJECT.md](md/PROJECT.md) | 项目总览、架构、分阶段路线 |
 | [DESIGN.md](md/DESIGN.md) | 数据库设计、Neo4j 模型、Redis 键、鉴权、前端架构 |
 | [API_DESIGN.md](md/API_DESIGN.md) | 完整接口文档（含 SSE 协议） |
-| [ISSUES.md](md/ISSUES.md) | 20 条踩坑记录 + 教训总结 |
+| [ISSUES.md](md/ISSUES.md) | 23 条踩坑记录 + 教训总结 |
 | [system.md](src/main/resources/prompts/system.md) | Agent 系统提示词 |
 
 ---

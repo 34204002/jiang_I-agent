@@ -5,7 +5,7 @@ Vue 3 + Vite SPA。组件化聊天界面，SSE 流式 + 知识图谱可视化 + 
 ## 技术栈
 
 - Vue 3 (Composition API + `<script setup>`)
-- Vite 8
+- Vite 6
 - vue-router 4
 - marked (Markdown 渲染)
 - vis-network + vis-data (图谱可视化)

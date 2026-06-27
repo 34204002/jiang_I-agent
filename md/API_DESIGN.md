@@ -172,7 +172,18 @@ Content-Type: multipart/form-data
 |------|------|------|
 | status | Integer | 0-待处理 1-已解析 2-已向量化 |
 
-### 3.2 文档列表
+### 3.2 批量上传文档
+
+```
+POST /api/knowledge/documents/batch
+Content-Type: multipart/form-data
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| files | File[] | 是 | 支持多个文件同时上传 |
+
+### 3.3 文档列表
 
 ```
 GET /api/knowledge/documents?page=1&size=20
@@ -352,7 +363,38 @@ POST /api/graph/concepts
 }
 ```
 
-### 4.6 删除概念
+### 4.6 添加关系
+
+```
+POST /api/graph/concepts/{name}/relations
+```
+
+**请求体：**
+
+```json
+{
+  "target": "Redis",
+  "type": "PREREQUISITE_OF"
+}
+```
+
+### 4.7 提取文档概念
+
+```
+POST /api/graph/extract
+```
+
+**请求体：**
+
+```json
+{
+  "documentId": 1
+}
+```
+
+> LLM 从文档中提取概念和关系，自动写入图谱。
+
+### 4.8 删除概念
 
 ```
 DELETE /api/graph/concepts/{name}
@@ -360,7 +402,7 @@ DELETE /api/graph/concepts/{name}
 
 > 级联删除概念及其所有关联关系。
 
-### 4.7 删除关系
+### 4.9 删除关系
 
 ```
 DELETE /api/graph/concepts/{name}/relations?target={targetName}&type=PREREQUISITE_OF
@@ -417,7 +459,7 @@ GET /api/conversations?page=1&size=50
 ### 6.2 会话消息列表
 
 ```
-GET /api/conversations/{id}/messages?page=1&size=200
+GET /api/conversations/{id}/messages?page=1&size=50
 ```
 
 **响应：**
@@ -523,7 +565,9 @@ PUT /api/profile             # 更新信息 {"nickname":"...","password":"..."}
 | POST | `/api/auth/register` | 注册 |
 | POST | `/api/chat` | 同步对话 |
 | GET | `/api/chat/stream` | SSE 流式对话 (?thinking=true) |
+| POST | `/api/chat/stream` | SSE 流式对话（POST 变体） |
 | POST | `/api/knowledge/documents` | 上传文档 |
+| POST | `/api/knowledge/documents/batch` | 批量上传文档 |
 | GET | `/api/knowledge/documents` | 文档列表 |
 | DELETE | `/api/knowledge/documents/{id}` | 删除文档 |
 | GET | `/api/knowledge/documents/{id}/download` | 下载文档 |
@@ -533,6 +577,10 @@ PUT /api/profile             # 更新信息 {"nickname":"...","password":"..."}
 | GET | `/api/graph/concepts/{name}/path` | 知识链查询 |
 | GET | `/api/graph/concepts/{name}/graph` | 子图 (vis-network) |
 | POST | `/api/graph/concepts` | 添加概念 |
+| DELETE | `/api/graph/concepts/{name}` | 删除概念 |
+| POST | `/api/graph/concepts/{name}/relations` | 添加关系 |
+| DELETE | `/api/graph/concepts/{name}/relations` | 删除关系 |
+| POST | `/api/graph/extract` | AI 提取文档概念 |
 | GET | `/api/tools` | 工具列表 |
 | GET/POST/PUT/DELETE | `/api/todos[/{id}/complete]` | 待办 CRUD |
 | GET | `/api/conversations` | 会话列表 |
@@ -540,5 +588,7 @@ PUT /api/profile             # 更新信息 {"nickname":"...","password":"..."}
 | DELETE | `/api/conversations/{id}` | 删除会话 |
 | POST | `/api/conversations/batch-delete` | 批量删除 |
 | GET/PUT | `/api/admin/agent` | Agent 配置 |
+| GET | `/api/admin/agent/profile` | 公开 Agent 信息 |
 | GET/DELETE | `/api/admin/users/*` | 用户管理 |
 | GET/POST/PUT | `/api/profile/*` | 个人设置 |
+| GET/PUT | `/api/user/me` | 当前用户信息 |
