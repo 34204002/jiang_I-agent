@@ -55,7 +55,7 @@ async function submit() {
 </template>
 
 <style scoped>
-.login-page { display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg-body,#FDF2F8) }
+.login-page { display:flex;align-items:center;justify-content:center;min-height:100vh;width:100%;background:var(--bg-body,#FDF2F8) }
 .login-card { background:#fff;border-radius:12px;padding:40px 36px;width:100%;max-width:400px;box-shadow:0 4px 24px rgba(30,41,59,.08) }
 .login-card h1 { text-align:center;font-size:22px;font-weight:800;margin-bottom:6px }
 .login-card .sub { text-align:center;font-size:13px;color:var(--text-secondary,#64748B);margin-bottom:28px }

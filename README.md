@@ -1,4 +1,4 @@
-# Jiang I-Agent
+sh# Jiang I-Agent
 
 > 个人 AI 知识库助手 —— Spring Boot 4.1 + DeepSeek v4-flash + Neo4j + Qdrant + Vue 3 SPA
 
