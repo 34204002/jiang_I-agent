@@ -56,17 +56,16 @@ function renderGraph(data) {
     return {
       color: {
         background: bg,
-        border: center ? '#be185d' : '#1e293b',
-        highlight: { background: bg, border: '#000' },
-        hover: { background: bg, border: '#000' }
+        border: bg,
+        highlight: { background: bg, border: bg },
+        hover: { background: bg, border: bg }
       },
       font: { color: '#fff', size: 13, face: 'Inter', bold: { color: '#fff', size: 13, face: 'Inter', mod: 'bold' } },
-      borderWidth: center ? 3 : 2,
+      borderWidth: 0,
       shape: 'box',
       shapeProperties: { borderRadius: 8 },
       margin: { top: 8, right: 14, bottom: 8, left: 14 },
-      shadow: { enabled: true, color: 'rgba(0,0,0,.15)', size: 6, x: 0, y: 2 },
-      fixed: center ? { x: true, y: true } : false  // keep center node in position
+      shadow: { enabled: true, color: 'rgba(0,0,0,.12)', size: 4, x: 0, y: 1 }
     }
   }
 
@@ -152,12 +151,16 @@ function renderGraph(data) {
             })
           }
         })
-        if (newNodes.length) { nodes.add(newNodes); graphNetwork.storePositions() }
-        if (newEdges.length) edges.add(newEdges)
+        if (newNodes.length || newEdges.length) {
+          if (newNodes.length) nodes.add(newNodes)
+          if (newEdges.length) edges.add(newEdges)
+          // 短暂启动物理引擎重新布局，之后回到静态层次
+          graphNetwork.setOptions({ physics: { enabled: true, solver: 'hierarchicalRepulsion' } })
+          setTimeout(() => graphNetwork.setOptions({ physics: { enabled: false } }), 1200)
+        }
       })
   })
 
-  graphNetwork.on('stabilized', () => { graphNetwork.storePositions() })
 }
 
 function refilterGraph() { if (currentGraphData) renderGraph(currentGraphData) }
@@ -202,7 +205,9 @@ onMounted(search)
     <button type="button" class="graph-filter-btn" :class="{ active: graphRelFilter==='prereq' }" @click="graphRelFilter='prereq'; refilterGraph()">仅前置</button>
     <button type="button" class="graph-filter-btn" :class="{ active: graphRelFilter==='related' }" @click="graphRelFilter='related'; refilterGraph()">仅相关</button>
     <button type="button" class="graph-filter-btn" :class="{ active: graphRelFilter==='all' }" @click="graphRelFilter='all'; refilterGraph()">全部</button>
-    <span style="font-size:11px;color:var(--text-tertiary);margin-left:auto">双击节点展开</span>
+    <button type="button" class="graph-reset-btn" @click="graphNetwork && graphNetwork.fit({ animation: true })" title="重置视图" style="margin-left:auto">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="8 12 12 8 16 12"/><line x1="12" y1="16" x2="12" y2="8"/></svg>
+    </button>
   </div>
   <div v-if="state.graphViewMode" id="graphNetContainer" class="graph-net"></div>
 
