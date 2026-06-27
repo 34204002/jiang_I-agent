@@ -119,6 +119,12 @@
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- Jsoup HTML 解析 -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.18.1</version>
+        </dependency>
         <!-- Bucket4j 令牌桶限流 -->
         <dependency>
             <groupId>com.bucket4j</groupId>
