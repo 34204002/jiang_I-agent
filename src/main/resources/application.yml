@@ -14,8 +14,8 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 120MB
+      max-file-size: 20MB
+      max-request-size: 25MB
 
   # ==================== MySQL ====================
   datasource:

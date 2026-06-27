@@ -3,6 +3,7 @@ import { ref, reactive, computed, nextTick } from 'vue'
 import { state, agent, USER } from '../stores/state'
 import { loadConversations, newChat } from '../utils/chat'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const msgInput = ref(null)
 const streamContent = ref('')
@@ -10,6 +11,8 @@ const streamThinking = ref('')
 const streamThinkCollapsed = ref(false)
 const thinkingCollapsed = reactive({})
 const thinkHdr = computed(() => state.toolRunning ? `调用: ${state.toolRunning}` : '思考中...')
+
+function mdSafe(text) { return DOMPurify.sanitize(marked.parse(text || '')) }
 
 function send() {
   const text = msgInput.value?.value?.trim()
@@ -24,17 +27,19 @@ function send() {
   if (window._activeES) window._activeES.close()
   const es = new EventSource(url)
   window._activeES = es
+  let hasContent = false
 
   es.onmessage = e => {
     try {
       const evt = JSON.parse(e.data)
       if (evt.type === 'thinking') { streamThinking.value += evt.content; return }
-      if (evt.type === 'content') { streamContent.value += evt.content; return }
+      if (evt.type === 'content') { streamContent.value += evt.content; hasContent = true; return }
       if (evt.type === 'tool_call') { state.toolRunning = evt.name; streamContent.value = ''; return }
     } catch (_) {}
   }
 
   es.onerror = () => {
+    if (!hasContent) return  // 网络闪断，让浏览器自动重连
     es.close(); window._activeES = null; state.streaming = false; state.toolRunning = null
     if (streamContent.value) {
       const lastIdx = state.messages.length
@@ -78,10 +83,10 @@ function avatar(isUser) {
             <svg class="thinking-chevron" :class="{ open: !thinkingCollapsed[i] }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
             <span>思考内容</span>
           </div>
-          <div class="thinking-body" v-html="marked.parse(m.thinking)"></div>
+          <div class="thinking-body" v-html="mdSafe(m.thinking)"></div>
         </div>
       </template>
-      <div class="msg-bubble" v-html="marked.parse(m.content||'')"></div>
+      <div class="msg-bubble" v-html="mdSafe(m.content||'')"></div>
     </div>
   </div>
   <div v-if="state.streaming" class="msg assistant">
@@ -92,9 +97,9 @@ function avatar(isUser) {
           <svg class="thinking-chevron" :class="{ open: !streamThinkCollapsed }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
           <span>{{ thinkHdr }}</span>
         </div>
-        <div class="thinking-body" v-html="marked.parse(streamThinking)"></div>
+        <div class="thinking-body" v-html="mdSafe(streamThinking)"></div>
       </div>
-      <div class="msg-bubble" :class="{ cursor: state.streaming && streamContent }" v-html="marked.parse(streamContent)"></div>
+      <div class="msg-bubble" :class="{ cursor: state.streaming && streamContent }" v-html="mdSafe(streamContent)"></div>
     </div>
   </div>
 </div>

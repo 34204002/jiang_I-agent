@@ -153,7 +153,10 @@ public class GraphService {
         String resolvedTo = resolveName(to);
         if (resolvedFrom == null || resolvedTo == null) return List.of();
 
-        String relPattern = relType != null ? ":" + relType : "";
+        // 关系类型仅允许内部枚举常量，防止注入
+        String safeRel = (relType != null && (relType.equals("PREREQUISITE_OF") || relType.equals("RELATED_TO")))
+                ? relType : null;
+        String relPattern = safeRel != null ? ":" + safeRel : "";
         String cypher = """
                 MATCH path = shortestPath((start:Concept {name: $from})-[%s*..%d]-(end:Concept {name: $to}))
                 RETURN nodes(path) AS nodes
