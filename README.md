@@ -6,6 +6,8 @@ sh# Jiang I-Agent
 
 ## 本项目开源仅供学习交流，禁止用于毕设 / 面试抄袭等违规用途
 
+项目演示链接：https://www.bilibili.com/video/BV17F7W6GEnM/?spm_id_from=333.1387.homepage.video_card.click
+
 ![Jiang I-Agent 截图](https://jiang-learning.oss-cn-beijing.aliyuncs.com/Snipaste_2026-06-27_16-24-58.png)
 
 ---
