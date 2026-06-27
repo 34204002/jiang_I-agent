@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Jiang. 自研 @Tool 注解框架核心。
+ */
 package com.jiang.tool;
 
 import com.fasterxml.jackson.core.JsonProcessingException;

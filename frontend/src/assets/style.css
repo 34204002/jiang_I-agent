@@ -198,6 +198,10 @@ input,textarea { font:inherit;color:inherit }
 }
 .sidebar-admin-link:hover { background:rgba(139,92,246,.06);border-color:var(--lavender) }
 
+.sidebar-copyright {
+  font-size:10px;color:var(--text-tertiary);text-align:center;
+  opacity:.6;user-select:none;
+}
 .sidebar-new {
   width:100%;padding:11px;border:2px dashed var(--border);border-radius:var(--radius);
   color:var(--accent);font-size:13px;font-weight:700;

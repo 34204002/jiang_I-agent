@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026 Jiang.
+ * https://github.com/<your-username>/jiang-I-agent
+ *
+ * 本项目为个人开源学习项目，禁止用于毕设 / 面试作品集等违规用途。
+ * 详见项目根目录 LICENSE 文件。
+ */
 package com.jiang.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
