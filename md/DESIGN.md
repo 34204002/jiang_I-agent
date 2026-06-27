@@ -20,13 +20,23 @@
 
 ## 一-补充：为什么自建 @Tool 框架
 
-Spring AI 2.0 的官方 `@Tool` 注解依赖 `ChatClient` → `ChatModel` → `ToolCallback` 调用链。本项目选择绕过该链路的原因：
+项目**用了 `spring-ai-deepseek` 模块，但没有走标准 ChatClient 链路**。当前架构：
 
-1. **reasoning_content 兼容性**：Spring AI OpenAI 适配器底层用 OpenAI Java SDK，该 SDK 不认识 DeepSeek 的 `reasoning_content` 非标准字段，流式时直接丢弃
-2. **切换到 spring-ai-deepseek**：该模块的 `ChatCompletionMessage.reasoningContent()` 原生支持，但此时已脱离标准 ChatClient 链路
-3. **精细控制**：DeepSeek 的 function calling 有特殊行为（并行 tool_calls、DSML fallback），用自建 HTTP 请求 + Spring AI 类型解析能同时获得类型安全和编排灵活性
+```
+HTTP 请求层: 自建 buildRequestBody() + streamHttp/syncHttp（Map → JSON → HttpClient）
+    ↓
+响应解析层: DeepSeekApi.ChatCompletionChunk / ChatCompletionMessage（Spring AI 类型，类型安全）
+    ↓
+工具编排层: 自建 ToolRegistry + @Tool 注解（脱离 ChatClient 后官方 @Tool 不可用）
+```
 
-最终方案：**用 `DeepSeekApi.ChatCompletionChunk` 做响应类型解析，自建 `buildRequestBody()` 做请求构建**。工具层则自建注解框架补齐。
+为什么不用 Spring AI 全套（ChatClient → ChatModel → ToolCallback）？
+
+1. **最初用 OpenAI 适配器** → 底层 OpenAI Java SDK 不认识 `reasoning_content` → 流式时丢弃
+2. **切到 spring-ai-deepseek** → `ChatCompletionMessage.reasoningContent()` 可用，但若走 `ChatClient.stream()` 链路，工具调用行为（并行 tool_calls、DSML fallback）不够透明可控
+3. **最终决策**：保留 `spring-ai-deepseek` 做**类型解析**（`ChatCompletionChunk`/`ChatCompletionMessage`），但 HTTP 请求和工具编排**自己控制**——这样既有类型安全，又能精细处理 DeepSeek 的特殊行为
+
+结果：`spring-ai-deepseek` 模块在 pom.xml 中且被引用，但只用于响应反序列化，不走它的 `ChatClient`/`@Tool` 体系。
 
 ```
 自建 @Tool 注解
