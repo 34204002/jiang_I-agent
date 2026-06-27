@@ -4,9 +4,11 @@ sh# Jiang I-Agent
 
 一个面向程序员的单智能体个人 AI 助理。支持多轮对话（SSE 流式 + thinking 思考模式）、RAG 知识库（Qdrant 向量检索）、Neo4j 知识图谱（概念建模 + 学习路径查询）、18 个 Agent 工具自主调用。前端 Vue 3 SPA，完整设计系统。
 
-本项目开源仅供学习交流，禁止用于毕设 / 面试抄袭等违规用途
+## 本项目开源仅供学习交流，禁止用于毕设 / 面试抄袭等违规用途
+
+![Jiang I-Agent 截图](https://jiang-learning.oss-cn-beijing.aliyuncs.com/Snipaste_2026-06-27_16-24-58.png)
+
 ---
-https://jiang-learning.oss-cn-beijing.aliyuncs.com/Snipaste_2026-06-27_16-24-58.png
 
 ## 特性
 
