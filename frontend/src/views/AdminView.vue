@@ -66,22 +66,22 @@ onMounted(() => {
 </script>
 
 <template>
-  <div style="flex:1;overflow-y:auto">
+  <div class="admin-shell">
     <div class="admin-page">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
-        <router-link style="font-size:13px;color:var(--accent);text-decoration:none;font-weight:600" to="/chat">←
+      <div class="admin-back-bar">
+        <router-link class="admin-back-link" to="/chat">←
           返回对话
         </router-link>
-        <span style="font-size:16px;font-weight:700">管理后台</span>
+        <span class="admin-title">管理后台</span>
       </div>
       <div class="card">
-        <div class="tabs">
+        <div class="tabs" role="tablist">
           <button :class="{ active: tab==='users' }" @click="tab='users'">用户管理</button>
           <button :class="{ active: tab==='agent' }" @click="tab='agent'">Agent 配置</button>
         </div>
         <div v-if="tab==='users'">
           <h3>用户列表</h3>
-          <div style="overflow-x:auto">
+          <div class="admin-table-wrap">
             <table>
               <thead>
               <tr>
@@ -112,8 +112,8 @@ onMounted(() => {
           <h3>Agent 全局配置</h3>
           <div class="avatar-area">
             <img :src="agent.avatar||''" alt="" class="avatar-preview">
-            <div><input ref="agentFile" accept="image/*" style="display:none" type="file" @change="uploadAgentAvatar">
-              <button class="btn-outline" style="font-size:13px;padding:8px 16px" @click="agentFile?.click()">更换头像
+            <div><input ref="agentFile" accept="image/*" class="admin-hidden-input" type="file" @change="uploadAgentAvatar">
+              <button class="btn-outline admin-upload-btn" @click="agentFile?.click()">更换头像
               </button>
             </div>
           </div>
@@ -294,5 +294,42 @@ th {
   border-radius: 50%;
   object-fit: cover;
   border: 3px solid var(--border, #F0E2EF)
+}
+
+.admin-shell {
+  flex: 1;
+  overflow-y: auto
+}
+
+.admin-back-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px
+}
+
+.admin-back-link {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600
+}
+
+.admin-title {
+  font-size: 16px;
+  font-weight: 700
+}
+
+.admin-table-wrap {
+  overflow-x: auto
+}
+
+.admin-hidden-input {
+  display: none
+}
+
+.admin-upload-btn {
+  font-size: 13px;
+  padding: 8px 16px
 }
 </style>

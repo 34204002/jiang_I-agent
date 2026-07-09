@@ -50,27 +50,27 @@ onMounted(load)
 </script>
 
 <template>
-  <div style="flex:1;overflow-y:auto">
+  <div class="settings-shell">
     <div class="settings-page">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
-        <router-link style="font-size:13px;color:var(--accent);text-decoration:none;font-weight:600" to="/chat">←
+      <div class="settings-back-bar">
+        <router-link class="settings-back-link" to="/chat">←
           返回对话
         </router-link>
-        <span style="font-size:16px;font-weight:700">个人设置</span>
+        <span class="settings-title">个人设置</span>
       </div>
       <div class="card"><h3>个人资料</h3>
         <div class="avatar-area">
           <img :src="avatar||''" alt="头像" class="avatar-preview">
-          <div><input ref="fileInput" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none"
+          <div><input ref="fileInput" accept="image/jpeg,image/png,image/webp,image/gif" class="settings-hidden-input"
                       type="file" @change="uploadAvatar">
-            <button class="btn-outline" style="font-size:13px;padding:8px 16px" @click="fileInput?.click()">更换头像
+            <button class="btn-outline settings-upload-btn" @click="fileInput?.click()">更换头像
             </button>
-            <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">JPG/PNG/WebP/GIF</div>
+            <div class="settings-upload-hint">JPG/PNG/WebP/GIF</div>
           </div>
         </div>
-        <div class="field"><label>用户名</label><input :value="username" disabled style="opacity:.5"></div>
+        <div class="field"><label>用户名</label><input :value="username" disabled class="settings-disabled"></div>
         <div class="field"><label>昵称</label><input v-model="nickname" placeholder="给自己取个名字"></div>
-        <div class="field"><label>角色</label><input :value="role" disabled style="opacity:.5"></div>
+        <div class="field"><label>角色</label><input :value="role" disabled class="settings-disabled"></div>
         <button class="btn" @click="save">保存</button>
       </div>
     </div>
@@ -166,5 +166,48 @@ onMounted(load)
   z-index: 999;
   background: #22C55E;
   color: #fff
+}
+
+.settings-shell {
+  flex: 1;
+  overflow-y: auto
+}
+
+.settings-back-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px
+}
+
+.settings-back-link {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600
+}
+
+.settings-title {
+  font-size: 16px;
+  font-weight: 700
+}
+
+.settings-hidden-input {
+  display: none
+}
+
+.settings-upload-btn {
+  font-size: 13px;
+  padding: 8px 16px
+}
+
+.settings-upload-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px
+}
+
+.settings-disabled {
+  opacity: .5
 }
 </style>
