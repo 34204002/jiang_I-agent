@@ -1,56 +1,67 @@
-import type {ApiResponse} from '../types'
+import axios from 'axios'
+import type { AxiosResponse } from 'axios'
+import type { ApiResponse } from '../types'
 
-const TOKEN = localStorage.getItem('token') || ''
+const TOKEN: string = localStorage.getItem('token') || ''
 
-function authHeaders(overrides?: RequestInit): RequestInit {
-    const h: RequestInit = {headers: {'Authorization': 'Bearer ' + TOKEN}, ...overrides}
-    if (overrides && overrides.headers) {
-        const merged = new Headers(overrides.headers as HeadersInit)
-        merged.set('Authorization', 'Bearer ' + TOKEN)
-        h.headers = merged
+const http = axios.create({
+  baseURL: '',
+  timeout: 300000, // 5min for SSE-style long responses
+  headers: { 'Content-Type': 'application/json' }
+})
+
+// 请求拦截器：自动注入 auth header
+http.interceptors.request.use((config) => {
+  if (TOKEN) {
+    config.headers.Authorization = `Bearer ${TOKEN}`
+  }
+  return config
+})
+
+// 响应拦截器：统一 401 处理
+http.interceptors.response.use(
+  (response: AxiosResponse<ApiResponse>) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      location.href = '/'
     }
-    return h
-}
+    return Promise.reject(error)
+  }
+)
 
-function handle<T>(r: Response): Promise<ApiResponse<T>> {
-    if (r.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        location.href = '/'
+// axios 包裹的 Promise<AxiosResponse> 里 data 是 ApiResponse<T>
+// 这里解包：直接返回 ApiResponse<T>
+async function unwrap<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>): Promise<ApiResponse<T>> {
+  try {
+    const res = await promise
+    return res.data
+  } catch (e: unknown) {
+    if (axios.isAxiosError(e) && e.response?.status === 401) {
+      // 401 已由拦截器处理，这里静默
     }
-    return r.json().then((json: ApiResponse<T>) => {
-        if (!r.ok) throw new Error(json.message || '请求失败');
-        return json
-    })
+    const message = axios.isAxiosError(e) ? (e.response?.data as { message?: string })?.message || e.message : '请求失败'
+    return { code: -1, message, data: undefined as unknown as T }
+  }
 }
 
 export const api = {
-    get: <T = unknown>(url: string): Promise<ApiResponse<T>> =>
-        fetch(url, authHeaders()).then(handle<T>).catch((e: Error) => ({
-            code: -1,
-            message: e.message
-        } as ApiResponse<T>)),
+  get: <T = unknown>(url: string): Promise<ApiResponse<T>> =>
+    unwrap<T>(http.get<ApiResponse<T>>(url)),
 
-    post: <T = unknown>(url: string, body: unknown): Promise<ApiResponse<T>> =>
-        fetch(url, authHeaders({
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'} as unknown as HeadersInit,
-            body: JSON.stringify(body)
-        })).then(handle<T>).catch((e: Error) => ({code: -1, message: e.message} as ApiResponse<T>)),
+  post: <T = unknown>(url: string, body?: unknown): Promise<ApiResponse<T>> =>
+    unwrap<T>(http.post<ApiResponse<T>>(url, body)),
 
-    put: <T = unknown>(url: string, body: unknown): Promise<ApiResponse<T>> =>
-        fetch(url, authHeaders({
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'} as unknown as HeadersInit,
-            body: JSON.stringify(body)
-        })).then(handle<T>).catch((e: Error) => ({code: -1, message: e.message} as ApiResponse<T>)),
+  put: <T = unknown>(url: string, body?: unknown): Promise<ApiResponse<T>> =>
+    unwrap<T>(http.put<ApiResponse<T>>(url, body)),
 
-    del: <T = unknown>(url: string, body?: unknown): Promise<ApiResponse<T>> => {
-        const opts = authHeaders({method: 'DELETE'})
-        if (body) {
-            opts.headers = {...opts.headers as Record<string, string>, 'Content-Type': 'application/json'}
-            ;(opts as Record<string, unknown>).body = JSON.stringify(body)
-        }
-        return fetch(url, opts).then(handle<T>).catch((e: Error) => ({code: -1, message: e.message} as ApiResponse<T>))
-    },
+  del: <T = unknown>(url: string, body?: unknown): Promise<ApiResponse<T>> =>
+    unwrap<T>(http.delete<ApiResponse<T>>(url, { data: body })),
+
+  /** multipart/form-data 上传 */
+  postForm: <T = unknown>(url: string, formData: FormData): Promise<ApiResponse<T>> =>
+    unwrap<T>(http.post<ApiResponse<T>>(url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }))
 }

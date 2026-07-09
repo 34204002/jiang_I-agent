@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "axios": "^1.18.1",
     "dompurify": "^3.4.11",
     "marked": "^18.0.5",
     "vis-data": "^8.0.4",
