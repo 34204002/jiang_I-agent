@@ -3,6 +3,8 @@ import {computed} from 'vue'
 import {logout, state, USER} from '../stores/state'
 import {api} from '../utils/api'
 import {loadConversations, newChat, selectConvo} from '../utils/chat'
+import CloseIcon from './icons/CloseIcon.vue'
+import SettingsIcon from './icons/SettingsIcon.vue'
 
 const selCount = computed(() => Object.keys(state.batchSelected).length)
 const allSelected = computed(() => state.convos.length > 0 && selCount.value === state.convos.length)
@@ -65,13 +67,7 @@ async function batchDelete() {
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
         <span class="text">{{ c.title || '新对话' }}</span>
-        <span v-if="!state.batchMode" class="del" title="删除" @click.stop="deleteConvo(c.id)"><svg fill="none"
-                                                                                                    height="12"
-                                                                                                    stroke="currentColor"
-                                                                                                    stroke-width="2"
-                                                                                                    viewBox="0 0 24 24"
-                                                                                                    width="12"><line
-            x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg></span>
+        <span v-if="!state.batchMode" class="del" title="删除" @click.stop="deleteConvo(c.id)"><CloseIcon :size="12" /></span>
       </div>
     </div>
     <div class="sidebar-footer">
@@ -80,13 +76,7 @@ async function batchDelete() {
         <div class="sidebar-profile-info"><span class="sidebar-profile-name">{{ USER.nickname || '用户' }}</span><span
             v-if="USER.role==='ADMIN'" class="sidebar-profile-role">ADMIN</span></div>
         <div class="sidebar-profile-actions">
-          <router-link class="sidebar-action-btn" title="设置" to="/settings">
-            <svg fill="none" height="14" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" width="14">
-              <circle cx="12" cy="12" r="3"/>
-              <path
-                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
-          </router-link>
+          <router-link class="sidebar-action-btn" title="设置" to="/settings"><SettingsIcon /></router-link>
           <button class="sidebar-action-btn sidebar-logout-btn" title="退出登录" type="button" @click="logout">
             <svg fill="none" height="14" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" width="14">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -96,18 +86,11 @@ async function batchDelete() {
           </button>
         </div>
       </div>
-      <router-link v-if="USER.role==='ADMIN'" class="sidebar-admin-link" to="/admin">
-        <svg fill="none" height="14" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" width="14">
-          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-          <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-        管理后台
-      </router-link>
+      <router-link v-if="USER.role==='ADMIN'" class="sidebar-admin-link" to="/admin"><SettingsIcon /> 管理后台</router-link>
       <div class="sidebar-copyright">© 2026 Jiang · 仅供学习交流</div>
-      <div style="display:flex;gap:6px">
-        <button class="sidebar-new" style="flex:1" @click="newChat">+ 新对话</button>
-        <button class="sidebar-new" style="flex:0;padding:0 12px" title="批量管理"
+      <div class="sidebar-actions">
+        <button class="sidebar-new sidebar-new-chat" @click="newChat">+ 新对话</button>
+        <button class="sidebar-new sidebar-new-batch" title="批量管理"
                 @click="state.batchMode=!state.batchMode;state.batchSelected={}">
           <svg fill="none" height="14" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" width="14">
             <polyline points="3 6 5 6 21 6"/>
@@ -118,3 +101,9 @@ async function batchDelete() {
     </div>
   </aside>
 </template>
+
+<style scoped>
+.sidebar-actions { display: flex; gap: 6px }
+.sidebar-new-chat { flex: 1 }
+.sidebar-new-batch { flex: 0; padding: 0 12px }
+</style>

@@ -4,6 +4,7 @@ import {agent, state, USER} from '../stores/state'
 import {loadConversations} from '../utils/chat'
 import {marked} from 'marked'
 import DOMPurify from 'dompurify'
+import ChevronIcon from './icons/ChevronIcon.vue'
 
 const msgInput = ref<HTMLInputElement | null>(null)
 const streamContent = ref('')
@@ -95,8 +96,8 @@ function avatar(isUser: boolean): string {
 </script>
 
 <template>
-  <div style="flex:1;display:flex;flex-direction:column;min-height:0">
-    <div id="chatBody" class="chat-body" style="flex:1;overflow-y:auto">
+  <div class="chat-shell">
+    <div id="chatBody" class="chat-body">
       <div v-if="!state.conversationId && !state.messages.length" class="welcome">
         <div class="welcome-emoji">
           <svg fill="none" height="72" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" width="72">
@@ -121,10 +122,7 @@ function avatar(isUser: boolean): string {
           <template v-if="m.role==='assistant' && m.thinking">
             <div :class="{ collapsed: thinkingCollapsed[i] }" class="thinking-block">
               <div class="thinking-header" @click="thinkingCollapsed[i] = !thinkingCollapsed[i]">
-                <svg :class="{ open: !thinkingCollapsed[i] }" class="thinking-chevron" fill="none" height="12"
-                     stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="12">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
+                <ChevronIcon :class="['thinking-chevron', { open: !thinkingCollapsed[i] }]" />
                 <span>思考内容</span>
               </div>
               <div class="thinking-body" v-html="mdSafe(m.thinking||'')"></div>
@@ -139,10 +137,7 @@ function avatar(isUser: boolean): string {
           <div class="msg-label">{{ agent.name }}</div>
           <div v-if="streamThinking" :class="{ collapsed: streamThinkCollapsed }" class="thinking-block">
             <div class="thinking-header" @click="streamThinkCollapsed = !streamThinkCollapsed">
-              <svg :class="{ open: !streamThinkCollapsed }" class="thinking-chevron" fill="none" height="12"
-                   stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="12">
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
+              <ChevronIcon :class="['thinking-chevron', { open: !streamThinkCollapsed }]" />
               <span>{{ thinkHdr }}</span>
             </div>
             <div class="thinking-body" v-html="mdSafe(streamThinking)"></div>
