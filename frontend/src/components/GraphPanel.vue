@@ -164,18 +164,17 @@ function renderGraph(data: GraphPayload) {
 
   graphNetwork.on('doubleClick', (p: { nodes: string[] }) => {
     if (!p.nodes.length) return
-    fetch(`/api/graph/concepts/${encodeURIComponent(p.nodes[0])}/graph`)
-        .then((r: Response) => r.json())
-        .then((res: { code: number; data?: GraphPayload }) => {
-          if (res.code !== 200 || !res.data) return
+    api.get<GraphPayload>(`/api/graph/concepts/${encodeURIComponent(p.nodes[0])}/graph`)
+        .then((json) => {
+          if (json.code !== 200 || !json.data) return
           const newNodes: any[] = [], newEdges: any[] = []
-          ;(res.data.nodes || []).forEach((n: { id: string; label: string; category?: string }) => {
+          ;(json.data.nodes || []).forEach((n: { id: string; label: string; category?: string }) => {
             if (nodes.getIds().indexOf(n.id) === -1) newNodes.push({
               id: n.id,
               label: n.id, ...nodeOpts(n.category || '其他', false)
             })
           })
-          ;(res.data.edges || []).forEach((e: { from: string; to: string; label: string }) => {
+          ;(json.data.edges || []).forEach((e: { from: string; to: string; label: string }) => {
             if (!hasEdge(e.from, e.to, e.label)) {
               addEdgeSet(e.from, e.to, e.label)
               newEdges.push({
