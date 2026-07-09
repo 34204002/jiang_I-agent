@@ -1,5 +1,6 @@
 import {reactive} from 'vue'
 import type {UserInfo} from '../types'
+import {api} from '../utils/api'
 
 export const state = reactive({
     conversationId: null as string | null,
@@ -42,13 +43,13 @@ export const agent = reactive<{ name: string; avatar: string }>({name: 'Jiang I-
 export async function loadAgentConfig(): Promise<void> {
     if (!TOKEN) return
     try {
-        const r = await fetch('/api/admin/agent', {headers: {'Authorization': 'Bearer ' + TOKEN}})
-        const json = await r.json() as { code: number; data?: { agentName?: string; avatar?: string } }
+        const json = await api.get<{ agentName?: string; avatar?: string }>('/api/admin/agent')
         if (json.code === 200 && json.data) {
             if (json.data.agentName) agent.name = json.data.agentName
             if (json.data.avatar) agent.avatar = json.data.avatar
         }
-    } catch { /* ignore */
+    } catch (e) {
+        console.error('加载 Agent 配置失败:', e)
     }
 }
 
