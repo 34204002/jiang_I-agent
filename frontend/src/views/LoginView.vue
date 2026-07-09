@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import {ref} from 'vue'
+import {api} from '../utils/api'
 
 const mode = ref('login')
 const username = ref(''), password = ref(''), nickname = ref('')
@@ -31,8 +32,7 @@ async function submit() {
         nickname: nickname.value.trim() || username.value.trim()
       })
   try {
-    const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body})
-    const json = await r.json()
+    const json = await api.post(url, JSON.parse(body))
     if (json.code === 200) {
       if (mode.value === 'login') {
         localStorage.setItem('token', json.data.token)
