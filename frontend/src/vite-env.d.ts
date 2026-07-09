@@ -9,7 +9,6 @@ declare module '*.vue' {
 declare global {
     interface Window {
         _activeES?: EventSource | null
-        showToast?: (msg: string, type?: string) => void
     }
 }
 

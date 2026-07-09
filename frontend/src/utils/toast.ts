@@ -10,5 +10,3 @@ export function showToast(msg: string, type: 'info' | 'ok' | 'error' = 'info'): 
     }, 2000)
 }
 
-// Make available globally (used by old common.js callers)
-;(window as unknown as Record<string, unknown>).showToast = showToast
