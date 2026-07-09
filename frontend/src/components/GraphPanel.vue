@@ -6,6 +6,8 @@ import {showToast} from '../utils/toast'
 import {Network} from 'vis-network'
 import {DataSet} from 'vis-data'
 import type {Concept, ConceptDetail, GraphPayload, PageResult} from '../types'
+import CloseIcon from './icons/CloseIcon.vue'
+import FileIcon from './icons/FileIcon.vue'
 
 const concepts = ref<Concept[]>([])
 const adding = ref(false), newName = ref(''), newDesc = ref(''), newCat = ref(''), newDiff = ref(3)
@@ -236,7 +238,7 @@ onMounted(search)
     <!-- Add form -->
     <div v-if="adding" class="graph-add-form">
       <div class="graph-add-grid">
-        <input v-model="newName" class="kbase-search-input" placeholder="概念名称 *" style="grid-column:1/-1">
+        <input v-model="newName" class="kbase-search-input graph-name-input" placeholder="概念名称 *">
         <input v-model="newDesc" class="kbase-search-input" placeholder="描述">
         <select v-model="newCat" class="kbase-search-input">
           <option value="">分类</option>
@@ -276,7 +278,7 @@ onMounted(search)
       <button :class="{ active: graphRelFilter==='all' }" class="graph-filter-btn" type="button"
               @click="graphRelFilter='all'; refilterGraph()">全部
       </button>
-      <button class="graph-reset-btn" style="margin-left:auto" title="重置视图"
+      <button class="graph-reset-btn" title="重置视图"
               type="button" @click="graphNetwork && graphNetwork.fit({ animation: true })">
         <svg fill="none" height="12" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="12">
           <circle cx="12" cy="12" r="10"/>
@@ -292,10 +294,7 @@ onMounted(search)
       <div v-for="c in concepts" :key="c.name" class="graph-concept-card" @click="showDetail(c.name)">
         <span class="graph-concept-name">{{ c.name }}</span><span class="graph-cat-tag">{{ c.category }}</span>
         <button class="graph-concept-del" title="删除概念" type="button" @click.stop="deleteConcept(c.name)">
-          <svg fill="none" height="12" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="12">
-            <line x1="18" x2="6" y1="6" y2="18"/>
-            <line x1="6" x2="18" y1="6" y2="18"/>
-          </svg>
+          <CloseIcon :size="12" />
         </button>
         <span class="graph-concept-rel">{{ c.relationCount }} 关系</span>
         <div class="graph-concept-desc">{{ c.description }}</div>
@@ -316,10 +315,7 @@ onMounted(search)
       <div v-if="detail" class="graph-modal-overlay" @click.self="detail=null">
         <div class="graph-modal">
           <button class="graph-modal-close" type="button" @click="detail=null">
-            <svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="16">
-              <line x1="18" x2="6" y1="6" y2="18"/>
-              <line x1="6" x2="18" y1="6" y2="18"/>
-            </svg>
+            <CloseIcon :size="12" />
           </button>
           <h2>{{ detail.name }} <span class="graph-cat-tag">{{ detail.category || '' }}</span> {{
               detail.difficulty || 1
@@ -342,12 +338,7 @@ onMounted(search)
           <template v-if="detail.documents?.length">
             <div class="graph-section-title">关联文档</div>
             <div v-for="dc in detail.documents" :key="dc.filename" class="graph-doc-item">
-              <svg fill="none" height="14" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" width="14">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" x2="8" y1="13" y2="13"/>
-                <line x1="16" x2="8" y1="17" y2="17"/>
-              </svg>
+              <FileIcon :size="14" />
               {{ dc.filename }}
             </div>
           </template>
@@ -515,5 +506,13 @@ onMounted(search)
 .graph-concept-del:hover {
   background: #FEE2E2;
   color: #EF4444
+}
+
+.graph-name-input {
+  grid-column: 1 / -1
+}
+
+.graph-reset-btn {
+  margin-left: auto
 }
 </style>

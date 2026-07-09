@@ -3,6 +3,8 @@ import {onMounted, ref} from 'vue'
 import {api} from '../utils/api'
 import {showToast} from '../utils/toast'
 import type {DocumentItem, PageResult, SearchResponse} from '../types'
+import FileIcon from './icons/FileIcon.vue'
+import CloseIcon from './icons/CloseIcon.vue'
 
 const docs = ref<DocumentItem[]>([])
 const searchQuery = ref('')
@@ -84,35 +86,15 @@ onMounted(loadDocs)
     <div class="kb-list-header">文档列表 ({{ docs.length }})</div>
     <div v-if="docs.length" class="doc-list">
       <div v-for="d in docs" :key="d.id" class="kb-doc-item">
-        <svg v-if="d.fileType==='pdf'" fill="none" height="18" stroke="#EF4444" stroke-width="1.5" viewBox="0 0 24 24"
-             width="18">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" x2="8" y1="13" y2="13"/>
-          <line x1="16" x2="8" y1="17" y2="17"/>
-        </svg>
-        <svg v-else-if="d.fileType==='md'" fill="none" height="18" stroke="#3B82F6" stroke-width="1.5"
-             viewBox="0 0 24 24" width="18">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" x2="8" y1="13" y2="13"/>
-          <line x1="16" x2="8" y1="17" y2="17"/>
-        </svg>
-        <svg v-else fill="none" height="18" stroke="#8B5CF6" stroke-width="1.5" viewBox="0 0 24 24" width="18">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" x2="8" y1="13" y2="13"/>
-          <line x1="16" x2="8" y1="17" y2="17"/>
-        </svg>
+        <FileIcon v-if="d.fileType==='pdf'" :color="'#EF4444'" />
+        <FileIcon v-else-if="d.fileType==='md'" :color="'#3B82F6'" />
+        <FileIcon v-else :color="'#8B5CF6'" />
         <span class="kb-doc-name">{{ d.filename }}</span>
         <span class="kb-doc-size">{{ formatSize(d.fileSize) }}</span>
         <span class="kb-doc-status">{{ d.status === 2 ? '已向量化' : d.status === 1 ? '已解析' : '待处理' }}</span>
         <a v-if="d.status===2&&downloadUrl(d)" :href="downloadUrl(d)" class="kb-doc-download">下载</a>
         <button class="kb-doc-del" title="删除" type="button" @click="deleteDoc(d.id)">
-          <svg fill="none" height="14" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="14">
-            <line x1="18" x2="6" y1="6" y2="18"/>
-            <line x1="6" x2="18" y1="6" y2="18"/>
-          </svg>
+          <CloseIcon :size="14" />
         </button>
       </div>
     </div>
