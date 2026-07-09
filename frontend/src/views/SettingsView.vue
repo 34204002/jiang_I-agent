@@ -29,7 +29,7 @@ async function uploadAvatar(e: Event) {
   const json = await api.postForm<{ url: string }>('/api/profile/avatar', form)
   if (json.code === 200 && json.data?.url) {
     avatar.value = json.data.url
-    await api.put('/api/user/me', { avatar: json.data.url })
+    await api.put('/api/user/me', {avatar: json.data.url})
     showToast('头像已更新', 'ok')
   } else showToast(json.message || '上传失败', 'error')
 }
@@ -39,7 +39,7 @@ async function save() {
     showToast('昵称不能为空', 'error')
     return
   }
-  const json = await api.put<UserInfo>('/api/user/me', { nickname: nickname.value.trim() })
+  const json = await api.put<UserInfo>('/api/user/me', {nickname: nickname.value.trim()})
   if (json.code === 200) {
     localStorage.setItem('user', JSON.stringify(json.data))
     showToast('保存成功', 'ok')

@@ -67,7 +67,8 @@ async function submit() {
                                                                             placeholder="给自己取个名字"></div>
       <div class="field"><label>用户名</label><input v-model="username" autocomplete="username" placeholder="输入用户名"
                                                      @keydown.enter="submit"></div>
-      <div class="field"><label>密码</label><input v-model="password" autocomplete="current-password" placeholder="输入密码"
+      <div class="field"><label>密码</label><input v-model="password" autocomplete="current-password"
+                                                   placeholder="输入密码"
                                                    type="password" @keydown.enter="submit"></div>
       <button :disabled="loading" class="login-btn" @click="submit">
         {{ loading ? '处理中…' : (mode === 'login' ? '登录' : '注册') }}

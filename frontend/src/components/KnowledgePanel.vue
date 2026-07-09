@@ -70,7 +70,9 @@ onMounted(loadDocs)
       <div class="kb-search-answer">{{ searchResult.answer }}</div>
       <div v-for="(s,i) in searchResult.sources" :key="i" class="kb-search-source">
         <span class="kb-search-source-name">
-          <svg class="kb-svg-link-icon" fill="none" height="12" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="12"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          <svg class="kb-svg-link-icon" fill="none" height="12" stroke="currentColor" stroke-width="2"
+               viewBox="0 0 24 24" width="12"><path
+              d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           {{ s.filename }}
         </span>
         <span class="kb-search-score">相关度 {{ Math.round(s.score * 100) }}%</span>
@@ -82,21 +84,35 @@ onMounted(loadDocs)
     <div class="kb-list-header">文档列表 ({{ docs.length }})</div>
     <div v-if="docs.length" class="doc-list">
       <div v-for="d in docs" :key="d.id" class="kb-doc-item">
-        <svg v-if="d.fileType==='pdf'" fill="none" height="18" stroke="#EF4444" stroke-width="1.5" viewBox="0 0 24 24" width="18">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/>
+        <svg v-if="d.fileType==='pdf'" fill="none" height="18" stroke="#EF4444" stroke-width="1.5" viewBox="0 0 24 24"
+             width="18">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" x2="8" y1="13" y2="13"/>
+          <line x1="16" x2="8" y1="17" y2="17"/>
         </svg>
-        <svg v-else-if="d.fileType==='md'" fill="none" height="18" stroke="#3B82F6" stroke-width="1.5" viewBox="0 0 24 24" width="18">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/>
+        <svg v-else-if="d.fileType==='md'" fill="none" height="18" stroke="#3B82F6" stroke-width="1.5"
+             viewBox="0 0 24 24" width="18">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" x2="8" y1="13" y2="13"/>
+          <line x1="16" x2="8" y1="17" y2="17"/>
         </svg>
         <svg v-else fill="none" height="18" stroke="#8B5CF6" stroke-width="1.5" viewBox="0 0 24 24" width="18">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" x2="8" y1="13" y2="13"/>
+          <line x1="16" x2="8" y1="17" y2="17"/>
         </svg>
         <span class="kb-doc-name">{{ d.filename }}</span>
         <span class="kb-doc-size">{{ formatSize(d.fileSize) }}</span>
         <span class="kb-doc-status">{{ d.status === 2 ? '已向量化' : d.status === 1 ? '已解析' : '待处理' }}</span>
         <a v-if="d.status===2&&downloadUrl(d)" :href="downloadUrl(d)" class="kb-doc-download">下载</a>
         <button class="kb-doc-del" title="删除" type="button" @click="deleteDoc(d.id)">
-          <svg fill="none" height="14" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="14"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+          <svg fill="none" height="14" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="14">
+            <line x1="18" x2="6" y1="6" y2="18"/>
+            <line x1="6" x2="18" y1="6" y2="18"/>
+          </svg>
         </button>
       </div>
     </div>
@@ -105,46 +121,152 @@ onMounted(loadDocs)
 </template>
 
 <style scoped>
-.kb-panel { overflow-y: auto }
-.kb-file-input { display: none }
-.kbase-upload-accent { background: var(--accent); color: #fff }
+.kb-panel {
+  overflow-y: auto
+}
+
+.kb-file-input {
+  display: none
+}
+
+.kbase-upload-accent {
+  background: var(--accent);
+  color: #fff
+}
 
 /* search result */
-.kb-search-result { margin-bottom: 16px }
-.kb-search-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px }
-.kb-search-title { font-size: 13px; font-weight: 700; color: var(--accent) }
-.kb-search-clear { font-size: 11px; padding: 2px 8px }
+.kb-search-result {
+  margin-bottom: 16px
+}
+
+.kb-search-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px
+}
+
+.kb-search-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent)
+}
+
+.kb-search-clear {
+  font-size: 11px;
+  padding: 2px 8px
+}
+
 .kb-search-answer {
-  font-size: 14px; line-height: 1.7; padding: 16px;
-  background: var(--bg-surface, #fff); border-radius: 12px; margin-bottom: 10px
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 16px;
+  background: var(--bg-surface, #fff);
+  border-radius: 12px;
+  margin-bottom: 10px
 }
+
 .kb-search-source {
-  padding: 10px 14px; background: #fff; border-radius: 10px;
-  margin-bottom: 6px; font-size: 12px; color: var(--text-secondary)
+  padding: 10px 14px;
+  background: #fff;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-secondary)
 }
-.kb-search-source-name { font-weight: 700; color: var(--accent) }
-.kb-svg-link-icon { vertical-align: middle; margin-right: 3px }
-.kb-search-score { margin-left: 8px; font-size: 11px; color: var(--text-tertiary) }
-.kb-search-snippet { margin-top: 4px; color: var(--text-secondary) }
+
+.kb-search-source-name {
+  font-weight: 700;
+  color: var(--accent)
+}
+
+.kb-svg-link-icon {
+  vertical-align: middle;
+  margin-right: 3px
+}
+
+.kb-search-score {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-tertiary)
+}
+
+.kb-search-snippet {
+  margin-top: 4px;
+  color: var(--text-secondary)
+}
 
 /* doc list */
-.kb-list-header { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px }
+.kb-list-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 8px
+}
+
 .kb-doc-item {
-  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
-  background: #fff; border-radius: 10px; margin-bottom: 6px; border: 1px solid var(--border)
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fff;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border)
 }
-.kb-doc-name { flex: 1; font-size: 14px; font-weight: 600 }
-.kb-doc-size { font-size: 12px; color: var(--text-tertiary) }
+
+.kb-doc-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600
+}
+
+.kb-doc-size {
+  font-size: 12px;
+  color: var(--text-tertiary)
+}
+
 .kb-doc-status {
-  font-size: 11px; padding: 2px 8px; border-radius: 20px;
-  background: var(--accent-subtle); color: var(--accent); font-weight: 600
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 600
 }
-.kb-doc-download { font-size: 11px; color: var(--accent); text-decoration: none; font-weight: 600 }
+
+.kb-doc-download {
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600
+}
+
 .kb-doc-del {
-  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
-  border-radius: 6px; color: var(--text-tertiary); cursor: pointer; transition: all .15s;
-  flex-shrink: 0; margin-left: auto; border: none; background: none
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all .15s;
+  flex-shrink: 0;
+  margin-left: auto;
+  border: none;
+  background: none
 }
-.kb-doc-del:hover { background: #FEE2E2; color: #EF4444 }
-.kb-list-empty { padding: 40px; text-align: center; color: var(--text-tertiary); font-size: 14px }
+
+.kb-doc-del:hover {
+  background: #FEE2E2;
+  color: #EF4444
+}
+
+.kb-list-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 14px
+}
 </style>

@@ -55,7 +55,8 @@ onMounted(() => {
     <!-- Todo Section -->
     <div class="kbase-toolbar">
       <input v-model="newTitle" class="kbase-search-input" placeholder="新待办…" @keydown.enter="add">
-      <button class="kbase-search-btn" style="background:linear-gradient(135deg,var(--accent),var(--accent-deep));color:#fff"
+      <button class="kbase-search-btn"
+              style="background:linear-gradient(135deg,var(--accent),var(--accent-deep));color:#fff"
               type="button" @click="add">添加
       </button>
       <select v-model="state.todoFilter" class="kbase-search-input" style="max-width:120px;margin-left:auto"
@@ -71,8 +72,9 @@ onMounted(() => {
            style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg-surface,#fff);border-radius:10px;margin-bottom:6px;border:1px solid var(--border)">
         <input :checked="t.isDone" style="accent-color:var(--accent);width:18px;height:18px" type="checkbox"
                @change="toggle(t)">
-        <span :style="{textDecoration:t.isDone?'line-through':'none',color:t.isDone?'var(--text-tertiary)':'var(--text-primary)'}"
-              style="flex:1;font-size:14px">{{
+        <span
+            :style="{textDecoration:t.isDone?'line-through':'none',color:t.isDone?'var(--text-tertiary)':'var(--text-primary)'}"
+            style="flex:1;font-size:14px">{{
             t.title
           }}</span>
         <span v-if="t.dueDate" style="font-size:12px;color:var(--text-tertiary)">{{ t.dueDate }}</span>
