@@ -1,22 +1,18 @@
 <script lang="ts" setup>
 import {onMounted, ref} from 'vue'
-import {TOKEN} from '../stores/state'
+import {api} from '../utils/api'
+import {showToast} from '../utils/toast'
+import type {UserInfo} from '../types'
 
-const username = ref(''), nickname = ref(''), role = ref(''), avatar = ref(''), toast = ref('')
-
-function show(t: string) {
-  toast.value = t;
-  setTimeout(() => toast.value = '', 2000)
-}
+const username = ref(''), nickname = ref(''), role = ref(''), avatar = ref('')
 
 async function load() {
-  const r = await fetch('/api/user/me', {headers: {'Authorization': 'Bearer ' + TOKEN}})
-  const json = await r.json()
-  if (json.code === 200) {
+  const json = await api.get<UserInfo>('/api/user/me')
+  if (json.code === 200 && json.data) {
     const u = json.data
-    username.value = u.username;
-    nickname.value = u.nickname || '';
-    role.value = u.role;
+    username.value = u.username || ''
+    nickname.value = u.nickname || ''
+    role.value = u.role || ''
     avatar.value = u.avatar || ''
     localStorage.setItem('user', JSON.stringify(u))
   }
@@ -30,38 +26,24 @@ async function uploadAvatar(e: Event) {
   if (!file) return
   const form = new FormData();
   form.append('file', file)
-  const r = await fetch('/api/profile/avatar', {
-    method: 'POST',
-    headers: {'Authorization': 'Bearer ' + TOKEN},
-    body: form
-  })
-  const json = await r.json()
+  const json = await api.postForm<{ url: string }>('/api/profile/avatar', form)
   if (json.code === 200 && json.data?.url) {
     avatar.value = json.data.url
-    await fetch('/api/user/me', {
-      method: 'PUT',
-      headers: {'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json'},
-      body: JSON.stringify({avatar: json.data.url})
-    })
-    show('头像已更新')
-  } else show(json.message || '上传失败')
+    await api.put('/api/user/me', { avatar: json.data.url })
+    showToast('头像已更新', 'ok')
+  } else showToast(json.message || '上传失败', 'error')
 }
 
 async function save() {
   if (!nickname.value.trim()) {
-    show('昵称不能为空');
+    showToast('昵称不能为空', 'error')
     return
   }
-  const r = await fetch('/api/user/me', {
-    method: 'PUT',
-    headers: {'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json'},
-    body: JSON.stringify({nickname: nickname.value.trim()})
-  })
-  const json = await r.json()
+  const json = await api.put<UserInfo>('/api/user/me', { nickname: nickname.value.trim() })
   if (json.code === 200) {
     localStorage.setItem('user', JSON.stringify(json.data))
-    show('保存成功')
-  } else show(json.message || '保存失败')
+    showToast('保存成功', 'ok')
+  } else showToast(json.message || '保存失败', 'error')
 }
 
 onMounted(load)
@@ -76,7 +58,6 @@ onMounted(load)
         </router-link>
         <span style="font-size:16px;font-weight:700">个人设置</span>
       </div>
-      <div v-if="toast" class="toast ok">{{ toast }}</div>
       <div class="card"><h3>个人资料</h3>
         <div class="avatar-area">
           <img :src="avatar||''" alt="头像" class="avatar-preview">
