@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import {onMounted, ref} from 'vue'
-import {TOKEN} from '../stores/state'
+import {api} from '../utils/api'
+import {showToast} from '../utils/toast'
 import type {AgentConfig} from '../types'
 
 interface AdminUser {
@@ -14,38 +15,23 @@ interface AdminUser {
 const tab = ref('users')
 const users = ref<AdminUser[]>([])
 const agent = ref<AgentConfig>({agentName: '', avatar: '', model: '', temperature: 0.7, systemPrompt: ''})
-const toast = ref('')
-
-function show(t: string) {
-  toast.value = t;
-  setTimeout(() => toast.value = '', 2000)
-}
-
-const h = (url: string, opts: Record<string, any> = {}): Promise<{
-  code: number;
-  data?: any;
-  message?: string
-}> => {
-  opts.headers = { ...(opts.headers || {}), 'Authorization': 'Bearer ' + TOKEN };
-  return fetch(url, opts).then((r: Response) => r.json())
-}
 
 async function loadUsers() {
-  const json = await h('/api/admin/users?page=1&size=100')
+  const json = await api.get<{ records: AdminUser[] }>('/api/admin/users?page=1&size=100')
   if (json.code === 200) users.value = json.data?.records || []
 }
 
 async function deleteUser(id: number, name: string) {
   if (!confirm(`确定删除用户 "${name}"？`)) return
-  const json = await h('/api/admin/users/' + id, {method: 'DELETE'})
+  const json = await api.del('/api/admin/users/' + id)
   if (json.code === 200) {
-    show('已删除');
+    showToast('已删除', 'ok')
     loadUsers()
-  } else show(json.message || '操作失败')
+  } else showToast(json.message || '操作失败', 'error')
 }
 
 async function loadAgent() {
-  const json = await h('/api/admin/agent')
+  const json = await api.get<AgentConfig>('/api/admin/agent')
   if (json.code === 200) agent.value = json.data
 }
 
@@ -57,28 +43,19 @@ async function uploadAgentAvatar(e: Event) {
   if (!file) return
   const form = new FormData();
   form.append('file', file)
-  const r = await fetch('/api/profile/avatar', {
-    method: 'POST',
-    headers: {'Authorization': 'Bearer ' + TOKEN},
-    body: form
-  })
-  const json = await r.json()
+  const json = await api.postForm<{ url: string }>('/api/profile/avatar', form)
   if (json.code === 200 && json.data?.url) {
     agent.value.avatar = json.data.url;
-    show('头像已更新，别忘了保存')
-  } else show(json.message || '上传失败')
+    showToast('头像已更新，别忘了保存', 'ok')
+  } else showToast(json.message || '上传失败', 'error')
 }
 
 async function saveAgent() {
-  const json = await h('/api/admin/agent', {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(agent.value)
-  })
+  const json = await api.put('/api/admin/agent', agent.value)
   if (json.code === 200) {
-    show('配置已更新')
+    showToast('配置已更新', 'ok')
   } else {
-    show(json.message || '保存失败')
+    showToast(json.message || '保存失败', 'error')
   }
 }
 
@@ -97,7 +74,6 @@ onMounted(() => {
         </router-link>
         <span style="font-size:16px;font-weight:700">管理后台</span>
       </div>
-      <div v-if="toast" class="toast ok">{{ toast }}</div>
       <div class="card">
         <div class="tabs">
           <button :class="{ active: tab==='users' }" @click="tab='users'">用户管理</button>
@@ -318,18 +294,5 @@ th {
   border-radius: 50%;
   object-fit: cover;
   border: 3px solid var(--border, #F0E2EF)
-}
-
-.toast {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  z-index: 999;
-  background: #22C55E;
-  color: #fff
 }
 </style>
