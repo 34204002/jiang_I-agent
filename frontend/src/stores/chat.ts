@@ -1,14 +1,9 @@
 import {state} from './state'
 import {api} from '../utils/api'
-import type {Message, PageResult} from '../types'
-
-interface ConvoSummary {
-    id: number
-    title?: string
-}
+import type {Message, PageResult, Conversation} from '../types'
 
 export async function loadConversations(): Promise<void> {
-    const json = await api.get<PageResult<ConvoSummary>>('/api/conversations?page=1&size=50')
+    const json = await api.get<PageResult<Conversation>>('/api/conversations?page=1&size=50')
     if (json.code === 200 && json.data) state.convos = json.data.records || []
 }
 
