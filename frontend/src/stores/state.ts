@@ -1,6 +1,7 @@
 import {reactive} from 'vue'
 import type {UserInfo} from '../types'
 import {api} from '../utils/api'
+import {safeJsonParse} from '../utils/helpers'
 
 export const state = reactive({
     conversationId: null as string | null,
@@ -18,14 +19,6 @@ export const state = reactive({
     graphViewMode: false,
     todoFilter: 'pending' as string,
 })
-
-function safeJsonParse<T>(raw: string | null, fallback: T): T {
-    try {
-        return (JSON.parse(raw || '') || fallback) as T
-    } catch {
-        return fallback
-    }
-}
 
 export const TOKEN: string = localStorage.getItem('token') || ''
 
