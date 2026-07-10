@@ -2,6 +2,7 @@
 import {ref} from 'vue'
 import {useRouter} from 'vue-router'
 import {api} from '../utils/api'
+import {token, writeUser} from '../utils/storage'
 
 const router = useRouter()
 const mode = ref('login')
@@ -37,8 +38,8 @@ async function submit() {
     const json = await api.post(url, JSON.parse(body))
     if (json.code === 200) {
       if (mode.value === 'login') {
-        localStorage.setItem('token', json.data.token)
-        localStorage.setItem('user', JSON.stringify(json.data.user))
+        token.value = json.data.token
+        writeUser(json.data.user)
         msg.value = '登录成功，跳转中…';
         msgType.value = 'ok'
         setTimeout(() => router.push('/chat'), 500)

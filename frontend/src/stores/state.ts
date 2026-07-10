@@ -1,7 +1,7 @@
-import {reactive} from 'vue'
+import {reactive, ref} from 'vue'
 import type {UserInfo} from '../types'
 import {api} from '../utils/api'
-import {safeJsonParse} from '../utils/helpers'
+import {clearAuth, readUser, token} from '../utils/storage'
 
 export const state = reactive({
     conversationId: null as string | null,
@@ -20,21 +20,17 @@ export const state = reactive({
     todoFilter: 'pending' as string,
 })
 
-export const TOKEN: string = localStorage.getItem('token') || ''
+export {token}
 
-const storedUser = safeJsonParse<Record<string, unknown>>(localStorage.getItem('user'), {})
-export const USER: UserInfo = reactive<UserInfo>({
-    id: storedUser.id as number | undefined,
-    username: storedUser.username as string || '',
-    nickname: storedUser.nickname as string | undefined,
-    role: storedUser.role as string | undefined,
-    avatar: storedUser.avatar as string | undefined,
-})
+export const USER: UserInfo = reactive<UserInfo>({ ...readUser() })
+
+/** SSE 流式连接：设置为 URL 即建立连接，设为空字符串即断开 */
+export const activeStreamUrl = ref('')
 
 export const agent = reactive<{ name: string; avatar: string }>({name: 'Jiang I-Agent', avatar: ''})
 
 export async function loadAgentConfig(): Promise<void> {
-    if (!TOKEN) return
+    if (!token.value) return
     try {
         const json = await api.get<{ agentName?: string; avatar?: string }>('/api/admin/agent')
         if (json.code === 200 && json.data) {
@@ -47,7 +43,6 @@ export async function loadAgentConfig(): Promise<void> {
 }
 
 export function logout(): void {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    clearAuth()
     window.location.href = '/'
 }

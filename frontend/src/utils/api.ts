@@ -1,10 +1,9 @@
 import type {AxiosResponse} from 'axios'
 import axios from 'axios'
 import type {ApiResponse} from '../types'
+import {clearAuth, token} from './storage'
 
 const HTTP_TIMEOUT = 300000
-
-const TOKEN: string = localStorage.getItem('token') || ''
 
 const http = axios.create({
     baseURL: '',
@@ -14,8 +13,8 @@ const http = axios.create({
 
 // 请求拦截器：自动注入 auth header
 http.interceptors.request.use((config) => {
-    if (TOKEN) {
-        config.headers.Authorization = `Bearer ${TOKEN}`
+    if (token.value) {
+        config.headers.Authorization = `Bearer ${token.value}`
     }
     return config
 })
@@ -25,8 +24,7 @@ http.interceptors.response.use(
     (response: AxiosResponse<ApiResponse>) => response,
     (error) => {
         if (error.response?.status === 401) {
-            localStorage.removeItem('token')
-            localStorage.removeItem('user')
+            clearAuth()
             location.href = '/'
         }
         return Promise.reject(error)

@@ -2,6 +2,7 @@
 import {computed, onMounted} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {loadAgentConfig, state} from './stores/state'
+import {token} from './utils/storage'
 import {loadConversations} from './stores/chat'
 import Sidebar from './components/Sidebar.vue'
 import ChatPanel from './components/ChatPanel.vue'
@@ -16,9 +17,8 @@ const isChat = computed(() => route.path === '/chat' || route.path === '/')
 const isLogin = computed(() => route.path === '/login')
 
 onMounted(() => {
-  const token = localStorage.getItem('token')
-  if (!token && !isLogin.value) router.replace('/login')
-  if (token) {
+  if (!token.value && !isLogin.value) router.replace('/login')
+  if (token.value) {
     loadConversations();
     loadAgentConfig()
   }

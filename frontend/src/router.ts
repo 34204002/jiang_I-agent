@@ -1,10 +1,9 @@
 import type {RouteRecordRaw} from 'vue-router'
 import {createRouter, createWebHistory} from 'vue-router'
+import {readUser, token} from './utils/storage'
 
 function getAuth(): boolean {
-    const t = localStorage.getItem('token')
-    const u = localStorage.getItem('user')
-    return !!(t && u && u !== 'null')
+    return !!(token.value && readUser().id)
 }
 
 const routes: RouteRecordRaw[] = [
@@ -25,12 +24,7 @@ router.beforeEach((to) => {
     if (to.meta.guest && getAuth()) return '/chat'
     if (to.meta.auth && !getAuth()) return '/login'
     if (to.meta.admin) {
-        try {
-            const u = JSON.parse(localStorage.getItem('user') || '{}') as { role?: string }
-            if (u.role !== 'ADMIN') return '/chat'
-        } catch {
-            return '/chat'
-        }
+        if (readUser().role !== 'ADMIN') return '/chat'
     }
 })
 

@@ -6,10 +6,4 @@ declare module '*.vue' {
     export default component
 }
 
-declare global {
-    interface Window {
-        _activeES?: EventSource | null
-    }
-}
-
 export {}

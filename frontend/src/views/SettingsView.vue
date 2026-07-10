@@ -1,7 +1,8 @@
 <script lang="ts" setup>
-import {onMounted, ref} from 'vue'
+import {onMounted, ref, useTemplateRef} from 'vue'
 import {api} from '../utils/api'
 import {showToast} from '../utils/toast'
+import {writeUser} from '../utils/storage'
 import type {UserInfo} from '../types'
 
 const username = ref(''), nickname = ref(''), role = ref(''), avatar = ref('')
@@ -14,11 +15,11 @@ async function load() {
     nickname.value = u.nickname || ''
     role.value = u.role || ''
     avatar.value = u.avatar || ''
-    localStorage.setItem('user', JSON.stringify(u))
+    writeUser(u)
   }
 }
 
-const fileInput = ref<HTMLInputElement | null>(null)
+const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 
 async function uploadAvatar(e: Event) {
   const target = e.target as HTMLInputElement
@@ -41,7 +42,7 @@ async function save() {
   }
   const json = await api.put<UserInfo>('/api/user/me', {nickname: nickname.value.trim()})
   if (json.code === 200) {
-    localStorage.setItem('user', JSON.stringify(json.data))
+    writeUser(json.data)
     showToast('保存成功', 'ok')
   } else showToast(json.message || '保存失败', 'error')
 }

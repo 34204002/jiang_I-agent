@@ -1,89 +1,87 @@
 <script lang="ts" setup>
-import {computed, reactive, ref} from 'vue'
-import {agent, state, USER} from '../stores/state'
+import {computed, reactive, ref, useTemplateRef, watch} from 'vue'
+import {useEventSource} from '@vueuse/core'
+import {activeStreamUrl, agent, state, USER} from '../stores/state'
 import {loadConversations} from '../stores/chat'
+import {token} from '../utils/storage'
 import {marked} from 'marked'
 import DOMPurify from 'dompurify'
 import ChevronIcon from './icons/ChevronIcon.vue'
 
-const msgInput = ref<HTMLInputElement | null>(null)
+const msgInput = useTemplateRef<HTMLInputElement>('msgInput')
 const streamContent = ref('')
 const streamThinking = ref('')
 const streamThinkCollapsed = ref(false)
 const thinkingCollapsed = reactive<Record<number, boolean>>({})
 const thinkHdr = computed(() => state.toolRunning ? `调用: ${state.toolRunning}` : '思考中...')
 
+const {data, status, close: closeES} = useEventSource(activeStreamUrl, [], {autoReconnect: false})
+let hasContent = false
+
 function mdSafe(text: string): string {
   return DOMPurify.sanitize(marked.parse(text || '') as string)
 }
+
+function finalizeMessage() {
+  activeStreamUrl.value = ''
+  state.streaming = false
+  state.toolRunning = null
+  if (streamContent.value) {
+    const lastIdx = state.messages.length
+    state.messages = [...state.messages, {
+      role: 'assistant',
+      thinking: streamThinking.value || '',
+      content: streamContent.value
+    }]
+    if (streamThinking.value) thinkingCollapsed[lastIdx] = true
+  }
+  streamContent.value = ''
+  streamThinking.value = ''
+  streamThinkCollapsed.value = false
+  loadConversations()
+  if (!state.conversationId) setTimeout(() => {
+    if (state.convos.length && !state.conversationId) state.conversationId = String(state.convos[0].id)
+  }, 600)
+}
+
+// 监听 SSE 数据到达
+watch(data, (raw) => {
+  if (!raw) return
+  try {
+    const evt = JSON.parse(raw)
+    if (evt.type === 'thinking') { streamThinking.value += evt.content; return }
+    if (evt.type === 'content') { streamContent.value += evt.content; hasContent = true; return }
+    if (evt.type === 'tool_call') { state.toolRunning = evt.name; streamContent.value = ''; return }
+  } catch { /* ignore malformed JSON */ }
+})
+
+// 监听连接状态：CONNECTING 表示浏览器在尝试重连，判断是闪断还是流结束
+watch(status, (s) => {
+  if (s !== 'CONNECTING') return
+  if (!hasContent) return  // 网络闪断，让浏览器自动重连
+  closeES();               // 已有内容 → 流正常结束，阻止重连
+  finalizeMessage()
+})
 
 function send() {
   const text = msgInput.value?.value?.trim()
   if (!text || state.streaming) return
   if (msgInput.value) msgInput.value.value = ''
   state.messages = [...state.messages, {role: 'user', content: text}]
-  state.streaming = true;
+  state.streaming = true
   state.toolRunning = null
-  streamContent.value = '';
-  streamThinking.value = '';
+  streamContent.value = ''
+  streamThinking.value = ''
   streamThinkCollapsed.value = false
+  hasContent = false
 
-  const url = `/api/chat/stream?message=${encodeURIComponent(text)}&token=${encodeURIComponent(localStorage.getItem('token') || '')}${state.conversationId ? '&conversationId=' + state.conversationId : ''}${state.thinking ? '&thinking=true' : ''}`
-
-  if (window._activeES) window._activeES.close()
-  const es = new EventSource(url)
-  window._activeES = es
-  let hasContent = false
-
-  es.onmessage = (e: MessageEvent) => {
-    try {
-      const evt = JSON.parse(e.data)
-      if (evt.type === 'thinking') {
-        streamThinking.value += evt.content;
-        return
-      }
-      if (evt.type === 'content') {
-        streamContent.value += evt.content;
-        hasContent = true;
-        return
-      }
-      if (evt.type === 'tool_call') {
-        state.toolRunning = evt.name;
-        streamContent.value = '';
-        return
-      }
-    } catch (_) {
-    }
-  }
-
-  es.onerror = () => {
-    if (!hasContent) return  // 网络闪断，让浏览器自动重连
-    es.close();
-    window._activeES = null;
-    state.streaming = false;
-    state.toolRunning = null
-    if (streamContent.value) {
-      const lastIdx = state.messages.length
-      state.messages = [...state.messages, {
-        role: 'assistant',
-        thinking: streamThinking.value || '',
-        content: streamContent.value
-      }]
-      if (streamThinking.value) thinkingCollapsed[lastIdx] = true
-    }
-    streamContent.value = '';
-    streamThinking.value = '';
-    streamThinkCollapsed.value = false
-    loadConversations()
-    if (!state.conversationId) setTimeout(() => {
-      if (state.convos.length && !state.conversationId) state.conversationId = String(state.convos[0].id)
-    }, 600)
-  }
+  const url = `/api/chat/stream?message=${encodeURIComponent(text)}&token=${encodeURIComponent(token.value)}${state.conversationId ? '&conversationId=' + state.conversationId : ''}${state.thinking ? '&thinking=true' : ''}`
+  activeStreamUrl.value = url
 }
 
 function sendHint(t: string) {
   if (msgInput.value) {
-    msgInput.value.value = t;
+    msgInput.value.value = t
     send()
   }
 }

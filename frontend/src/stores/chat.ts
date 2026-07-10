@@ -1,4 +1,4 @@
-import {state} from './state'
+import {activeStreamUrl, state} from './state'
 import {api} from '../utils/api'
 import type {Conversation, Message, PageResult} from '../types'
 
@@ -8,10 +8,7 @@ export async function loadConversations(): Promise<void> {
 }
 
 export function newChat(): void {
-    if (window._activeES) {
-        window._activeES.close();
-        window._activeES = null
-    }
+    activeStreamUrl.value = ''
     state.conversationId = null;
     state.messages = [];
     state.streaming = false;
@@ -19,10 +16,7 @@ export function newChat(): void {
 }
 
 export async function selectConvo(id: number | string): Promise<void> {
-    if (window._activeES) {
-        window._activeES.close();
-        window._activeES = null
-    }
+    activeStreamUrl.value = ''
     state.streaming = false;
     state.conversationId = String(id);
     state.activeTab = 'chat'
