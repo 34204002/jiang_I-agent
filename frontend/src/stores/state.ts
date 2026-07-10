@@ -22,7 +22,7 @@ export const state = reactive({
 
 export {token}
 
-export const USER: UserInfo = reactive<UserInfo>({ ...readUser() })
+export const USER: UserInfo = reactive<UserInfo>({...readUser()})
 
 /** SSE 流式连接：设置为 URL 即建立连接，设为空字符串即断开 */
 export const activeStreamUrl = ref('')

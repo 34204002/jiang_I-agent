@@ -49,10 +49,22 @@ watch(data, (raw) => {
   if (!raw) return
   try {
     const evt = JSON.parse(raw)
-    if (evt.type === 'thinking') { streamThinking.value += evt.content; return }
-    if (evt.type === 'content') { streamContent.value += evt.content; hasContent = true; return }
-    if (evt.type === 'tool_call') { state.toolRunning = evt.name; streamContent.value = ''; return }
-  } catch { /* ignore malformed JSON */ }
+    if (evt.type === 'thinking') {
+      streamThinking.value += evt.content;
+      return
+    }
+    if (evt.type === 'content') {
+      streamContent.value += evt.content;
+      hasContent = true;
+      return
+    }
+    if (evt.type === 'tool_call') {
+      state.toolRunning = evt.name;
+      streamContent.value = '';
+      return
+    }
+  } catch { /* ignore malformed JSON */
+  }
 })
 
 // 监听连接状态：CONNECTING 表示浏览器在尝试重连，判断是闪断还是流结束
@@ -166,6 +178,15 @@ function avatar(isUser: boolean): string {
 </template>
 
 <style scoped>
-.chat-shell { flex: 1; display: flex; flex-direction: column; min-height: 0 }
-.chat-body { flex: 1; overflow-y: auto }
+.chat-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0
+}
+
+.chat-body {
+  flex: 1;
+  overflow-y: auto
+}
 </style>
