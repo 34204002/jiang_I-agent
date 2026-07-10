@@ -16,6 +16,11 @@ const graphRelFilter = ref<'all' | 'prereq' | 'related'>('prereq')
 let graphNetwork: any = null
 let currentGraphData: GraphPayload | null = null
 
+const RELATION_TYPES = {
+  PREREQUISITE: 'PREREQUISITE_OF',
+  RELATED: 'RELATED_TO',
+} as const
+
 const COLORS: Record<string, string> = {
   '中间件': '#d97706',
   '编程语言': '#2563eb',
@@ -114,8 +119,8 @@ function renderGraph(data: GraphPayload) {
 
   // 关系类型过滤
   const edgeVisible = (label: string) => {
-    if (filter === 'prereq') return label === 'PREREQUISITE_OF'
-    if (filter === 'related') return label === 'RELATED_TO'
+    if (filter === 'prereq') return label === RELATION_TYPES.PREREQUISITE
+    if (filter === 'related') return label === RELATION_TYPES.RELATED
     return true
   }
   const edges = new DataSet<any>(data.edges.filter((e: { label: string }) => edgeVisible(e.label)).map((e: {
@@ -126,16 +131,16 @@ function renderGraph(data: GraphPayload) {
     addEdgeSet(e.from, e.to, e.label)
     return {
       id: i, from: e.from, to: e.to,
-      label: e.label === 'PREREQUISITE_OF' ? '← 前置' : e.label === 'RELATED_TO' ? '相关' : e.label,
+      label: e.label === RELATION_TYPES.PREREQUISITE ? '← 前置' : e.label === RELATION_TYPES.RELATED ? '相关' : e.label,
       arrows: {to: {enabled: true, scaleFactor: 0.6}},
       smooth: {enabled: true, type: 'cubicBezier', forceDirection: 'horizontal', roundness: 0.4},
       color: {
-        color: e.label === 'PREREQUISITE_OF' ? '#7c3aed' : '#cbd5e1',
-        highlight: e.label === 'PREREQUISITE_OF' ? '#6d28d9' : '#94a3b8'
+        color: e.label === RELATION_TYPES.PREREQUISITE ? '#7c3aed' : '#cbd5e1',
+        highlight: e.label === RELATION_TYPES.PREREQUISITE ? '#6d28d9' : '#94a3b8'
       },
       font: {size: 10, color: '#64748b', strokeWidth: 2, strokeColor: '#fff', align: 'middle'},
-      width: e.label === 'PREREQUISITE_OF' ? 2.5 : 1.5,
-      dashes: e.label === 'RELATED_TO'
+      width: e.label === RELATION_TYPES.PREREQUISITE ? 2.5 : 1.5,
+      dashes: e.label === RELATION_TYPES.RELATED
     }
   }))
 
@@ -181,16 +186,16 @@ function renderGraph(data: GraphPayload) {
               addEdgeSet(e.from, e.to, e.label)
               newEdges.push({
                 id: `e_${e.from}_${e.to}`, from: e.from, to: e.to,
-                label: e.label === 'PREREQUISITE_OF' ? '← 前置' : e.label === 'RELATED_TO' ? '相关' : e.label,
+                label: e.label === RELATION_TYPES.PREREQUISITE ? '← 前置' : e.label === RELATION_TYPES.RELATED ? '相关' : e.label,
                 arrows: {to: {enabled: true, scaleFactor: 0.6}},
                 smooth: {enabled: true, type: 'cubicBezier', forceDirection: 'horizontal', roundness: 0.4},
                 color: {
-                  color: e.label === 'PREREQUISITE_OF' ? '#7c3aed' : '#cbd5e1',
-                  highlight: e.label === 'PREREQUISITE_OF' ? '#6d28d9' : '#94a3b8'
+                  color: e.label === RELATION_TYPES.PREREQUISITE ? '#7c3aed' : '#cbd5e1',
+                  highlight: e.label === RELATION_TYPES.PREREQUISITE ? '#6d28d9' : '#94a3b8'
                 },
                 font: {size: 10, color: '#64748b', strokeWidth: 2, strokeColor: '#fff', align: 'middle'},
-                width: e.label === 'PREREQUISITE_OF' ? 2.5 : 1.5,
-                dashes: e.label === 'RELATED_TO'
+                width: e.label === RELATION_TYPES.PREREQUISITE ? 2.5 : 1.5,
+                dashes: e.label === RELATION_TYPES.RELATED
               })
             }
           })
