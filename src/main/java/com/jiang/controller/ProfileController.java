@@ -1,6 +1,7 @@
 package com.jiang.controller;
 
 import com.jiang.common.Result;
+import com.jiang.constant.FileConstants;
 import com.jiang.service.OssService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +23,7 @@ public class ProfileController {
 
     private final OssService ossService;
 
-    private static final long MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    private static final long MAX_SIZE = FileConstants.AVATAR_MAX_SIZE; // 2MB
 
     /**
      * 上传头像到阿里云 OSS，返回公网 URL

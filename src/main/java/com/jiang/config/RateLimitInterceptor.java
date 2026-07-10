@@ -4,6 +4,7 @@ import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.jiang.constant.RateLimitConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -27,8 +28,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private Bucket newBucket() {
         return Bucket.builder()
                 .addLimit(Bandwidth.builder()
-                        .capacity(30)
-                        .refillGreedy(30, Duration.ofSeconds(30))
+                        .capacity(RateLimitConstants.BUCKET_CAPACITY)
+                        .refillGreedy(RateLimitConstants.REFILL_RATE, Duration.ofSeconds(30))
                         .build())
                 .build();
     }
@@ -58,7 +59,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     }
 
     /** 每 10 分钟清理闲置桶（已满的 bucket 视为不活跃用户） */
-    @Scheduled(fixedRate = 600_000)
+    @Scheduled(fixedRate = RateLimitConstants.EVICT_INTERVAL_MS)
     public void evict() {
         int before = buckets.size();
         buckets.values().removeIf(b -> b.getAvailableTokens() >= 30);
