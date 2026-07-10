@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import {ref} from 'vue'
+import {useRouter} from 'vue-router'
 import {api} from '../utils/api'
 
+const router = useRouter()
 const mode = ref('login')
 const username = ref(''), password = ref(''), nickname = ref('')
 const msg = ref(''), msgType = ref(''), loading = ref(false)
@@ -39,7 +41,7 @@ async function submit() {
         localStorage.setItem('user', JSON.stringify(json.data.user))
         msg.value = '登录成功，跳转中…';
         msgType.value = 'ok'
-        setTimeout(() => location.reload(), 500)
+        setTimeout(() => router.push('/chat'), 500)
       } else {
         msg.value = '注册成功，请登录';
         msgType.value = 'ok'
