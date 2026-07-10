@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import {onMounted} from 'vue'
+import {computed, onMounted} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {loadAgentConfig, state} from './stores/state'
 import {loadConversations} from './stores/chat'
@@ -12,12 +12,12 @@ import ToolsPanel from './components/ToolsPanel.vue'
 const route = useRoute()
 const router = useRouter()
 
-const isChat = () => route.path === '/chat' || route.path === '/'
-const isLogin = () => route.path === '/login'
+const isChat = computed(() => route.path === '/chat' || route.path === '/')
+const isLogin = computed(() => route.path === '/login')
 
 onMounted(() => {
   const token = localStorage.getItem('token')
-  if (!token && !isLogin()) router.replace('/login')
+  if (!token && !isLogin.value) router.replace('/login')
   if (token) {
     loadConversations();
     loadAgentConfig()
@@ -26,13 +26,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="isLogin()" class="app-shell">
+  <div v-if="isLogin" class="app-shell">
     <router-view/>
   </div>
   <div v-else class="app-shell">
     <Sidebar/>
     <main class="main">
-      <nav v-if="isChat()" aria-label="主导航" class="tabs" role="tablist">
+      <nav v-if="isChat" aria-label="主导航" class="tabs" role="tablist">
         <button :class="['tab',{active:state.activeTab==='chat'}]" @click="state.activeTab='chat'"><span
             class="dot"></span>对话
         </button>
@@ -46,11 +46,11 @@ onMounted(() => {
             class="dot"></span>工具
         </button>
       </nav>
-      <ChatPanel v-if="isChat() && state.activeTab==='chat'"/>
-      <KnowledgePanel v-if="isChat() && state.activeTab==='knowledge'"/>
-      <GraphPanel v-if="isChat() && state.activeTab==='graph'"/>
-      <ToolsPanel v-if="isChat() && state.activeTab==='tools'"/>
-      <router-view v-if="!isChat()"/>
+      <ChatPanel v-if="isChat && state.activeTab==='chat'"/>
+      <KnowledgePanel v-if="isChat && state.activeTab==='knowledge'"/>
+      <GraphPanel v-if="isChat && state.activeTab==='graph'"/>
+      <ToolsPanel v-if="isChat && state.activeTab==='tools'"/>
+      <router-view v-if="!isChat"/>
     </main>
   </div>
 </template>
