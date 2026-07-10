@@ -378,7 +378,7 @@ public class GraphService {
         for (var row : rows) {
             String nb = (String) row.get("neighbor");
             String rel = (String) row.get("rel");
-            Long diff = row.get("diff") instanceof Number dn ? dn.longValue() : 1;
+            Long diff = row.get("diff") instanceof Number dn ? dn.longValue() : 1L;
             String cat = (String) row.get("cat");
 
             edges.add(new GraphEdge(self.getName(), nb, rel != null ? rel : "RELATED_TO"));
