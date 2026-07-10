@@ -3,6 +3,7 @@ package com.jiang.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jiang.constant.AgentConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -29,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 public class RedisChatMemory implements ChatMemory {
 
     private static final String KEY_PREFIX = "agent:chat:memory:";
-    private static final long TTL_MINUTES = 30;
+    private static final long TTL_MINUTES = AgentConstants.MEMORY_TTL_MINUTES;
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;

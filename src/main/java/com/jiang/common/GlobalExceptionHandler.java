@@ -1,5 +1,7 @@
 package com.jiang.common;
 
+import com.jiang.exception.BusinessException;
+import com.jiang.exception.NotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -20,6 +22,22 @@ public class GlobalExceptionHandler {
     public Result<Void> handleNoResource(NoResourceFoundException e) {
         // 不打印日志，这是正常的浏览器行为
         return Result.fail(404, "not found");
+    }
+
+    /** 资源不存在 */
+    @ExceptionHandler(NotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Result<Void> handleNotFound(NotFoundException e) {
+        log.warn("资源不存在: {}", e.getMessage());
+        return Result.fail(404, e.getMessage());
+    }
+
+    /** 业务逻辑异常 */
+    @ExceptionHandler(BusinessException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleBusiness(BusinessException e) {
+        log.warn("业务异常: {}", e.getMessage());
+        return Result.fail(400, e.getMessage());
     }
 
     /** 请求参数不合法 */

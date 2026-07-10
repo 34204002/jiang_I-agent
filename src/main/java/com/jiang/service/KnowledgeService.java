@@ -3,6 +3,8 @@ package com.jiang.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jiang.constant.FileConstants;
+import com.jiang.exception.BusinessException;
 import com.jiang.entity.AgentConfig;
 import com.jiang.entity.Document;
 import com.jiang.entity.DocumentChunk;
@@ -77,10 +79,10 @@ public class KnowledgeService {
     @Value("${spring.ai.openai.chat.model}")
     private String defaultModel;
 
-    private static final Set<String> ALLOWED_TYPES = Set.of("pdf", "md", "txt", "docx");
-    private static final long MAX_FILE_SIZE = 20 * 1024 * 1024;
-    private static final int CHUNK_SIZE = 800;
-    private static final double SIMILARITY_THRESHOLD = 0.5;
+    private static final Set<String> ALLOWED_TYPES = FileConstants.ALLOWED_DOC_TYPES;
+    private static final long MAX_FILE_SIZE = FileConstants.MAX_DOC_SIZE;
+    private static final int CHUNK_SIZE = FileConstants.CHUNK_SIZE;
+    private static final double SIMILARITY_THRESHOLD = FileConstants.SIMILARITY_THRESHOLD;
 
     // ==================== 公开接口 ====================
 
@@ -92,7 +94,7 @@ public class KnowledgeService {
         String originalFilename = file.getOriginalFilename();
         String ext = getExt(originalFilename).toLowerCase();
         if (!ALLOWED_TYPES.contains(ext)) {
-            throw new IllegalArgumentException("不支持的文件类型: " + ext + "，允许: " + ALLOWED_TYPES);
+            throw new BusinessException("不支持的文件类型: " + ext + "，允许: " + ALLOWED_TYPES);
         }
         if (file.isEmpty() || file.getSize() == 0) {
             throw new IllegalArgumentException("文件为空，无法上传");

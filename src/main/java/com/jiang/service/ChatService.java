@@ -8,6 +8,7 @@
 package com.jiang.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jiang.constant.AgentConstants;
 import com.jiang.entity.AgentConfig;
 import com.jiang.entity.Conversation;
 import com.jiang.mapper.AgentConfigMapper;
@@ -67,7 +68,7 @@ public class ChatService {
     @Value("${spring.ai.openai.chat.model}")
     private String defaultModel;
 
-    private static final int MAX_TOOL_ROUNDS = 10;
+    private static final int MAX_TOOL_ROUNDS = AgentConstants.MAX_TOOL_ROUNDS;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final HttpClient httpClient = HttpClient.newBuilder()

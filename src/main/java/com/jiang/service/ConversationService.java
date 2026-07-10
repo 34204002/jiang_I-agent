@@ -2,6 +2,7 @@ package com.jiang.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jiang.exception.NotFoundException;
 import com.jiang.entity.Conversation;
 import com.jiang.entity.Message;
 import com.jiang.mapper.ConversationMapper;
@@ -60,7 +61,7 @@ public class ConversationService {
         Conversation convo = conversationMapper.selectById(conversationId);
         if (convo == null || !convo.getUserId().equals(userId)) {
             log.warn("越权访问会话: userId={}, conversationId={}", userId, conversationId);
-            throw new SecurityException("无权访问该会话");
+            throw new NotFoundException("无权访问该会话");
         }
 
         Page<Message> mpPage = Page.of(page, size);
