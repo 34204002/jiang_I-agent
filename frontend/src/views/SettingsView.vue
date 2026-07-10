@@ -3,6 +3,7 @@ import {onMounted, ref, useTemplateRef} from 'vue'
 import {api} from '../utils/api'
 import {showToast} from '../utils/toast'
 import {writeUser} from '../utils/storage'
+import {USER} from '../stores/state'
 import type {UserInfo} from '../types'
 
 const username = ref(''), nickname = ref(''), role = ref(''), avatar = ref('')
@@ -16,6 +17,7 @@ async function load() {
     role.value = u.role || ''
     avatar.value = u.avatar || ''
     writeUser(u)
+    Object.assign(USER, u)
   }
 }
 
@@ -43,6 +45,7 @@ async function save() {
   const json = await api.put<UserInfo>('/api/user/me', {nickname: nickname.value.trim()})
   if (json.code === 200) {
     writeUser(json.data)
+    Object.assign(USER, json.data)
     showToast('保存成功', 'ok')
   } else showToast(json.message || '保存失败', 'error')
 }

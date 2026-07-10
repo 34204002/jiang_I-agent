@@ -1,11 +1,9 @@
 import {useStorage} from '@vueuse/core'
+import {safeJsonParse} from './helpers'
+import type {UserInfo} from '../types'
 
 /** 登录 token，响应式并与 localStorage 双向同步 */
 export const token = useStorage('token', '')
-
-/** 当前用户信息（仅从 localStorage 读，写入仍走手动 setItem） */
-import {safeJsonParse} from './helpers'
-import type {UserInfo} from '../types'
 
 export function readUser(): UserInfo {
     return safeJsonParse<UserInfo>(localStorage.getItem('user'), {} as UserInfo)

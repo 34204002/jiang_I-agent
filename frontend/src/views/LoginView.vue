@@ -3,6 +3,7 @@ import {ref} from 'vue'
 import {useRouter} from 'vue-router'
 import {api} from '../utils/api'
 import {token, writeUser} from '../utils/storage'
+import {USER} from '../stores/state'
 
 const router = useRouter()
 const mode = ref('login')
@@ -40,6 +41,7 @@ async function submit() {
       if (mode.value === 'login') {
         token.value = json.data.token
         writeUser(json.data.user)
+        Object.assign(USER, json.data.user)
         msg.value = '登录成功，跳转中…';
         msgType.value = 'ok'
         setTimeout(() => router.push('/chat'), 500)
