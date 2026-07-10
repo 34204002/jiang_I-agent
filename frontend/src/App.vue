@@ -2,7 +2,7 @@
 import {onMounted} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {loadAgentConfig, state} from './stores/state'
-import {loadConversations} from './utils/chat'
+import {loadConversations} from './stores/chat'
 import Sidebar from './components/Sidebar.vue'
 import ChatPanel from './components/ChatPanel.vue'
 import GraphPanel from './components/GraphPanel.vue'

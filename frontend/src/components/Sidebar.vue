@@ -2,7 +2,7 @@
 import {computed} from 'vue'
 import {logout, state, USER} from '../stores/state'
 import {api} from '../utils/api'
-import {loadConversations, newChat, selectConvo} from '../utils/chat'
+import {loadConversations, newChat, selectConvo} from '../stores/chat'
 import CloseIcon from './icons/CloseIcon.vue'
 import SettingsIcon from './icons/SettingsIcon.vue'
 

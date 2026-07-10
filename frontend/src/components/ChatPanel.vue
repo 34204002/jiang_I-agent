@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import {computed, reactive, ref} from 'vue'
 import {agent, state, USER} from '../stores/state'
-import {loadConversations} from '../utils/chat'
+import {loadConversations} from '../stores/chat'
 import {marked} from 'marked'
 import DOMPurify from 'dompurify'
 import ChevronIcon from './icons/ChevronIcon.vue'
