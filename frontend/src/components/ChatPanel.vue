@@ -166,3 +166,8 @@ function avatar(isUser: boolean): string {
     </div>
   </div>
 </template>
+
+<style scoped>
+.chat-shell { flex: 1; display: flex; flex-direction: column; min-height: 0 }
+.chat-body { flex: 1; overflow-y: auto }
+</style>
