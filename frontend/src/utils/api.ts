@@ -2,11 +2,13 @@ import type {AxiosResponse} from 'axios'
 import axios from 'axios'
 import type {ApiResponse} from '../types'
 
+const HTTP_TIMEOUT = 300000
+
 const TOKEN: string = localStorage.getItem('token') || ''
 
 const http = axios.create({
     baseURL: '',
-    timeout: 300000, // 5min for SSE-style long responses
+    timeout: HTTP_TIMEOUT, // 5min for SSE-style long responses
     headers: {'Content-Type': 'application/json'}
 })
 
