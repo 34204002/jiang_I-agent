@@ -1,4 +1,4 @@
-package com.jiang.config;
+package com.jiang.util;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
