@@ -1,10 +1,10 @@
 package com.jiang.config;
 
+import com.jiang.constant.RateLimitConstants;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import com.jiang.constant.RateLimitConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -58,7 +58,9 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         return false;
     }
 
-    /** 每 10 分钟清理闲置桶（已满的 bucket 视为不活跃用户） */
+    /**
+     * 每 10 分钟清理闲置桶（已满的 bucket 视为不活跃用户）
+     */
     @Scheduled(fixedRate = RateLimitConstants.EVICT_INTERVAL_MS)
     public void evict() {
         int before = buckets.size();

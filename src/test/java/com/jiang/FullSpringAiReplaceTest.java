@@ -4,11 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.deepseek.DeepSeekChatModel;
-import org.springframework.ai.deepseek.DeepSeekChatOptions;
 import org.springframework.ai.deepseek.api.DeepSeekApi;
-import org.springframework.ai.deepseek.api.DeepSeekApi.*;
+import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletion;
+import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletionMessage;
+import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletionRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -19,13 +18,16 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
  * 全面测试 Spring AI DeepSeek 专用 starter 能否替代自研框架。
- *
+ * <p>
  * 三个核心问题：
  * 1. stream() metadata 里有没有 reasoningContent？（之前 OpenAI adapter 没有）
  * 2. DeepSeekApi 能否完全替代 DeepSeekStreamService？
@@ -82,7 +84,10 @@ public class FullSpringAiReplaceTest {
                             rcCount[0], rc.length(), content.length());
                     latch.countDown();
                 })
-                .doOnError(e -> { log.error("失败: {}", e.getMessage()); latch.countDown(); })
+                .doOnError(e -> {
+                    log.error("失败: {}", e.getMessage());
+                    latch.countDown();
+                })
                 .subscribe();
 
         latch.await(120, TimeUnit.SECONDS);
@@ -164,7 +169,7 @@ public class FullSpringAiReplaceTest {
             // 构建第二轮
             List<Map<String, Object>> r2Msgs = new ArrayList<>();
             r2Msgs.add(Map.of("role", "user", "content", body.get("messages") instanceof List<?> l
-                    ? ((Map<?,?>) l.get(0)).get("content") : ""));
+                    ? ((Map<?, ?>) l.get(0)).get("content") : ""));
 
             Map<String, Object> asst = new LinkedHashMap<>();
             asst.put("role", "assistant");

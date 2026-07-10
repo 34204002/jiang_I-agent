@@ -76,7 +76,7 @@ public class SpringAIReasoningTest {
 
                     if (rc != null && !rc.toString().isEmpty()) {
                         rcChunks[0]++;
-                        reasoning.append(rc.toString());
+                        reasoning.append(rc);
                     }
                 })
                 .doOnComplete(() -> {

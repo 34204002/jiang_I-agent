@@ -24,22 +24,30 @@ public class Result<T> {
         this.data = data;
     }
 
-    /** 成功 — 带数据 */
+    /**
+     * 成功 — 带数据
+     */
     public static <T> Result<T> success(T data) {
         return new Result<>(200, "success", data);
     }
 
-    /** 成功 — 无数据（如删除操作） */
+    /**
+     * 成功 — 无数据（如删除操作）
+     */
     public static <T> Result<T> success() {
         return new Result<>(200, "success", null);
     }
 
-    /** 失败 — 带自定义状态码 */
+    /**
+     * 失败 — 带自定义状态码
+     */
     public static <T> Result<T> fail(int code, String message) {
         return new Result<>(code, message, null);
     }
 
-    /** 失败 — 默认 500 状态码 */
+    /**
+     * 失败 — 默认 500 状态码
+     */
     public static <T> Result<T> fail(String message) {
         return new Result<>(500, message, null);
     }

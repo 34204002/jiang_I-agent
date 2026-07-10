@@ -16,7 +16,9 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    /** 忽略浏览器自动请求的静态资源（favicon.ico 等） */
+    /**
+     * 忽略浏览器自动请求的静态资源（favicon.ico 等）
+     */
     @ExceptionHandler(NoResourceFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Result<Void> handleNoResource(NoResourceFoundException e) {
@@ -24,7 +26,9 @@ public class GlobalExceptionHandler {
         return Result.fail(404, "not found");
     }
 
-    /** 资源不存在 */
+    /**
+     * 资源不存在
+     */
     @ExceptionHandler(NotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public Result<Void> handleNotFound(NotFoundException e) {
@@ -32,7 +36,9 @@ public class GlobalExceptionHandler {
         return Result.fail(404, e.getMessage());
     }
 
-    /** 业务逻辑异常 */
+    /**
+     * 业务逻辑异常
+     */
     @ExceptionHandler(BusinessException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Result<Void> handleBusiness(BusinessException e) {
@@ -40,14 +46,18 @@ public class GlobalExceptionHandler {
         return Result.fail(400, e.getMessage());
     }
 
-    /** 请求参数不合法 */
+    /**
+     * 请求参数不合法
+     */
     @ExceptionHandler(IllegalArgumentException.class)
     public Result<Void> handleIllegalArgument(IllegalArgumentException e) {
         log.warn("参数异常: {}", e.getMessage());
         return Result.fail(400, e.getMessage());
     }
 
-    /** 未预期的内部异常兜底 */
+    /**
+     * 未预期的内部异常兜底
+     */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleUnknown(Exception e) {

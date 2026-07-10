@@ -21,34 +21,40 @@ public class ChatController {
 
     private final ChatService chatService;
 
-    /** 同步对话 */
+    /**
+     * 同步对话
+     */
     @PostMapping
     public Result<ChatResponse> chat(@RequestBody ChatRequest request,
-                                      HttpServletRequest req) {
+                                     HttpServletRequest req) {
         Long userId = (Long) req.getAttribute("userId");
         return Result.success(chatService.chat(request, userId));
     }
 
-    /** SSE 流式对话 — GET（支持思考模式） */
+    /**
+     * SSE 流式对话 — GET（支持思考模式）
+     */
     @GetMapping(value = "/stream", produces = SSE_UTF8)
     public Flux<String> streamChatGet(@RequestParam String message,
-                                       @RequestParam(required = false) String conversationId,
-                                       @RequestParam(required = false, defaultValue = "false") boolean thinking,
-                                       HttpServletRequest req) {
+                                      @RequestParam(required = false) String conversationId,
+                                      @RequestParam(required = false, defaultValue = "false") boolean thinking,
+                                      HttpServletRequest req) {
         Long userId = (Long) req.getAttribute("userId");
         var request = new ChatRequest(message, conversationId);
         return thinking ? chatService.streamChatWithThinking(request, userId)
-                        : chatService.streamChat(request, userId);
+                : chatService.streamChat(request, userId);
     }
 
-    /** SSE 流式对话 — POST（支持思考模式） */
+    /**
+     * SSE 流式对话 — POST（支持思考模式）
+     */
     @PostMapping(value = "/stream", produces = SSE_UTF8)
     public Flux<String> streamChatPost(@RequestBody ChatRequest request,
-                                        @RequestParam(required = false, defaultValue = "false") boolean thinking,
-                                        HttpServletRequest req) {
+                                       @RequestParam(required = false, defaultValue = "false") boolean thinking,
+                                       HttpServletRequest req) {
         Long userId = (Long) req.getAttribute("userId");
         return thinking ? chatService.streamChatWithThinking(request, userId)
-                        : chatService.streamChat(request, userId);
+                : chatService.streamChat(request, userId);
     }
 
 }

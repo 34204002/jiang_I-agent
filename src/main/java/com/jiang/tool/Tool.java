@@ -13,12 +13,18 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Tool {
 
-    /** 工具名称（唯一标识，LLM 用此名称调用），如 create_todo */
+    /**
+     * 工具名称（唯一标识，LLM 用此名称调用），如 create_todo
+     */
     String name();
 
-    /** 工具描述（LLM 用来判断何时调用） */
+    /**
+     * 工具描述（LLM 用来判断何时调用）
+     */
     String description();
 
-    /** JSON Schema 格式的参数定义（OpenAI function calling 格式） */
+    /**
+     * JSON Schema 格式的参数定义（OpenAI function calling 格式）
+     */
     String parameters() default "{}";
 }

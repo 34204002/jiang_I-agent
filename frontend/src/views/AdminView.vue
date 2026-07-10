@@ -112,7 +112,8 @@ onMounted(() => {
           <h3>Agent 全局配置</h3>
           <div class="avatar-area">
             <img :src="agent.avatar||''" alt="" class="avatar-preview">
-            <div><input ref="agentFile" accept="image/*" class="admin-hidden-input" type="file" @change="uploadAgentAvatar">
+            <div><input ref="agentFile" accept="image/*" class="admin-hidden-input" type="file"
+                        @change="uploadAgentAvatar">
               <button class="btn-outline admin-upload-btn" @click="agentFile?.click()">更换头像
               </button>
             </div>

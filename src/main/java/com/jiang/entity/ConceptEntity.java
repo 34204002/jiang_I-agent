@@ -30,20 +30,27 @@ public class ConceptEntity {
 
     private Integer difficulty; // 1-5
 
-    /** 前置知识（指向自己的一方是"被需要"的一方） */
+    /**
+     * 前置知识（指向自己的一方是"被需要"的一方）
+     */
     @Relationship(type = "PREREQUISITE_OF", direction = Relationship.Direction.OUTGOING)
     private List<ConceptEntity> prerequisites = new ArrayList<>();
 
-    /** 相关概念 */
+    /**
+     * 相关概念
+     */
     @Relationship(type = "RELATED_TO", direction = Relationship.Direction.OUTGOING)
     private List<ConceptEntity> related = new ArrayList<>();
 
-    /** 关联文档 ID 列表（不存为独立节点，用属性引用） */
+    /**
+     * 关联文档 ID 列表（不存为独立节点，用属性引用）
+     */
     private List<Long> documentIds = new ArrayList<>();
 
     // ==================== constructors ====================
 
-    public ConceptEntity() {}
+    public ConceptEntity() {
+    }
 
     public ConceptEntity(String name, String description, String category, Integer difficulty) {
         this.name = name;
@@ -54,24 +61,59 @@ public class ConceptEntity {
 
     // ==================== getters / setters ====================
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    public String getName() {
+        return name;
+    }
 
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
+    public void setName(String name) {
+        this.name = name;
+    }
 
-    public String getCategory() { return category; }
-    public void setCategory(String category) { this.category = category; }
+    public String getDescription() {
+        return description;
+    }
 
-    public Integer getDifficulty() { return difficulty; }
-    public void setDifficulty(Integer difficulty) { this.difficulty = difficulty; }
+    public void setDescription(String description) {
+        this.description = description;
+    }
 
-    public List<ConceptEntity> getPrerequisites() { return prerequisites; }
-    public void setPrerequisites(List<ConceptEntity> prerequisites) { this.prerequisites = prerequisites; }
+    public String getCategory() {
+        return category;
+    }
 
-    public List<ConceptEntity> getRelated() { return related; }
-    public void setRelated(List<ConceptEntity> related) { this.related = related; }
+    public void setCategory(String category) {
+        this.category = category;
+    }
 
-    public List<Long> getDocumentIds() { return documentIds; }
-    public void setDocumentIds(List<Long> documentIds) { this.documentIds = documentIds; }
+    public Integer getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(Integer difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    public List<ConceptEntity> getPrerequisites() {
+        return prerequisites;
+    }
+
+    public void setPrerequisites(List<ConceptEntity> prerequisites) {
+        this.prerequisites = prerequisites;
+    }
+
+    public List<ConceptEntity> getRelated() {
+        return related;
+    }
+
+    public void setRelated(List<ConceptEntity> related) {
+        this.related = related;
+    }
+
+    public List<Long> getDocumentIds() {
+        return documentIds;
+    }
+
+    public void setDocumentIds(List<Long> documentIds) {
+        this.documentIds = documentIds;
+    }
 }

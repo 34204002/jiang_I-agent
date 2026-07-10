@@ -2,16 +2,19 @@ package com.jiang.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jiang.common.Result;
-import com.jiang.util.JwtUtil;
 import com.jiang.entity.User;
 import com.jiang.mapper.UserMapper;
 import com.jiang.model.req.LoginRequest;
 import com.jiang.model.req.RegisterRequest;
 import com.jiang.model.vo.UserVO;
+import com.jiang.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
@@ -28,7 +31,9 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
-    /** 注册（仅 USER 角色） */
+    /**
+     * 注册（仅 USER 角色）
+     */
     @PostMapping("/register")
     public Result<UserVO> register(@RequestBody RegisterRequest request) {
         if (request.getUsername() == null || request.getUsername().isBlank()) {
@@ -55,7 +60,9 @@ public class AuthController {
         return Result.success(UserVO.from(user));
     }
 
-    /** 登录 */
+    /**
+     * 登录
+     */
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody LoginRequest request) {
         User user = userMapper.selectOne(

@@ -12,11 +12,7 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.data.redis.core.RedisTemplate;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -114,7 +110,8 @@ public class RedisChatMemory implements ChatMemory {
      * 将 JSON 反序列化为对应 Message 子类。
      */
     private Message deserializeMessage(String json) throws JsonProcessingException {
-        Map<String, Object> map = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+        Map<String, Object> map = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {
+        });
         String type = (String) map.get("type");
         String content = (String) map.get("content");
         if (type == null || content == null) {

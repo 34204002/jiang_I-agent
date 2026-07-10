@@ -6,8 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.deepseek.api.DeepSeekApi;
 import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletionChunk;
-import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletionMessage;
-import org.springframework.ai.model.ApiKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -22,7 +20,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 测试 Spring AI DeepSeek 专用 starter 的 reasoning_content 处理能力。
@@ -36,16 +33,13 @@ public class DeepSeekStarterTest {
 
     private static final Logger log = LoggerFactory.getLogger(DeepSeekStarterTest.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    @Value("${spring.ai.openai.api-key}")
-    private String apiKey;
-
-    @Value("${spring.ai.openai.base-url}")
-    private String baseUrl;
-
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .build();
+    @Value("${spring.ai.openai.api-key}")
+    private String apiKey;
+    @Value("${spring.ai.openai.base-url}")
+    private String baseUrl;
 
     // ==================== 1. 同步调用 ====================
 

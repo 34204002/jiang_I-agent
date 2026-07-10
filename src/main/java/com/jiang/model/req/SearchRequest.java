@@ -8,9 +8,13 @@ import lombok.Data;
 @Data
 public class SearchRequest {
 
-    /** 自然语言查询 */
+    /**
+     * 自然语言查询
+     */
     private String query;
 
-    /** 返回结果数，默认 5 */
+    /**
+     * 返回结果数，默认 5
+     */
     private Integer topK;
 }

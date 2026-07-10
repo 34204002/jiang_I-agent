@@ -57,6 +57,9 @@ import java.util.Map;
 @org.springframework.transaction.annotation.Transactional
 public class ChatService {
 
+    private static final int MAX_TOOL_ROUNDS = AgentConstants.MAX_TOOL_ROUNDS;
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Duration STREAM_REQUEST_TIMEOUT = Duration.ofMinutes(3);
     private final ChatMemory chatMemory;
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
@@ -64,18 +67,11 @@ public class ChatService {
     private final VectorStore vectorStore;
     private final ToolRegistry toolRegistry;
     private final String defaultSystemPrompt;
-
-    @Value("${spring.ai.openai.chat.model}")
-    private String defaultModel;
-
-    private static final int MAX_TOOL_ROUNDS = AgentConstants.MAX_TOOL_ROUNDS;
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .build();
-    private static final Duration STREAM_REQUEST_TIMEOUT = Duration.ofMinutes(3);
-
+    @Value("${spring.ai.openai.chat.model}")
+    private String defaultModel;
     @Value("${spring.ai.openai.base-url}")
     private String baseUrl;
 
@@ -103,7 +99,9 @@ public class ChatService {
             if (config != null && config.getSystemPrompt() != null && !config.getSystemPrompt().isBlank()) {
                 return config.getSystemPrompt();
             }
-        } catch (Exception e) { log.debug("DB AgentConfig 读取失败", e); }
+        } catch (Exception e) {
+            log.debug("DB AgentConfig 读取失败", e);
+        }
         return null;
     }
 
@@ -118,7 +116,8 @@ public class ChatService {
             if (config != null && config.getModel() != null && !config.getModel().isBlank()) {
                 return config.getModel();
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return defaultModel;
     }
 
@@ -170,8 +169,6 @@ public class ChatService {
         updateConversationMeta(ctx.convoId);
     }
 
-    private record ConversationContext(Long convoId, String memoryKey, List<Message> history) {}
-
     private void persistAssistant(Long convoId, String memoryKey, String content, String thinking) {
         saveMessage(convoId, "assistant", content, thinking, null);
         if (thinking != null && !thinking.isEmpty()) {
@@ -181,8 +178,6 @@ public class ChatService {
         }
         updateConversationMeta(convoId);
     }
-
-    // ==================== LLM 调用（同步） ====================
 
     private String doCall(List<Message> history, String userMsg, Long userId, Long convoId) {
         String body = buildRequestBody(history, userMsg, false, false);
@@ -200,11 +195,11 @@ public class ChatService {
         }
     }
 
-    // ==================== LLM 调用（流式） ====================
+    // ==================== LLM 调用（同步） ====================
 
     private Flux<String> streamWithPossibleTools(List<Message> history, String userMsg,
-                                                   Long convoId, String memoryKey,
-                                                   boolean thinking, Long userId) {
+                                                 Long convoId, String memoryKey,
+                                                 boolean thinking, Long userId) {
         // 按 tool_call index 分组累积，支持并行工具调用（避免参数粘在一起）
         final Map<Integer, String> tcNames = new LinkedHashMap<>();
         final Map<Integer, StringBuilder> tcArgsMap = new LinkedHashMap<>();
@@ -252,7 +247,7 @@ public class ChatService {
                         // DSML 过滤 — 加日志记录被拦截的内容
                         if (c.contains("<tool_calls>") || c.contains("<invoke ") || c.contains("</tool_calls>")) {
                             dsmlBuf.append(c);
-                            log.info("[DSML_FILTER] 拦截 DSML 片段: {}", c.length() > 200 ? c.substring(0,200)+"..." : c);
+                            log.info("[DSML_FILTER] 拦截 DSML 片段: {}", c.length() > 200 ? c.substring(0, 200) + "..." : c);
                             return;
                         }
                         // 实时发射 content（支持打字机效果），同时缓冲用于持久化
@@ -260,16 +255,18 @@ public class ChatService {
                         try {
                             sink.next("{\"type\":\"content\",\"content\":"
                                     + MAPPER.writeValueAsString(c) + "}");
-                        } catch (Exception ignored) {}
+                        } catch (Exception ignored) {
+                        }
 
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
                 })
                 .concatWith(Flux.defer(() -> {
                     if (tcNames.isEmpty()) {
                         // 终轮：正文已实时发射，只需持久化
                         if (dsmlBuf.length() > 0) {
                             log.info("[DSML_SUMMARY] 本轮共拦截 DSML {} 字符，对话正常结束。"
-                                    + " DSML 前300字: {}", dsmlBuf.length(),
+                                            + " DSML 前300字: {}", dsmlBuf.length(),
                                     dsmlBuf.substring(0, Math.min(300, dsmlBuf.length())));
                         }
                         String content = contentBuf.toString();
@@ -313,20 +310,15 @@ public class ChatService {
                         Flux.just("{\"type\":\"content\",\"content\":\"\\n\\n（AI 回复因网络原因中断，请重试）\"}"));
     }
 
-    // ==================== 工具调用处理 ====================
-
-    /**
-     * 单次工具调用（流式累积的结果）。
-     */
-    private record ToolCall(String name, String arguments) {}
+    // ==================== LLM 调用（流式） ====================
 
     /**
      * 处理流式累积的工具调用列表（支持并行调用）。
      * 每个工具独立执行，结果合并为一个 assistant tool_calls 消息发送给 LLM。
      */
     private Flux<String> handleToolCallAndContinue(List<ToolCall> toolCalls,
-                                                     List<Message> history, String userMsg,
-                                                     Long convoId, String memoryKey, Long userId) {
+                                                   List<Message> history, String userMsg,
+                                                   Long convoId, String memoryKey, Long userId) {
         for (var tc : toolCalls) {
             log.info("工具调用: name={}, args={}", tc.name(), tc.arguments());
         }
@@ -360,13 +352,15 @@ public class ChatService {
         return toolEvent.concatWith(followupFlux);
     }
 
+    // ==================== 工具调用处理 ====================
+
     /**
      * 流式工具 follow-up：用给定的消息列表做流式调用，支持思考 + 递归工具调用。
      * 这是 {@link #callLlmWithTools} 的流式替代。
      */
     private Flux<String> streamToolFollowup(List<Map<String, Object>> messages, int round,
-                                             boolean thinking, Long convoId,
-                                             String memoryKey, Long userId) {
+                                            boolean thinking, Long convoId,
+                                            String memoryKey, Long userId) {
         if (round >= MAX_TOOL_ROUNDS) {
             log.warn("工具调用超过最大轮次 {}，强制终止", MAX_TOOL_ROUNDS);
             return Flux.just("{\"type\":\"content\",\"content\":\"（工具调用次数过多，已终止）\"}");
@@ -381,8 +375,11 @@ public class ChatService {
         }
 
         String json;
-        try { json = MAPPER.writeValueAsString(body); }
-        catch (Exception e) { return Flux.error(e); }
+        try {
+            json = MAPPER.writeValueAsString(body);
+        } catch (Exception e) {
+            return Flux.error(e);
+        }
         log.info("[TOOL_FOLLOWUP] round={} tools={} msgs={}", round, toolRegistry.count(), messages.size());
 
         final Map<Integer, String> tcNames = new LinkedHashMap<>();
@@ -422,7 +419,7 @@ public class ChatService {
                         if (c == null || c.isEmpty()) return;
                         // DSML 过滤（follow-up 也加）
                         if (c.contains("<tool_calls>") || c.contains("<invoke ") || c.contains("</tool_calls>")) {
-                            log.info("[DSML_FILTER] followup 拦截 DSML: {}...", c.substring(0, Math.min(100,c.length())));
+                            log.info("[DSML_FILTER] followup 拦截 DSML: {}...", c.substring(0, Math.min(100, c.length())));
                             return;
                         }
                         // 实时发射 content，同时缓冲用于持久化
@@ -430,9 +427,11 @@ public class ChatService {
                         try {
                             sink.next("{\"type\":\"content\",\"content\":"
                                     + MAPPER.writeValueAsString(c) + "}");
-                        } catch (Exception ignored) {}
+                        } catch (Exception ignored) {
+                        }
 
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
                 })
                 .concatWith(Flux.defer(() -> {
                     if (!tcNames.isEmpty()) {
@@ -472,14 +471,14 @@ public class ChatService {
                     } else {
                         chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
                     }
-                    return Flux.<String>empty();
+                    return Flux.empty();
                 }));
     }
 
     private List<Map<String, Object>> buildMessagesWithTools(List<Message> history,
-                                                               String userMsg,
-                                                               List<ToolCall> toolCalls,
-                                                               Long userId, Long convoId) {
+                                                             String userMsg,
+                                                             List<ToolCall> toolCalls,
+                                                             Long userId, Long convoId) {
         ToolContext.setUser(userId);
         ToolContext.setConversation(convoId);
         List<Map<String, Object>> messages = new ArrayList<>();
@@ -580,7 +579,9 @@ public class ChatService {
         }
     }
 
-    /** 同步路径 DSML 过滤：如果 content 包含 DSML 标签，截断返回正文部分 */
+    /**
+     * 同步路径 DSML 过滤：如果 content 包含 DSML 标签，截断返回正文部分
+     */
     private String stripDsml(String content) {
         if (content == null || content.isEmpty()) return "";
         if (content.contains("<tool_calls>") || content.contains("<invoke ")) {
@@ -597,7 +598,7 @@ public class ChatService {
     }
 
     private String runToolLoop(List<Message> history, String userMsg,
-                                ChatCompletionMessage msg, Long userId, Long convoId) {
+                               ChatCompletionMessage msg, Long userId, Long convoId) {
         ToolContext.setUser(userId);
         ToolContext.setConversation(convoId);
         try {
@@ -618,8 +619,6 @@ public class ChatService {
             ToolContext.clear();
         }
     }
-
-    // ==================== HTTP 传输（替代 DeepSeekStreamService） ====================
 
     private String syncHttp(String body) {
         try {
@@ -644,7 +643,9 @@ public class ChatService {
         }
     }
 
-    /** 流式 HTTP，返回 Flux<ChatCompletionChunk>（用 Spring AI 类型解析，自带 reasoningContent） */
+    /**
+     * 流式 HTTP，返回 Flux<ChatCompletionChunk>（用 Spring AI 类型解析，自带 reasoningContent）
+     */
     private Flux<ChatCompletionChunk> streamHttp(String body) {
         var req = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/chat/completions"))
@@ -666,17 +667,20 @@ public class ChatService {
                                     .map(line -> line.substring(6)))
                             .takeWhile(data -> !"[DONE]".equals(data))
                             .map(data -> {
-                                try { return MAPPER.readValue(data, ChatCompletionChunk.class); }
-                                catch (Exception e) { throw new RuntimeException(e); }
+                                try {
+                                    return MAPPER.readValue(data, ChatCompletionChunk.class);
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
                             });
                 })
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
-    // ==================== 请求体构建 ====================
+    // ==================== HTTP 传输（替代 DeepSeekStreamService） ====================
 
     private String buildRequestBody(List<Message> history, String userMsg, boolean thinking,
-                                     boolean stream) {
+                                    boolean stream) {
         String ragContext = retrieveRelevantContext(userMsg);
 
         List<Map<String, Object>> messages = new ArrayList<>();
@@ -737,7 +741,7 @@ public class ChatService {
         }
     }
 
-    // ==================== 内部辅助 ====================
+    // ==================== 请求体构建 ====================
 
     private Long resolveConversationId(String conversationId, String firstMessage, Long userId) {
         if (conversationId != null && !conversationId.isEmpty()) {
@@ -772,11 +776,22 @@ public class ChatService {
         messageMapper.insert(msg);
     }
 
+    // ==================== 内部辅助 ====================
+
     private void updateConversationMeta(Long convoId) {
         Conversation convo = conversationMapper.selectById(convoId);
         if (convo != null) {
             convo.setMessageCount((convo.getMessageCount() != null ? convo.getMessageCount() : 0) + 2);
             conversationMapper.updateById(convo);
         }
+    }
+
+    private record ConversationContext(Long convoId, String memoryKey, List<Message> history) {
+    }
+
+    /**
+     * 单次工具调用（流式累积的结果）。
+     */
+    private record ToolCall(String name, String arguments) {
     }
 }

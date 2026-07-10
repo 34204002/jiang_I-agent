@@ -294,7 +294,7 @@ onMounted(search)
       <div v-for="c in concepts" :key="c.name" class="graph-concept-card" @click="showDetail(c.name)">
         <span class="graph-concept-name">{{ c.name }}</span><span class="graph-cat-tag">{{ c.category }}</span>
         <button class="graph-concept-del" title="删除概念" type="button" @click.stop="deleteConcept(c.name)">
-          <CloseIcon :size="12" />
+          <CloseIcon :size="12"/>
         </button>
         <span class="graph-concept-rel">{{ c.relationCount }} 关系</span>
         <div class="graph-concept-desc">{{ c.description }}</div>
@@ -315,7 +315,7 @@ onMounted(search)
       <div v-if="detail" class="graph-modal-overlay" @click.self="detail=null">
         <div class="graph-modal">
           <button class="graph-modal-close" type="button" @click="detail=null">
-            <CloseIcon :size="12" />
+            <CloseIcon :size="12"/>
           </button>
           <h2>{{ detail.name }} <span class="graph-cat-tag">{{ detail.category || '' }}</span> {{
               detail.difficulty || 1
@@ -338,7 +338,7 @@ onMounted(search)
           <template v-if="detail.documents?.length">
             <div class="graph-section-title">关联文档</div>
             <div v-for="dc in detail.documents" :key="dc.filename" class="graph-doc-item">
-              <FileIcon :size="14" />
+              <FileIcon :size="14"/>
               {{ dc.filename }}
             </div>
           </template>

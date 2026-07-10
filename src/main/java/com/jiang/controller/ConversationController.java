@@ -24,22 +24,27 @@ public class ConversationController {
 
     private final ConversationService conversationService;
 
-    /** 会话列表 */
+    /**
+     * 会话列表
+     */
     @GetMapping
     public Result<PageResult<ConversationVO>> listConversations(@RequestParam(defaultValue = "1") int page,
-                                                                 @RequestParam(defaultValue = "20") int size,
-                                                                 HttpServletRequest request) {
+                                                                @RequestParam(defaultValue = "20") int size,
+                                                                HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
-        page = Math.max(1, page); size = Math.min(Math.max(1, size), 200);
+        page = Math.max(1, page);
+        size = Math.min(Math.max(1, size), 200);
         return Result.success(conversationService.listConversations(userId, page, size));
     }
 
-    /** 会话消息列表（校验归属） */
+    /**
+     * 会话消息列表（校验归属）
+     */
     @GetMapping("/{id}/messages")
     public Result<PageResult<MessageVO>> listMessages(@PathVariable Long id,
-                                                       @RequestParam(defaultValue = "1") int page,
-                                                       @RequestParam(defaultValue = "50") int size,
-                                                       HttpServletRequest request) {
+                                                      @RequestParam(defaultValue = "1") int page,
+                                                      @RequestParam(defaultValue = "50") int size,
+                                                      HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         try {
             return Result.success(conversationService.listMessages(id, userId, page, size));
@@ -48,7 +53,9 @@ public class ConversationController {
         }
     }
 
-    /** 删除会话（校验归属，级联删除消息） */
+    /**
+     * 删除会话（校验归属，级联删除消息）
+     */
     @DeleteMapping("/{id}")
     public Result<Void> deleteConversation(@PathVariable Long id, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
@@ -60,10 +67,12 @@ public class ConversationController {
         }
     }
 
-    /** 批量删除会话（限制最多 100 个，防止长事务） */
+    /**
+     * 批量删除会话（限制最多 100 个，防止长事务）
+     */
     @PostMapping("/batch-delete")
     public Result<Map<String, Object>> batchDelete(@RequestBody Map<String, Object> body,
-                                                    HttpServletRequest request) {
+                                                   HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         Object raw = body.get("ids");
         if (!(raw instanceof List<?> rawList) || rawList.isEmpty()) {

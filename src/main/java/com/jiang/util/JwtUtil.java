@@ -20,12 +20,14 @@ public class JwtUtil {
     private final long expireMs;
 
     public JwtUtil(@Value("${app.jwt.secret:jiang-i-agent-default-key-please-change-in-dev-yml}") String secret,
-                    @Value("${app.jwt.expire-days:7}") long expireDays) {
+                   @Value("${app.jwt.expire-days:7}") long expireDays) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expireMs = expireDays * 24 * 3600 * 1000L;
     }
 
-    /** 生成 Token */
+    /**
+     * 生成 Token
+     */
     public String generate(Long userId, String username, String role) {
         Date now = new Date();
         return Jwts.builder()
@@ -38,7 +40,9 @@ public class JwtUtil {
                 .compact();
     }
 
-    /** 解析并校验 Token，失败返回 null */
+    /**
+     * 解析并校验 Token，失败返回 null
+     */
     public Claims parse(String token) {
         try {
             return Jwts.parser()
@@ -51,7 +55,9 @@ public class JwtUtil {
         }
     }
 
-    /** 从 Bearer header 提取 Token */
+    /**
+     * 从 Bearer header 提取 Token
+     */
     public String extractToken(String authHeader) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             return authHeader.substring(7);

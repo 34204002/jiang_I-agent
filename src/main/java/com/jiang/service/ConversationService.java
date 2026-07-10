@@ -2,9 +2,9 @@ package com.jiang.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.jiang.exception.NotFoundException;
 import com.jiang.entity.Conversation;
 import com.jiang.entity.Message;
+import com.jiang.exception.NotFoundException;
 import com.jiang.mapper.ConversationMapper;
 import com.jiang.mapper.MessageMapper;
 import com.jiang.model.PageResult;
@@ -105,6 +105,7 @@ public class ConversationService {
 
     /**
      * 批量删除会话（逐一校验归属，跳过无权或已删除的）。
+     *
      * @return 实际删除的数量
      */
     public int deleteConversations(List<Long> ids, Long userId) {

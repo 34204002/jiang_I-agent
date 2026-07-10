@@ -3,7 +3,6 @@ package com.jiang;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -41,7 +40,7 @@ public class DeepSeekSpringAITest {
                     Object rc = chunk.getResult().getOutput().getMetadata().get("reasoningContent");
                     if (rc != null && !rc.toString().isEmpty()) {
                         rcChunks[0]++;
-                        reasoning.append(rc.toString());
+                        reasoning.append(rc);
                     }
                 })
                 .doOnComplete(() -> {
@@ -50,7 +49,10 @@ public class DeepSeekSpringAITest {
                     log.info("结论: {}", reasoning.length() > 0 ? "🟢 SpringAI可用" : "🔴 不可用");
                     latch.countDown();
                 })
-                .doOnError(e -> { log.error("失败: {}", e.getMessage()); latch.countDown(); })
+                .doOnError(e -> {
+                    log.error("失败: {}", e.getMessage());
+                    latch.countDown();
+                })
                 .subscribe();
 
         latch.await(90, TimeUnit.SECONDS);
@@ -71,14 +73,17 @@ public class DeepSeekSpringAITest {
         chatModel.stream(new Prompt("1+1等于几？一句话。", options))
                 .doOnNext(chunk -> {
                     Object rc = chunk.getResult().getOutput().getMetadata().get("reasoningContent");
-                    if (rc != null && !rc.toString().isEmpty()) reasoning.append(rc.toString());
+                    if (rc != null && !rc.toString().isEmpty()) reasoning.append(rc);
                 })
                 .doOnComplete(() -> {
                     log.info("v4-flash reasoningContent: {} chars -> {}",
                             reasoning.length(), reasoning.length() > 0 ? "有" : "无(预期)");
                     latch.countDown();
                 })
-                .doOnError(e -> { log.error("失败: {}", e.getMessage()); latch.countDown(); })
+                .doOnError(e -> {
+                    log.error("失败: {}", e.getMessage());
+                    latch.countDown();
+                })
                 .subscribe();
 
         latch.await(60, TimeUnit.SECONDS);

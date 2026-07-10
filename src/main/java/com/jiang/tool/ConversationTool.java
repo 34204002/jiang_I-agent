@@ -21,17 +21,17 @@ public class ConversationTool {
     private final MessageMapper messageMapper;
 
     @Tool(name = "search_conversation",
-          description = "在当前会话中搜索历史消息。当用户问「我之前聊过的...」「之前说的那个...」「帮我找之前的对话」时使用。",
-          parameters = """
-              {
-                  "type": "object",
-                  "properties": {
-                      "keyword": {"type": "string", "description": "搜索关键词（必填）"},
-                      "limit": {"type": "integer", "description": "最多返回条数，默认 5"}
-                  },
-                  "required": ["keyword"]
-              }
-              """)
+            description = "在当前会话中搜索历史消息。当用户问「我之前聊过的...」「之前说的那个...」「帮我找之前的对话」时使用。",
+            parameters = """
+                    {
+                        "type": "object",
+                        "properties": {
+                            "keyword": {"type": "string", "description": "搜索关键词（必填）"},
+                            "limit": {"type": "integer", "description": "最多返回条数，默认 5"}
+                        },
+                        "required": ["keyword"]
+                    }
+                    """)
     public String searchConversation(String keyword, Integer limit) {
         Long convoId = ToolContext.getConversation();
         if (convoId == null) {
@@ -53,16 +53,16 @@ public class ConversationTool {
         return msgs.stream()
                 .map(m -> "[" + m.getRole() + " @ " + m.getCreatedAt() + "] "
                         + (m.getContent().length() > 300
-                                ? m.getContent().substring(0, 300) + "..."
-                                : m.getContent()))
+                        ? m.getContent().substring(0, 300) + "..."
+                        : m.getContent()))
                 .collect(Collectors.joining("\n\n"));
     }
 
     @Tool(name = "export_conversation",
-          description = "导出当前对话为 Markdown 格式。当用户说「导出对话」「保存对话」「整理成文档」时使用。",
-          parameters = """
-              {"type":"object","properties":{},"required":[]}
-              """)
+            description = "导出当前对话为 Markdown 格式。当用户说「导出对话」「保存对话」「整理成文档」时使用。",
+            parameters = """
+                    {"type":"object","properties":{},"required":[]}
+                    """)
     public String exportConversation() {
         Long convoId = ToolContext.getConversation();
         if (convoId == null) {

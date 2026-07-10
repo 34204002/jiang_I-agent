@@ -1,6 +1,6 @@
 import {state} from './state'
 import {api} from '../utils/api'
-import type {Message, PageResult, Conversation} from '../types'
+import type {Conversation, Message, PageResult} from '../types'
 
 export async function loadConversations(): Promise<void> {
     const json = await api.get<PageResult<Conversation>>('/api/conversations?page=1&size=50')

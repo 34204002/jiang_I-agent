@@ -20,7 +20,9 @@ public class UserController {
 
     private final UserMapper userMapper;
 
-    /** 查看个人信息 */
+    /**
+     * 查看个人信息
+     */
     @GetMapping("/me")
     public Result<UserVO> getMe(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
@@ -31,10 +33,12 @@ public class UserController {
         return Result.success(UserVO.from(user));
     }
 
-    /** 修改个人信息（昵称、头像） */
+    /**
+     * 修改个人信息（昵称、头像）
+     */
     @PutMapping("/me")
     public Result<UserVO> updateMe(@RequestBody Map<String, String> body,
-                                    HttpServletRequest request) {
+                                   HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         User user = userMapper.selectById(userId);
         if (user == null) {

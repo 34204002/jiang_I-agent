@@ -20,21 +20,21 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ReminderTool {
 
-    private final ReminderService reminderService;
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private final ReminderService reminderService;
 
     @Tool(name = "create_reminder",
-          description = "创建一个定时提醒，在指定时间通知用户。当用户说「提醒我」「半小时后提醒」「X点提醒我」时使用。",
-          parameters = """
-              {
-                  "type": "object",
-                  "properties": {
-                      "message": {"type": "string", "description": "提醒内容"},
-                      "remindTime": {"type": "string", "description": "提醒时间 yyyy-MM-dd HH:mm 格式"}
-                  },
-                  "required": ["message", "remindTime"]
-              }
-              """)
+            description = "创建一个定时提醒，在指定时间通知用户。当用户说「提醒我」「半小时后提醒」「X点提醒我」时使用。",
+            parameters = """
+                    {
+                        "type": "object",
+                        "properties": {
+                            "message": {"type": "string", "description": "提醒内容"},
+                            "remindTime": {"type": "string", "description": "提醒时间 yyyy-MM-dd HH:mm 格式"}
+                        },
+                        "required": ["message", "remindTime"]
+                    }
+                    """)
     public String createReminder(String message, String remindTime) {
         try {
             LocalDateTime remindAt = LocalDateTime.parse(remindTime, FMT);
@@ -49,16 +49,16 @@ public class ReminderTool {
     }
 
     @Tool(name = "list_reminders",
-          description = "查看当前用户的提醒列表。当用户问「有哪些提醒」「我的提醒」时使用。",
-          parameters = """
-              {
-                  "type": "object",
-                  "properties": {
-                      "status": {"type": "string", "description": "pending(未触发)/all(全部)，默认 pending"}
-                  },
-                  "required": []
-              }
-              """)
+            description = "查看当前用户的提醒列表。当用户问「有哪些提醒」「我的提醒」时使用。",
+            parameters = """
+                    {
+                        "type": "object",
+                        "properties": {
+                            "status": {"type": "string", "description": "pending(未触发)/all(全部)，默认 pending"}
+                        },
+                        "required": []
+                    }
+                    """)
     public String listReminders(String status) {
         boolean pendingOnly = !"all".equals(status);
         List<Reminder> items = reminderService.listByUser(ToolContext.getUser(), pendingOnly);
@@ -77,16 +77,16 @@ public class ReminderTool {
     }
 
     @Tool(name = "cancel_reminder",
-          description = "取消一个未触发的提醒。当用户说「取消提醒」「不用提醒了」时使用。",
-          parameters = """
-              {
-                  "type": "object",
-                  "properties": {
-                      "reminderId": {"type": "integer", "description": "提醒 ID"}
-                  },
-                  "required": ["reminderId"]
-              }
-              """)
+            description = "取消一个未触发的提醒。当用户说「取消提醒」「不用提醒了」时使用。",
+            parameters = """
+                    {
+                        "type": "object",
+                        "properties": {
+                            "reminderId": {"type": "integer", "description": "提醒 ID"}
+                        },
+                        "required": ["reminderId"]
+                    }
+                    """)
     public String cancelReminder(Long reminderId) {
         reminderService.cancel(ToolContext.getUser(), reminderId);
         return "已取消提醒 #" + reminderId;

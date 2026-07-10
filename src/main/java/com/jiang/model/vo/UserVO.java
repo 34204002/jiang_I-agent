@@ -10,17 +10,29 @@ import java.time.LocalDateTime;
  */
 @Data
 public class UserVO {
-    /** 用户 ID */
+    /**
+     * 用户 ID
+     */
     private Long id;
-    /** 用户名 */
+    /**
+     * 用户名
+     */
     private String username;
-    /** 昵称 */
+    /**
+     * 昵称
+     */
     private String nickname;
-    /** 头像 URL */
+    /**
+     * 头像 URL
+     */
     private String avatar;
-    /** ADMIN / USER */
+    /**
+     * ADMIN / USER
+     */
     private String role;
-    /** 注册时间 */
+    /**
+     * 注册时间
+     */
     private LocalDateTime createdAt;
 
     public static UserVO from(User user) {

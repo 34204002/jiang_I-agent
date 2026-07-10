@@ -24,17 +24,17 @@ public class TodoTool {
     private final TodoService todoService;
 
     @Tool(name = "create_todo",
-          description = "创建一个新的待办事项。当用户说「记一下」「帮我记」「提醒我」「添加待办」时使用。",
-          parameters = """
-              {
-                  "type": "object",
-                  "properties": {
-                      "title": {"type": "string", "description": "待办标题（必填）"},
-                      "dueDate": {"type": "string", "description": "截止日期，格式 yyyy-MM-dd，可省略"}
-                  },
-                  "required": ["title"]
-              }
-              """)
+            description = "创建一个新的待办事项。当用户说「记一下」「帮我记」「提醒我」「添加待办」时使用。",
+            parameters = """
+                    {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string", "description": "待办标题（必填）"},
+                            "dueDate": {"type": "string", "description": "截止日期，格式 yyyy-MM-dd，可省略"}
+                        },
+                        "required": ["title"]
+                    }
+                    """)
     public String createTodo(String title, String dueDate) {
         if (dueDate != null && !dueDate.isEmpty()) {
             try {
@@ -49,16 +49,16 @@ public class TodoTool {
     }
 
     @Tool(name = "list_todos",
-          description = "查询当前用户的待办列表。当用户问「有哪些待办」「我的待办」「查看待办」时使用。",
-          parameters = """
-              {
-                  "type": "object",
-                  "properties": {
-                      "status": {"type": "string", "description": "筛选状态: pending(未完成) / done(已完成) / all(全部)，默认 pending"}
-                  },
-                  "required": []
-              }
-              """)
+            description = "查询当前用户的待办列表。当用户问「有哪些待办」「我的待办」「查看待办」时使用。",
+            parameters = """
+                    {
+                        "type": "object",
+                        "properties": {
+                            "status": {"type": "string", "description": "筛选状态: pending(未完成) / done(已完成) / all(全部)，默认 pending"}
+                        },
+                        "required": []
+                    }
+                    """)
     public String listTodos(String status) {
         Long userId = ToolContext.getUser();
         Boolean done = null;
@@ -82,16 +82,16 @@ public class TodoTool {
     }
 
     @Tool(name = "complete_todo",
-          description = "将待办标记为已完成。当用户说「做完了」「完成了」「搞定」「done」并指定待办时使用。",
-          parameters = """
-              {
-                  "type": "object",
-                  "properties": {
-                      "todoId": {"type": "integer", "description": "待办 ID（必填）"}
-                  },
-                  "required": ["todoId"]
-              }
-              """)
+            description = "将待办标记为已完成。当用户说「做完了」「完成了」「搞定」「done」并指定待办时使用。",
+            parameters = """
+                    {
+                        "type": "object",
+                        "properties": {
+                            "todoId": {"type": "integer", "description": "待办 ID（必填）"}
+                        },
+                        "required": ["todoId"]
+                    }
+                    """)
     public String completeTodo(Long todoId) {
         TodoItem item = todoService.getById(todoId);
         if (item == null) return "未找到待办 #" + todoId;
@@ -102,16 +102,16 @@ public class TodoTool {
     }
 
     @Tool(name = "delete_todo",
-          description = "删除一个待办事项。当用户说「删除待办」「取消待办」「不用记了」并指定待办时使用。",
-          parameters = """
-              {
-                  "type": "object",
-                  "properties": {
-                      "todoId": {"type": "integer", "description": "待办 ID（必填）"}
-                  },
-                  "required": ["todoId"]
-              }
-              """)
+            description = "删除一个待办事项。当用户说「删除待办」「取消待办」「不用记了」并指定待办时使用。",
+            parameters = """
+                    {
+                        "type": "object",
+                        "properties": {
+                            "todoId": {"type": "integer", "description": "待办 ID（必填）"}
+                        },
+                        "required": ["todoId"]
+                    }
+                    """)
     public String deleteTodo(Long todoId) {
         TodoItem item = todoService.getById(todoId);
         if (item == null) return "未找到待办 #" + todoId;

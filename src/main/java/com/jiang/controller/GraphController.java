@@ -19,7 +19,9 @@ public class GraphController {
 
     private final GraphService graphService;
 
-    /** 概念列表（支持搜索和分类筛选） */
+    /**
+     * 概念列表（支持搜索和分类筛选）
+     */
     @GetMapping("/concepts")
     public Result<Map<String, Object>> listConcepts(
             @RequestParam(required = false) String keyword,
@@ -29,19 +31,25 @@ public class GraphController {
         return Result.success(graphService.searchConcepts(keyword, category, page, size));
     }
 
-    /** 概念详情（含前置知识、相关概念、关联文档） */
+    /**
+     * 概念详情（含前置知识、相关概念、关联文档）
+     */
     @GetMapping("/concepts/{name}")
     public Result<GraphService.ConceptDetail> getConcept(@PathVariable String name) {
         return Result.success(graphService.getConceptDetail(name));
     }
 
-    /** 图可视化数据（节点+边，用于前端 vis-network 力导向图） */
+    /**
+     * 图可视化数据（节点+边，用于前端 vis-network 力导向图）
+     */
     @GetMapping("/concepts/{name}/graph")
     public Result<GraphService.GraphData> getGraph(@PathVariable String name) {
         return Result.success(graphService.getGraph(name));
     }
 
-    /** 知识链查询（学习路径，核心差异化接口） */
+    /**
+     * 知识链查询（学习路径，核心差异化接口）
+     */
     @GetMapping("/concepts/{name}/path")
     public Result<GraphService.LearningPath> findPath(
             @PathVariable String name,
@@ -53,7 +61,9 @@ public class GraphController {
         return Result.success(graphService.findPrerequisites(name, maxHops));
     }
 
-    /** 手动添加概念 */
+    /**
+     * 手动添加概念
+     */
     @PostMapping("/concepts")
     public Result<Map<String, Object>> addConcept(@RequestBody Map<String, Object> body) {
         String name = (String) body.get("name");
@@ -69,7 +79,9 @@ public class GraphController {
         return Result.success(Map.of("name", name, "message", "概念已添加"));
     }
 
-    /** 添加关系 */
+    /**
+     * 添加关系
+     */
     @PostMapping("/concepts/{name}/relations")
     public Result<Map<String, Object>> addRelation(
             @PathVariable String name,
@@ -87,7 +99,9 @@ public class GraphController {
         return Result.success(Map.of("from", name, "to", target, "type", type, "message", "关系已添加"));
     }
 
-    /** 从文档提取概念 */
+    /**
+     * 从文档提取概念
+     */
     @PostMapping("/extract")
     public Result<Map<String, Object>> extractFromDocument(@RequestBody Map<String, Object> body) {
         Object docIdObj = body.get("documentId");
@@ -98,14 +112,18 @@ public class GraphController {
         return Result.success(graphService.extractFromDocument(documentId));
     }
 
-    /** 删除概念（级联删除所有关联关系） */
+    /**
+     * 删除概念（级联删除所有关联关系）
+     */
     @DeleteMapping("/concepts/{name}")
     public Result<Map<String, Object>> deleteConcept(@PathVariable String name) {
         graphService.deleteConcept(name);
         return Result.success(Map.of("name", name, "message", "概念已删除"));
     }
 
-    /** 删除关系 */
+    /**
+     * 删除关系
+     */
     @DeleteMapping("/concepts/{name}/relations")
     public Result<Map<String, Object>> deleteRelation(
             @PathVariable String name,

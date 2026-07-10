@@ -76,7 +76,7 @@ onMounted(() => {
           }}</span>
         <span v-if="t.dueDate" class="todo-due">{{ t.dueDate }}</span>
         <button class="todo-del-btn" title="删除" type="button" @click="del(t)">
-          <CloseIcon :size="12" />
+          <CloseIcon :size="12"/>
         </button>
       </div>
     </div>

@@ -1,6 +1,5 @@
 package com.jiang.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiang.entity.ConceptEntity;
@@ -8,8 +7,6 @@ import com.jiang.entity.DocumentChunk;
 import com.jiang.mapper.DocumentChunkMapper;
 import com.jiang.mapper.DocumentMapper;
 import com.jiang.repository.ConceptRepository;
-import com.jiang.model.req.SearchRequest;
-import com.jiang.model.resp.SearchResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,23 +38,21 @@ public class GraphService {
     private final DocumentMapper documentMapper;
     private final DocumentChunkMapper documentChunkMapper;
     private final ObjectMapper objectMapper;
-
-    @Value("${spring.ai.openai.chat.model:deepseek-v4-flash}")
-    private String defaultModel;
-
-    @Value("${spring.ai.openai.base-url}")
-    private String baseUrl;
-
-    @Value("${spring.ai.openai.api-key}")
-    private String apiKey;
-
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .build();
+    @Value("${spring.ai.openai.chat.model:deepseek-v4-flash}")
+    private String defaultModel;
+    @Value("${spring.ai.openai.base-url}")
+    private String baseUrl;
+    @Value("${spring.ai.openai.api-key}")
+    private String apiKey;
 
     // ==================== 查询 ====================
 
-    /** 分页搜索概念 */
+    /**
+     * 分页搜索概念
+     */
     public Map<String, Object> searchConcepts(String keyword, String category, int page, int size) {
         int skip = (page - 1) * size;
         List<ConceptEntity> list;
@@ -97,7 +92,9 @@ public class GraphService {
         return result;
     }
 
-    /** 概念详情（含关系） */
+    /**
+     * 概念详情（含关系）
+     */
     public ConceptDetail getConceptDetail(String name) {
         ConceptEntity c = conceptRepo.findById(name)
                 .orElseThrow(() -> new NoSuchElementException("概念不存在: " + name));
@@ -118,7 +115,8 @@ public class GraphService {
                     if (doc != null) {
                         documents.add(new DocRef(docId, doc.getFilename()));
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
             }
         }
 
@@ -185,7 +183,9 @@ public class GraphService {
         }
     }
 
-    /** 查询概念的前置知识链（多跳，先 PREREQUISITE_OF 再 RELATED_TO） */
+    /**
+     * 查询概念的前置知识链（多跳，先 PREREQUISITE_OF 再 RELATED_TO）
+     */
     @SuppressWarnings("unchecked")
     public LearningPath findPrerequisites(String name, int maxHops) {
         var paths = findPrereqWithRel(name, maxHops, "PREREQUISITE_OF");
@@ -222,7 +222,9 @@ public class GraphService {
 
     // ==================== 写入 ====================
 
-    /** 添加/更新概念 */
+    /**
+     * 添加/更新概念
+     */
     public ConceptEntity addConcept(String name, String description, String category, Integer difficulty) {
         ConceptEntity c = conceptRepo.findById(name).orElse(new ConceptEntity());
         c.setName(name);
@@ -232,7 +234,9 @@ public class GraphService {
         return conceptRepo.save(c);
     }
 
-    /** 添加前置关系（含校验 + 传递化简） */
+    /**
+     * 添加前置关系（含校验 + 传递化简）
+     */
     public void addPrerequisite(String from, String to) {
         String err = validateRelationship(from, to, "PREREQUISITE_OF");
         if (err != null) throw new IllegalArgumentException(err);
@@ -243,7 +247,9 @@ public class GraphService {
         removeTransitiveRedundancy(from, to);
     }
 
-    /** 添加相关关系（含校验 + 限流） */
+    /**
+     * 添加相关关系（含校验 + 限流）
+     */
     public void addRelated(String from, String to) {
         String err = validateRelationship(from, to, "RELATED_TO");
         if (err != null) throw new IllegalArgumentException(err);
@@ -255,6 +261,7 @@ public class GraphService {
 
     /**
      * 关系校验：自环、循环（PREREQUISITE_OF 仅限 DAG）、重复关系。
+     *
      * @return 错误消息，null 表示通过
      */
     public String validateRelationship(String from, String to, String type) {
@@ -312,12 +319,16 @@ public class GraphService {
         }
     }
 
-    /** 关联文档 */
+    /**
+     * 关联文档
+     */
     public void linkDocument(String conceptName, Long documentId) {
         conceptRepo.linkDocument(conceptName, documentId);
     }
 
-    /** 删除概念（级联删除所有关联关系） */
+    /**
+     * 删除概念（级联删除所有关联关系）
+     */
     public void deleteConcept(String name) {
         if (!conceptRepo.findById(name).isPresent()) {
             throw new NoSuchElementException("概念不存在: " + name);
@@ -326,7 +337,9 @@ public class GraphService {
         log.info("图谱: 已删除概念 {}", name);
     }
 
-    /** 删除关系 */
+    /**
+     * 删除关系
+     */
     public void deleteRelation(String from, String to, String type) {
         conceptRepo.deleteRelation(from, to, type != null ? type : "RELATED_TO");
         log.info("图谱: 已删除关系 {} --[{}]--> {}", from, type, to);
@@ -345,10 +358,10 @@ public class GraphService {
         // 查邻居
         @SuppressWarnings("unchecked")
         var rows = (List<Map<String, Object>>) neo4jClient.query("""
-                MATCH (c:Concept {name: $name})-[r]-(neighbor:Concept)
-                RETURN type(r) AS rel, neighbor.name AS neighbor,
-                       neighbor.difficulty AS diff, neighbor.category AS cat
-                """)
+                        MATCH (c:Concept {name: $name})-[r]-(neighbor:Concept)
+                        RETURN type(r) AS rel, neighbor.name AS neighbor,
+                               neighbor.difficulty AS diff, neighbor.category AS cat
+                        """)
                 .bind(resolved).to("name")
                 .fetch().all();
 
@@ -365,7 +378,7 @@ public class GraphService {
         for (var row : rows) {
             String nb = (String) row.get("neighbor");
             String rel = (String) row.get("rel");
-            Long diff = row.get("diff") instanceof Number dn ? ((Number) dn).longValue() : 1;
+            Long diff = row.get("diff") instanceof Number dn ? dn.longValue() : 1;
             String cat = (String) row.get("cat");
 
             edges.add(new GraphEdge(self.getName(), nb, rel != null ? rel : "RELATED_TO"));
@@ -379,11 +392,9 @@ public class GraphService {
         return new GraphData(nodes, edges);
     }
 
-    public record GraphData(List<GraphNode> nodes, List<GraphEdge> edges) {}
-    public record GraphNode(String id, String category, int difficulty, boolean center) {}
-    public record GraphEdge(String from, String to, String label) {}
-
-    /** 解析概念名：先精确匹配，失败则模糊搜索取 top1 */
+    /**
+     * 解析概念名：先精确匹配，失败则模糊搜索取 top1
+     */
     private String resolveName(String name) {
         if (name == null || name.isBlank()) return null;
         if (conceptRepo.findById(name).isPresent()) return name; // 精确匹配
@@ -393,15 +404,16 @@ public class GraphService {
         return null; // 完全找不到
     }
 
-    /** 构建模糊匹配正则：在每对相邻字符间插入 .*，手动转义正则特殊字符 */
+    /**
+     * 构建模糊匹配正则：在每对相邻字符间插入 .*，手动转义正则特殊字符
+     */
     private String buildFuzzyRegex(String keyword) {
         if (keyword == null || keyword.isBlank()) return ".*";
         StringBuilder sb = new StringBuilder("(?i).*");
         for (char c : keyword.trim().toCharArray()) {
             // 手动转义正则特殊字符（不能用 Pattern.quote，Neo4j 不认 \Q\E）
             switch (c) {
-                case '.', '*', '+', '?', '[', ']', '(', ')', '{', '}', '\\', '|', '^', '$'
-                    -> sb.append('\\').append(c);
+                case '.', '*', '+', '?', '[', ']', '(', ')', '{', '}', '\\', '|', '^', '$' -> sb.append('\\').append(c);
                 default -> sb.append(c);
             }
             sb.append(".*");
@@ -414,8 +426,6 @@ public class GraphService {
             conceptRepo.save(new ConceptEntity(name, "", "未分类", 1));
         }
     }
-
-    // ==================== AI 文档概念提取 ====================
 
     /**
      * 从已上传的知识库文档中提取概念和关系，写入图谱。
@@ -447,7 +457,7 @@ public class GraphService {
         // 2. 调 LLM 提取概念
         String prompt = """
                 你是一个知识图谱构建助手。从以下文档中提取核心概念及其关系。
-
+                
                 请返回一个 JSON 对象，格式如下：
                 {
                   "concepts": [
@@ -458,14 +468,14 @@ public class GraphService {
                     {"from": "概念C", "to": "概念D", "type": "RELATED_TO"}
                   ]
                 }
-
+                
                 规则：
                 - difficulty 为 1-5 的整数，1=入门，5=专家
                 - PREREQUISITE_OF 表示 from 是 to 的前置知识（先学 from 才能学 to）
                 - RELATED_TO 表示两个概念相关
                 - 只提取文档中明确出现的概念，不要编造
                 - 至少提取 3 个概念，最多 15 个
-
+                
                 文档内容：
                 %s
                 """.formatted(excerpt);
@@ -541,21 +551,6 @@ public class GraphService {
         }
     }
 
-    // ==================== 内部 record ====================
-
-    public record ConceptDetail(String name, String description, String category, int difficulty,
-                                List<ConceptRef> prerequisites, List<ConceptRef> related, List<DocRef> documents) {}
-
-    public record ConceptRef(String name, String relation, int difficulty) {}
-
-    public record DocRef(Long documentId, String filename) {}
-
-    public record LearningPath(List<List<PathNode>> paths) {
-        public boolean isEmpty() { return paths == null || paths.isEmpty(); }
-    }
-
-    public record PathNode(String name, int difficulty) {}
-
     private String syncHttp(String body) {
         try {
             var req = HttpRequest.newBuilder()
@@ -577,5 +572,37 @@ public class GraphService {
             log.error("同步请求失败", e);
             throw new RuntimeException("AI 调用失败: " + e.getMessage());
         }
+    }
+
+    public record GraphData(List<GraphNode> nodes, List<GraphEdge> edges) {
+    }
+
+    // ==================== AI 文档概念提取 ====================
+
+    public record GraphNode(String id, String category, int difficulty, boolean center) {
+    }
+
+    // ==================== 内部 record ====================
+
+    public record GraphEdge(String from, String to, String label) {
+    }
+
+    public record ConceptDetail(String name, String description, String category, int difficulty,
+                                List<ConceptRef> prerequisites, List<ConceptRef> related, List<DocRef> documents) {
+    }
+
+    public record ConceptRef(String name, String relation, int difficulty) {
+    }
+
+    public record DocRef(Long documentId, String filename) {
+    }
+
+    public record LearningPath(List<List<PathNode>> paths) {
+        public boolean isEmpty() {
+            return paths == null || paths.isEmpty();
+        }
+    }
+
+    public record PathNode(String name, int difficulty) {
     }
 }

@@ -18,18 +18,18 @@ public class KnowledgeTool {
     private final KnowledgeService knowledgeService;
 
     @Tool(name = "search_knowledge",
-          description = "在知识库中搜索用户上传的文档内容。当用户问「知识库里有没有...」「搜一下...的文档」"
-                  + "或问题可能存在于已上传的文档中时使用。",
-          parameters = """
-              {
-                  "type": "object",
-                  "properties": {
-                      "query": {"type": "string", "description": "搜索关键词或自然语言问题"},
-                      "topK": {"type": "integer", "description": "返回结果数量，默认 5"}
-                  },
-                  "required": ["query"]
-              }
-              """)
+            description = "在知识库中搜索用户上传的文档内容。当用户问「知识库里有没有...」「搜一下...的文档」"
+                    + "或问题可能存在于已上传的文档中时使用。",
+            parameters = """
+                    {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "搜索关键词或自然语言问题"},
+                            "topK": {"type": "integer", "description": "返回结果数量，默认 5"}
+                        },
+                        "required": ["query"]
+                    }
+                    """)
     public String searchKnowledge(String query, Integer topK) {
         SearchRequest req = new SearchRequest();
         req.setQuery(query);

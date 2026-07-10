@@ -4,10 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiang.constant.FileConstants;
-import com.jiang.exception.BusinessException;
 import com.jiang.entity.AgentConfig;
 import com.jiang.entity.Document;
 import com.jiang.entity.DocumentChunk;
+import com.jiang.exception.BusinessException;
 import com.jiang.mapper.AgentConfigMapper;
 import com.jiang.mapper.DocumentChunkMapper;
 import com.jiang.mapper.DocumentMapper;
@@ -24,7 +24,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -37,13 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HexFormat;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -56,33 +49,27 @@ import java.util.stream.Collectors;
 @org.springframework.transaction.annotation.Transactional
 public class KnowledgeService {
 
+    private static final Set<String> ALLOWED_TYPES = FileConstants.ALLOWED_DOC_TYPES;
+    private static final long MAX_FILE_SIZE = FileConstants.MAX_DOC_SIZE;
+    private static final int CHUNK_SIZE = FileConstants.CHUNK_SIZE;
+    private static final double SIMILARITY_THRESHOLD = FileConstants.SIMILARITY_THRESHOLD;
     private final DocumentMapper documentMapper;
     private final DocumentChunkMapper documentChunkMapper;
     private final AgentConfigMapper agentConfigMapper;
     private final OssService ossService;
     private final ObjectMapper objectMapper;
     private final VectorStore vectorStore;
-
     @Qualifier("defaultSystemPrompt")
     private final String defaultSystemPrompt;
-
-    @Value("${spring.ai.openai.base-url}")
-    private String baseUrl;
-
-    @Value("${spring.ai.openai.api-key}")
-    private String apiKey;
-
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .build();
-
+    @Value("${spring.ai.openai.base-url}")
+    private String baseUrl;
+    @Value("${spring.ai.openai.api-key}")
+    private String apiKey;
     @Value("${spring.ai.openai.chat.model}")
     private String defaultModel;
-
-    private static final Set<String> ALLOWED_TYPES = FileConstants.ALLOWED_DOC_TYPES;
-    private static final long MAX_FILE_SIZE = FileConstants.MAX_DOC_SIZE;
-    private static final int CHUNK_SIZE = FileConstants.CHUNK_SIZE;
-    private static final double SIMILARITY_THRESHOLD = FileConstants.SIMILARITY_THRESHOLD;
 
     // ==================== 公开接口 ====================
 
@@ -169,7 +156,9 @@ public class KnowledgeService {
         return toVO(doc);
     }
 
-    /** 批量上传文档 */
+    /**
+     * 批量上传文档
+     */
     public List<DocumentVO> batchUpload(List<MultipartFile> files) {
         List<DocumentVO> results = new ArrayList<>();
         for (MultipartFile file : files) {
@@ -188,7 +177,9 @@ public class KnowledgeService {
         return results;
     }
 
-    /** 获取文档的下载 URL */
+    /**
+     * 获取文档的下载 URL
+     */
     public String getDownloadUrl(Long id) {
         Document doc = documentMapper.selectById(id);
         if (doc == null) throw new IllegalArgumentException("文档不存在: " + id);
@@ -197,7 +188,9 @@ public class KnowledgeService {
         return ossService.getPublicUrl(doc.getOssKey());
     }
 
-    /** 分页查询文档列表 */
+    /**
+     * 分页查询文档列表
+     */
     public PageResult<DocumentVO> listDocuments(int page, int size) {
         Page<Document> pg = new Page<>(page, size);
         LambdaQueryWrapper<Document> qw = new LambdaQueryWrapper<Document>()
@@ -209,7 +202,9 @@ public class KnowledgeService {
         return PageResult.of(result.getTotal(), page, size, records);
     }
 
-    /** 删除文档及其向量和分片 */
+    /**
+     * 删除文档及其向量和分片
+     */
     public void deleteDocument(Long id) {
         Document doc = documentMapper.selectById(id);
         if (doc == null) {
@@ -234,7 +229,9 @@ public class KnowledgeService {
         log.info("文档已删除: id={}, filename={}", id, doc.getFilename());
     }
 
-    /** RAG 语义检索 + LLM 增强回答 */
+    /**
+     * RAG 语义检索 + LLM 增强回答
+     */
     public SearchResponse search(SearchRequest req) {
         int topK = req.getTopK() != null ? req.getTopK() : 5;
         String query = req.getQuery();
@@ -295,18 +292,23 @@ public class KnowledgeService {
 
     // ==================== 内部辅助 ====================
 
-    /** 获取模型名称（DB 优先，否则默认） */
+    /**
+     * 获取模型名称（DB 优先，否则默认）
+     */
     private String getModel() {
         try {
             AgentConfig config = agentConfigMapper.selectById(1);
             if (config != null && config.getModel() != null && !config.getModel().isBlank()) {
                 return config.getModel();
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return defaultModel;
     }
 
-    /** 使用 Apache Tika 解析文档内容（统一处理 PDF/MD/TXT/DOCX） */
+    /**
+     * 使用 Apache Tika 解析文档内容（统一处理 PDF/MD/TXT/DOCX）
+     */
     private String parseFileContent(MultipartFile file, String ext) throws IOException {
         // 纯文本类型直接读，避免 Tika 的格式检测开销
         if ("txt".equals(ext) || "md".equals(ext)) {
@@ -321,7 +323,9 @@ public class KnowledgeService {
         }
     }
 
-    /** 文本分块 */
+    /**
+     * 文本分块
+     */
     private List<org.springframework.ai.document.Document> chunkContent(String content) {
         var doc = org.springframework.ai.document.Document.builder()
                 .text(content)
@@ -332,7 +336,9 @@ public class KnowledgeService {
         return splitter.split(List.of(doc));
     }
 
-    /** 构建 RAG 专用的 System Prompt */
+    /**
+     * 构建 RAG 专用的 System Prompt
+     */
     private String buildRagSystemPrompt() {
         return defaultSystemPrompt + "\n\n"
                 + "你正在回答一个知识库相关的问题。回答时请注意:\n"
@@ -341,7 +347,9 @@ public class KnowledgeService {
                 + "3. 如果文档内容不足以回答问题，请如实告知用户";
     }
 
-    /** 构建检索增强的 LLM 请求体 */
+    /**
+     * 构建检索增强的 LLM 请求体
+     */
     private String buildSearchRequestBody(String systemPrompt, String userMessage) {
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", systemPrompt));
@@ -360,14 +368,18 @@ public class KnowledgeService {
         }
     }
 
-    /** 估算 token 数量（中文约 1.5 字符/token，英文约 4 字符/token） */
+    /**
+     * 估算 token 数量（中文约 1.5 字符/token，英文约 4 字符/token）
+     */
     private int estimateTokens(String text) {
         if (text == null || text.isEmpty()) return 0;
         // 简单估算：混合文本按平均 2.5 字符/token
         return Math.max(1, text.length() * 2 / 5);
     }
 
-    /** SHA-256 哈希 */
+    /**
+     * SHA-256 哈希
+     */
     private String sha256(byte[] data) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -377,13 +389,17 @@ public class KnowledgeService {
         }
     }
 
-    /** 文件扩展名提取 */
+    /**
+     * 文件扩展名提取
+     */
     private String getExt(String filename) {
         if (filename == null || !filename.contains(".")) return "";
         return filename.substring(filename.lastIndexOf(".") + 1);
     }
 
-    /** Entity → VO */
+    /**
+     * Entity → VO
+     */
     private DocumentVO toVO(Document doc) {
         DocumentVO vo = new DocumentVO();
         vo.setId(doc.getId());
@@ -400,7 +416,9 @@ public class KnowledgeService {
         return vo;
     }
 
-    /** 同步 HTTP 请求（替代已删除的 DeepSeekStreamService） */
+    /**
+     * 同步 HTTP 请求（替代已删除的 DeepSeekStreamService）
+     */
     private String syncHttp(String body) {
         try {
             var req = HttpRequest.newBuilder()

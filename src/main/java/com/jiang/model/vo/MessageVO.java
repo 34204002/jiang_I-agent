@@ -12,19 +12,33 @@ import java.util.Map;
 @Data
 public class MessageVO {
 
-    /** 消息 ID */
+    /**
+     * 消息 ID
+     */
     private Long id;
-    /** 角色：user / assistant / tool */
+    /**
+     * 角色：user / assistant / tool
+     */
     private String role;
-    /** 消息正文 */
+    /**
+     * 消息正文
+     */
     private String content;
-    /** 思考内容（DeepSeek reasoning_content） */
+    /**
+     * 思考内容（DeepSeek reasoning_content）
+     */
     private String thinking;
-    /** 工具调用记录 */
+    /**
+     * 工具调用记录
+     */
     private List<ToolCall> toolCalls;
-    /** Token 消耗估算 */
+    /**
+     * Token 消耗估算
+     */
     private Integer tokenCount;
-    /** 消息时间 */
+    /**
+     * 消息时间
+     */
     private LocalDateTime createdAt;
 
     /**
@@ -32,11 +46,17 @@ public class MessageVO {
      */
     @Data
     public static class ToolCall {
-        /** 工具名称 */
+        /**
+         * 工具名称
+         */
         private String name;
-        /** 工具入参 */
+        /**
+         * 工具入参
+         */
         private Map<String, Object> input;
-        /** 工具返回 */
+        /**
+         * 工具返回
+         */
         private String output;
     }
 }

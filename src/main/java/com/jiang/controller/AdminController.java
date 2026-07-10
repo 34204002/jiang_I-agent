@@ -26,18 +26,22 @@ public class AdminController {
     private final UserMapper userMapper;
     private final AgentConfigMapper agentConfigMapper;
 
-    /** 校验管理员 */
+    /**
+     * 校验管理员
+     */
     private boolean isAdmin(HttpServletRequest request) {
         return "ADMIN".equals(request.getAttribute("role"));
     }
 
     // ==================== 用户管理 ====================
 
-    /** 用户列表 */
+    /**
+     * 用户列表
+     */
     @GetMapping("/users")
     public Result<PageResult<UserVO>> listUsers(@RequestParam(defaultValue = "1") int page,
-                                                 @RequestParam(defaultValue = "20") int size,
-                                                 HttpServletRequest request) {
+                                                @RequestParam(defaultValue = "20") int size,
+                                                HttpServletRequest request) {
         if (!isAdmin(request)) return Result.fail(403, "仅管理员可操作");
 
         long total = userMapper.selectCount(null);
@@ -50,7 +54,9 @@ public class AdminController {
         return Result.success(PageResult.of(total, page, size, vos));
     }
 
-    /** 删除用户 */
+    /**
+     * 删除用户
+     */
     @DeleteMapping("/users/{id}")
     public Result<Void> deleteUser(@PathVariable Long id, HttpServletRequest request) {
         if (!isAdmin(request)) return Result.fail(403, "仅管理员可操作");
@@ -60,7 +66,9 @@ public class AdminController {
 
     // ==================== Agent 公开信息 ====================
 
-    /** Agent 公开信息（名称、头像），前端展示用，无需鉴权 */
+    /**
+     * Agent 公开信息（名称、头像），前端展示用，无需鉴权
+     */
     @GetMapping("/agent/profile")
     public Result<Map<String, String>> getAgentProfile() {
         AgentConfig config = agentConfigMapper.selectById(1);
@@ -72,17 +80,21 @@ public class AdminController {
 
     // ==================== Agent 配置管理 ====================
 
-    /** 获取 Agent 全局配置 */
+    /**
+     * 获取 Agent 全局配置
+     */
     @GetMapping("/agent")
     public Result<AgentConfig> getAgentConfig(HttpServletRequest request) {
         if (!isAdmin(request)) return Result.fail(403, "仅管理员可操作");
         return Result.success(agentConfigMapper.selectById(1));
     }
 
-    /** 更新 Agent 全局配置 */
+    /**
+     * 更新 Agent 全局配置
+     */
     @PutMapping("/agent")
     public Result<AgentConfig> updateAgentConfig(@RequestBody AgentConfig config,
-                                                   HttpServletRequest request) {
+                                                 HttpServletRequest request) {
         if (!isAdmin(request)) return Result.fail(403, "仅管理员可操作");
         config.setId(1);
         agentConfigMapper.updateById(config);

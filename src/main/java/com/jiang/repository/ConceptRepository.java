@@ -15,46 +15,64 @@ import java.util.Optional;
 @Repository
 public interface ConceptRepository extends Neo4jRepository<ConceptEntity, String> {
 
-    /** 按名称精确查找 */
+    /**
+     * 按名称精确查找
+     */
     Optional<ConceptEntity> findByName(String name);
 
-    /** 按分类查找 */
+    /**
+     * 按分类查找
+     */
     List<ConceptEntity> findByCategory(String category);
 
-    /** 模糊搜索概念（regex 匹配，支持任意字符间隔） */
+    /**
+     * 模糊搜索概念（regex 匹配，支持任意字符间隔）
+     */
     @Query("MATCH (c:Concept) WHERE toLower(c.name) =~ toLower($regex) "
-         + "RETURN c ORDER BY c.name SKIP $skip LIMIT $limit")
+            + "RETURN c ORDER BY c.name SKIP $skip LIMIT $limit")
     List<ConceptEntity> searchByName(@Param("regex") String regex,
                                      @Param("skip") int skip,
                                      @Param("limit") int limit);
 
-    /** 模糊搜索总数 */
+    /**
+     * 模糊搜索总数
+     */
     @Query("MATCH (c:Concept) WHERE toLower(c.name) =~ toLower($regex) RETURN count(c)")
     int countByName(@Param("regex") String regex);
 
-    /** 精确包含搜索（前端搜索框用 CONTAINS） */
+    /**
+     * 精确包含搜索（前端搜索框用 CONTAINS）
+     */
     @Query("MATCH (c:Concept) WHERE toLower(c.name) CONTAINS toLower($keyword) "
-         + "RETURN c ORDER BY c.name SKIP $skip LIMIT $limit")
+            + "RETURN c ORDER BY c.name SKIP $skip LIMIT $limit")
     List<ConceptEntity> searchByNameContains(@Param("keyword") String keyword,
-                                              @Param("skip") int skip,
-                                              @Param("limit") int limit);
+                                             @Param("skip") int skip,
+                                             @Param("limit") int limit);
 
-    /** 精确包含搜索总数 */
+    /**
+     * 精确包含搜索总数
+     */
     @Query("MATCH (c:Concept) WHERE toLower(c.name) CONTAINS toLower($keyword) RETURN count(c)")
     int countByNameContains(@Param("keyword") String keyword);
 
-    /** 按分类搜索 */
+    /**
+     * 按分类搜索
+     */
     @Query("MATCH (c:Concept) WHERE c.category = $category "
-         + "RETURN c ORDER BY c.name SKIP $skip LIMIT $limit")
+            + "RETURN c ORDER BY c.name SKIP $skip LIMIT $limit")
     List<ConceptEntity> findByCategoryPaged(@Param("category") String category,
                                             @Param("skip") int skip,
                                             @Param("limit") int limit);
 
-    /** 按分类统计 */
+    /**
+     * 按分类统计
+     */
     @Query("MATCH (c:Concept) WHERE c.category = $category RETURN count(c)")
     int countByCategory(@Param("category") String category);
 
-    /** 全量分页 */
+    /**
+     * 全量分页
+     */
     @Query("MATCH (c:Concept) RETURN c ORDER BY c.name SKIP $skip LIMIT $limit")
     List<ConceptEntity> findAllPaged(@Param("skip") int skip, @Param("limit") int limit);
 
@@ -74,31 +92,35 @@ public interface ConceptRepository extends Neo4jRepository<ConceptEntity, String
      * 添加前置知识关系。
      */
     @Query("MATCH (a:Concept {name: $from}), (b:Concept {name: $to}) "
-         + "MERGE (a)-[:PREREQUISITE_OF]->(b)")
+            + "MERGE (a)-[:PREREQUISITE_OF]->(b)")
     void addPrerequisite(@Param("from") String from, @Param("to") String to);
 
     /**
      * 添加相关关系。
      */
     @Query("MATCH (a:Concept {name: $from}), (b:Concept {name: $to}) "
-         + "MERGE (a)-[:RELATED_TO]->(b)")
+            + "MERGE (a)-[:RELATED_TO]->(b)")
     void addRelated(@Param("from") String from, @Param("to") String to);
 
     /**
      * 关联概念到文档。
      */
     @Query("MATCH (c:Concept {name: $conceptName}) "
-         + "SET c.documentIds = CASE WHEN $docId IN c.documentIds THEN c.documentIds "
-         + "ELSE c.documentIds + $docId END")
+            + "SET c.documentIds = CASE WHEN $docId IN c.documentIds THEN c.documentIds "
+            + "ELSE c.documentIds + $docId END")
     void linkDocument(@Param("conceptName") String conceptName, @Param("docId") Long docId);
 
-    /** 删除两个概念之间的指定类型关系 */
+    /**
+     * 删除两个概念之间的指定类型关系
+     */
     @Query("MATCH (a:Concept {name: $from})-[r]->(b:Concept {name: $to}) "
-         + "WHERE type(r) = $type DELETE r")
+            + "WHERE type(r) = $type DELETE r")
     void deleteRelation(@Param("from") String from, @Param("to") String to, @Param("type") String type);
 
-    /** 检查两个概念之间是否存在某种关系 */
+    /**
+     * 检查两个概念之间是否存在某种关系
+     */
     @Query("MATCH (a:Concept {name: $from})-[r]->(b:Concept {name: $to}) "
-         + "WHERE type(r) = $type RETURN count(r) > 0")
+            + "WHERE type(r) = $type RETURN count(r) > 0")
     boolean hasRelation(@Param("from") String from, @Param("to") String to, @Param("type") String type);
 }

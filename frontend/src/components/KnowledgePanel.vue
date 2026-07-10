@@ -86,15 +86,15 @@ onMounted(loadDocs)
     <div class="kb-list-header">文档列表 ({{ docs.length }})</div>
     <div v-if="docs.length" class="doc-list">
       <div v-for="d in docs" :key="d.id" class="kb-doc-item">
-        <FileIcon v-if="d.fileType==='pdf'" :color="'#EF4444'" />
-        <FileIcon v-else-if="d.fileType==='md'" :color="'#3B82F6'" />
-        <FileIcon v-else :color="'#8B5CF6'" />
+        <FileIcon v-if="d.fileType==='pdf'" :color="'#EF4444'"/>
+        <FileIcon v-else-if="d.fileType==='md'" :color="'#3B82F6'"/>
+        <FileIcon v-else :color="'#8B5CF6'"/>
         <span class="kb-doc-name">{{ d.filename }}</span>
         <span class="kb-doc-size">{{ formatSize(d.fileSize) }}</span>
         <span class="kb-doc-status">{{ d.status === 2 ? '已向量化' : d.status === 1 ? '已解析' : '待处理' }}</span>
         <a v-if="d.status===2&&downloadUrl(d)" :href="downloadUrl(d)" class="kb-doc-download">下载</a>
         <button class="kb-doc-del" title="删除" type="button" @click="deleteDoc(d.id)">
-          <CloseIcon :size="14" />
+          <CloseIcon :size="14"/>
         </button>
       </div>
     </div>

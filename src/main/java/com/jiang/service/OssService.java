@@ -19,13 +19,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OssService {
 
+    /**
+     * 头像目录
+     */
+    private static final String AVATAR_DIR = "avatars/";
+    /**
+     * 知识库文档目录
+     */
+    private static final String KNOWLEDGE_DIR = "knowledge/";
     private final OSS ossClient;
     private final OssConfig ossConfig;
-
-    /** 头像目录 */
-    private static final String AVATAR_DIR = "avatars/";
-    /** 知识库文档目录 */
-    private static final String KNOWLEDGE_DIR = "knowledge/";
 
     /**
      * 上传头像，返回公网访问 URL。

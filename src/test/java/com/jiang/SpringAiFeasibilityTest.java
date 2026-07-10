@@ -17,7 +17,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 全面测试：Spring AI DeepSeek 专用 API 能否替代自研 HttpClient 框架。
@@ -39,17 +42,18 @@ public class SpringAiFeasibilityTest {
 
     private static final Logger log = LoggerFactory.getLogger(SpringAiFeasibilityTest.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
-
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30)).build();
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
-
     @Value("${spring.ai.openai.base-url}")
     private String baseUrl;
 
+    // ==================== 1. 同步 + thinking ====================
     @Value("${spring.ai.openai.chat.model:deepseek-v4-flash}")
     private String model;
 
-    // ==================== 1. 同步 + thinking ====================
+    // ==================== 2. 流式 + thinking ====================
 
     @Test
     void test01_syncWithThinking() throws Exception {
@@ -70,7 +74,7 @@ public class SpringAiFeasibilityTest {
         assert hasRC(msg) : "同步 thinking 失败";
     }
 
-    // ==================== 2. 流式 + thinking ====================
+    // ==================== 3. 同步 + tools（无 thinking） ====================
 
     @Test
     void test02_streamWithThinking() throws Exception {
@@ -87,7 +91,7 @@ public class SpringAiFeasibilityTest {
         assert result.reasoning.length() > 0 : "流式 thinking 失败";
     }
 
-    // ==================== 3. 同步 + tools（无 thinking） ====================
+    // ==================== 4. 流式 + tools ====================
 
     @Test
     void test03_syncWithTools() throws Exception {
@@ -122,7 +126,7 @@ public class SpringAiFeasibilityTest {
         // 不强制 assert——模型可能直接回答而不调工具
     }
 
-    // ==================== 4. 流式 + tools ====================
+    // ==================== 5. thinking + tools 组合（最关键） ====================
 
     @Test
     void test04_streamWithTools() throws Exception {
@@ -160,7 +164,8 @@ public class SpringAiFeasibilityTest {
 
                         if (delta.toolCalls() != null) {
                             for (var tc : delta.toolCalls()) {
-                                if (tc.function().name() != null && !tc.function().name().isEmpty()) tcName.append(tc.function().name());
+                                if (tc.function().name() != null && !tc.function().name().isEmpty())
+                                    tcName.append(tc.function().name());
                                 if (tc.function().arguments() != null) tcArgs.append(tc.function().arguments());
                             }
                         }
@@ -171,11 +176,11 @@ public class SpringAiFeasibilityTest {
                 });
 
         log.info("toolName: {} | args: {} | content: {} chars",
-                tcName.toString(), shorten(tcArgs.toString()), content.length());
+                tcName, shorten(tcArgs.toString()), content.length());
         log.info("→ {}", tcName.length() > 0 ? "🟢 流式 tool_calls 正常" : "⚠️ 模型未调用工具");
     }
 
-    // ==================== 5. thinking + tools 组合（最关键） ====================
+    // ==================== 6. reasoning_content 回传验证 ====================
 
     @Test
     void test05_thinkingWithTools() throws Exception {
@@ -221,7 +226,7 @@ public class SpringAiFeasibilityTest {
         }
     }
 
-    // ==================== 6. reasoning_content 回传验证 ====================
+    // ==================== 7. 多轮工具调用 ====================
 
     @Test
     void test06_reasoningContentPassback() throws Exception {
@@ -312,7 +317,7 @@ public class SpringAiFeasibilityTest {
         assert r2Resp.statusCode() == 200 : "reasoning_content 回传失败";
     }
 
-    // ==================== 7. 多轮工具调用 ====================
+    // ==================== 辅助方法 ====================
 
     @Test
     void test07_multiRoundToolCall() throws Exception {
@@ -379,12 +384,9 @@ public class SpringAiFeasibilityTest {
         }
     }
 
-    // ==================== 辅助方法 ====================
-
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30)).build();
-
-    /** 同步 HTTP 请求 */
+    /**
+     * 同步 HTTP 请求
+     */
     private String syncHttp(Map<String, Object> body) throws Exception {
         String json = MAPPER.writeValueAsString(body);
         HttpRequest req = HttpRequest.newBuilder()
@@ -397,7 +399,9 @@ public class SpringAiFeasibilityTest {
         return httpClient.send(req, HttpResponse.BodyHandlers.ofString()).body();
     }
 
-    /** 构建原始请求 Map */
+    /**
+     * 构建原始请求 Map
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> rawRequest(boolean stream,
                                            Map<String, Object> userMsg,
@@ -412,8 +416,8 @@ public class SpringAiFeasibilityTest {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> rawRequestFromMessages(List<Map<String, Object>> messages,
-                                                        boolean stream,
-                                                        Map<String, Object> extra) {
+                                                       boolean stream,
+                                                       Map<String, Object> extra) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
         body.put("messages", messages);
@@ -437,8 +441,6 @@ public class SpringAiFeasibilityTest {
         if (s == null) return "(null)";
         return s.length() > 200 ? s.substring(0, 200) + "..." : s;
     }
-
-    record StreamResult(StringBuilder content, StringBuilder reasoning, int rcChunks, int totalChunks) {}
 
     private StreamResult streamCollect(Map<String, Object> req) throws Exception {
         String json = MAPPER.writeValueAsString(req);
@@ -465,12 +467,18 @@ public class SpringAiFeasibilityTest {
                         total[0]++;
                         var delta = chunk.choices().get(0).delta();
                         String rc = delta.reasoningContent();
-                        if (rc != null && !rc.isEmpty()) { rcChunks[0]++; reasoning.append(rc); }
+                        if (rc != null && !rc.isEmpty()) {
+                            rcChunks[0]++;
+                            reasoning.append(rc);
+                        }
                         String c = delta.content();
                         if (c != null && !c.isEmpty()) content.append(c);
                     } catch (Exception e) { /* skip */ }
                 });
 
         return new StreamResult(content, reasoning, rcChunks[0], total[0]);
+    }
+
+    record StreamResult(StringBuilder content, StringBuilder reasoning, int rcChunks, int totalChunks) {
     }
 }

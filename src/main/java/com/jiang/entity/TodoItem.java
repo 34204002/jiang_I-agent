@@ -16,25 +16,39 @@ public class TodoItem {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 所属用户 */
+    /**
+     * 所属用户
+     */
     private Long userId;
 
-    /** 关联会话（可为空） */
+    /**
+     * 关联会话（可为空）
+     */
     private Long conversationId;
 
-    /** 标题 */
+    /**
+     * 标题
+     */
     private String title;
 
-    /** 截止日期 */
+    /**
+     * 截止日期
+     */
     private LocalDate dueDate;
 
-    /** 是否完成：0-否 1-是 */
+    /**
+     * 是否完成：0-否 1-是
+     */
     private Integer isDone;
 
-    /** 创建时间 */
+    /**
+     * 创建时间
+     */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
-    /** 完成时间 */
+    /**
+     * 完成时间
+     */
     private LocalDateTime completedAt;
 }

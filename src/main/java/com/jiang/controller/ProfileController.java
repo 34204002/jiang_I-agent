@@ -6,7 +6,10 @@ import com.jiang.service.OssService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -21,9 +24,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ProfileController {
 
-    private final OssService ossService;
-
     private static final long MAX_SIZE = FileConstants.AVATAR_MAX_SIZE; // 2MB
+    private final OssService ossService;
 
     /**
      * 上传头像到阿里云 OSS，返回公网 URL
@@ -40,9 +42,9 @@ public class ProfileController {
         String contentType = file.getContentType();
         if (contentType == null ||
                 (!contentType.equals(MediaType.IMAGE_JPEG_VALUE) &&
-                 !contentType.equals(MediaType.IMAGE_PNG_VALUE) &&
-                 !contentType.equals("image/webp") &&
-                 !contentType.equals("image/gif"))) {
+                        !contentType.equals(MediaType.IMAGE_PNG_VALUE) &&
+                        !contentType.equals("image/webp") &&
+                        !contentType.equals("image/gif"))) {
             return Result.fail(400, "仅支持 JPG/PNG/WebP/GIF");
         }
 

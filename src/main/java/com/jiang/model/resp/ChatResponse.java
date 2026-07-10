@@ -16,12 +16,18 @@ import java.util.List;
 @AllArgsConstructor
 public class ChatResponse {
 
-    /** AI 回复内容 */
+    /**
+     * AI 回复内容
+     */
     private String content;
 
-    /** 会话 ID */
+    /**
+     * 会话 ID
+     */
     private String conversationId;
 
-    /** 本次调用的工具名称列表 */
+    /**
+     * 本次调用的工具名称列表
+     */
     private List<String> toolsCalled;
 }

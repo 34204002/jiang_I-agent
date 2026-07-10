@@ -26,17 +26,17 @@ public class WebSearchTool {
             .build();
 
     @Tool(name = "search_web",
-          description = "联网搜索关键词，返回摘要和URL。训练数据过时或不确定最新信息时必用。拿到搜索结果后可以再用 read_web_page 深入访问具体链接获取详情。",
-          parameters = """
-              {
-                  "type": "object",
-                  "properties": {
-                      "query": {"type": "string", "description": "搜索关键词（中文自然语言即可，不需要特殊格式）"},
-                      "limit": {"type": "integer", "description": "返回结果数，默认5，最大10"}
-                  },
-                  "required": ["query"]
-              }
-              """)
+            description = "联网搜索关键词，返回摘要和URL。训练数据过时或不确定最新信息时必用。拿到搜索结果后可以再用 read_web_page 深入访问具体链接获取详情。",
+            parameters = """
+                    {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "搜索关键词（中文自然语言即可，不需要特殊格式）"},
+                            "limit": {"type": "integer", "description": "返回结果数，默认5，最大10"}
+                        },
+                        "required": ["query"]
+                    }
+                    """)
     public String searchWeb(String query, Integer limit) {
         int max = Math.min(limit != null ? limit : 5, 10);
         try {

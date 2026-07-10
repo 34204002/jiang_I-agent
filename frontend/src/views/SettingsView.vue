@@ -68,9 +68,9 @@ onMounted(load)
             <div class="settings-upload-hint">JPG/PNG/WebP/GIF</div>
           </div>
         </div>
-        <div class="field"><label>用户名</label><input :value="username" disabled class="settings-disabled"></div>
+        <div class="field"><label>用户名</label><input :value="username" class="settings-disabled" disabled></div>
         <div class="field"><label>昵称</label><input v-model="nickname" placeholder="给自己取个名字"></div>
-        <div class="field"><label>角色</label><input :value="role" disabled class="settings-disabled"></div>
+        <div class="field"><label>角色</label><input :value="role" class="settings-disabled" disabled></div>
         <button class="btn" @click="save">保存</button>
       </div>
     </div>

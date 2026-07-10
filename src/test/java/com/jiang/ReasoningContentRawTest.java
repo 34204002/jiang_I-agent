@@ -20,7 +20,7 @@ import java.util.Map;
  * 分别测试 R1（原生推理）和 V3.2（enable_thinking）的行为。
  * <p>
  * 运行: ./mvnw exec:java -Dexec.mainClass="com.jiang.ReasoningContentRawTest" \
- *          -Dexec.classpathScope=test
+ * -Dexec.classpathScope=test
  */
 public class ReasoningContentRawTest {
 
@@ -34,7 +34,9 @@ public class ReasoningContentRawTest {
         testV32ThinkingStream();
     }
 
-    /** R1 流式——原生推理模型，始终返回 reasoning_content */
+    /**
+     * R1 流式——原生推理模型，始终返回 reasoning_content
+     */
     static void testR1Stream() throws Exception {
         System.out.println("╔══════════════════════════════════════════╗");
         System.out.println("║  测试 1: DeepSeek-R1 流式               ║");
@@ -75,7 +77,8 @@ public class ReasoningContentRawTest {
                         content.append(c);
                     }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         });
 
         System.out.println("总 chunk 数: " + total[0]);
@@ -98,7 +101,9 @@ public class ReasoningContentRawTest {
         System.out.println();
     }
 
-    /** R1 同步 */
+    /**
+     * R1 同步
+     */
     static void testR1Sync() throws Exception {
         System.out.println("╔══════════════════════════════════════════╗");
         System.out.println("║  测试 2: DeepSeek-R1 同步               ║");
@@ -129,7 +134,9 @@ public class ReasoningContentRawTest {
         System.out.println();
     }
 
-    /** V3.2 + enable_thinking 流式 */
+    /**
+     * V3.2 + enable_thinking 流式
+     */
     static void testV32ThinkingStream() throws Exception {
         System.out.println("╔══════════════════════════════════════════╗");
         System.out.println("║  测试 3: V3.2 + enable_thinking 流式     ║");
@@ -157,7 +164,8 @@ public class ReasoningContentRawTest {
                     String c = delta.get("content").asText();
                     if (!c.isEmpty()) content.append(c);
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         });
 
         System.out.println("含 reasoning_content 的 chunk: " + reasoningChunks[0]);
@@ -177,7 +185,7 @@ public class ReasoningContentRawTest {
     // ========== 工具方法 ==========
 
     static String buildBody(String model, String prompt,
-                             boolean stream, boolean enableThinking) {
+                            boolean stream, boolean enableThinking) {
         List<Map<String, Object>> messages = List.of(
                 Map.of("role", "user", "content", prompt));
         Map<String, Object> body = new LinkedHashMap<>();
@@ -190,7 +198,9 @@ public class ReasoningContentRawTest {
         }
         try {
             return MAPPER.writeValueAsString(body);
-        } catch (Exception e) { throw new RuntimeException(e); }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     static String sync(String json) throws Exception {

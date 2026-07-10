@@ -122,7 +122,7 @@ function avatar(isUser: boolean): string {
           <template v-if="m.role==='assistant' && m.thinking">
             <div :class="{ collapsed: thinkingCollapsed[i] }" class="thinking-block">
               <div class="thinking-header" @click="thinkingCollapsed[i] = !thinkingCollapsed[i]">
-                <ChevronIcon :class="['thinking-chevron', { open: !thinkingCollapsed[i] }]" />
+                <ChevronIcon :class="['thinking-chevron', { open: !thinkingCollapsed[i] }]"/>
                 <span>思考内容</span>
               </div>
               <div class="thinking-body" v-html="mdSafe(m.thinking||'')"></div>
@@ -137,7 +137,7 @@ function avatar(isUser: boolean): string {
           <div class="msg-label">{{ agent.name }}</div>
           <div v-if="streamThinking" :class="{ collapsed: streamThinkCollapsed }" class="thinking-block">
             <div class="thinking-header" @click="streamThinkCollapsed = !streamThinkCollapsed">
-              <ChevronIcon :class="['thinking-chevron', { open: !streamThinkCollapsed }]" />
+              <ChevronIcon :class="['thinking-chevron', { open: !streamThinkCollapsed }]"/>
               <span>{{ thinkHdr }}</span>
             </div>
             <div class="thinking-body" v-html="mdSafe(streamThinking)"></div>

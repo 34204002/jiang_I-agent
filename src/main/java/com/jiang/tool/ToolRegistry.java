@@ -37,11 +37,6 @@ public class ToolRegistry {
     @Autowired
     private ApplicationContext ctx;
 
-    /** 每个工具定义 */
-    record ToolDef(String name, String description, String paramsJson, Object bean, Method method) {}
-
-    // ==================== 扫描注册（延迟到应用就绪后） ====================
-
     @EventListener(ApplicationReadyEvent.class)
     public void scanTools() {
         String[] beanNames = ctx.getBeanDefinitionNames();
@@ -68,7 +63,7 @@ public class ToolRegistry {
         log.info("工具注册完成，共 {} 个工具", tools.size());
     }
 
-    // ==================== LLM Schema 构建 ====================
+    // ==================== 扫描注册（延迟到应用就绪后） ====================
 
     public List<Map<String, Object>> getToolsJson() {
         List<Map<String, Object>> list = new ArrayList<>();
@@ -81,7 +76,7 @@ public class ToolRegistry {
                 // DeepSeek 要求 schema 必须含 type:object
                 if (!params.has("type")) {
                     params = objectMapper.readTree(
-                            "{\"type\":\"object\",\"properties\":" + params.toString() + "}");
+                            "{\"type\":\"object\",\"properties\":" + params + "}");
                 }
                 func.put("parameters", params);
             } catch (JsonProcessingException e) {
@@ -93,10 +88,15 @@ public class ToolRegistry {
         return list;
     }
 
-    public int count() { return tools.size(); }
-    public boolean hasTools() { return !tools.isEmpty(); }
+    // ==================== LLM Schema 构建 ====================
 
-    // ==================== 执行调度 ====================
+    public int count() {
+        return tools.size();
+    }
+
+    public boolean hasTools() {
+        return !tools.isEmpty();
+    }
 
     public String execute(String name, String arguments) {
         ToolDef def = tools.get(name);
@@ -146,6 +146,8 @@ public class ToolRegistry {
         }
     }
 
+    // ==================== 执行调度 ====================
+
     public List<Map<String, Object>> listTools() {
         List<Map<String, Object>> list = new ArrayList<>();
         for (ToolDef def : tools.values()) {
@@ -155,5 +157,11 @@ public class ToolRegistry {
             list.add(m);
         }
         return list;
+    }
+
+    /**
+     * 每个工具定义
+     */
+    record ToolDef(String name, String description, String paramsJson, Object bean, Method method) {
     }
 }
