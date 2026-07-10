@@ -2,7 +2,7 @@ package com.jiang.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jiang.common.Result;
-import com.jiang.config.JwtUtil;
+import com.jiang.util.JwtUtil;
 import com.jiang.entity.User;
 import com.jiang.mapper.UserMapper;
 import com.jiang.model.req.LoginRequest;
