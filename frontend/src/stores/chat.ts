@@ -1,5 +1,5 @@
-import {state} from '../stores/state'
-import {api} from './api'
+import {state} from './state'
+import {api} from '../utils/api'
 import type {Message, PageResult} from '../types'
 
 interface ConvoSummary {
