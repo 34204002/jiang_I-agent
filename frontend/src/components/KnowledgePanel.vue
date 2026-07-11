@@ -104,7 +104,8 @@ onMounted(loadDocs)
 
 <style scoped>
 .kb-panel {
-  overflow-y: auto
+  overflow-y: auto;
+  padding: 20px 24px;
 }
 
 .kb-file-input {
@@ -118,14 +119,14 @@ onMounted(loadDocs)
 
 /* search result */
 .kb-search-result {
-  margin-bottom: 16px
+  margin: 20px 0 20px;
 }
 
 .kb-search-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px
+  margin-bottom: 12px
 }
 
 .kb-search-title {
@@ -142,17 +143,17 @@ onMounted(loadDocs)
 .kb-search-answer {
   font-size: 14px;
   line-height: 1.7;
-  padding: 16px;
+  padding: 20px;
   background: var(--bg-surface, #fff);
   border-radius: 12px;
-  margin-bottom: 10px
+  margin-bottom: 12px
 }
 
 .kb-search-source {
-  padding: 10px 14px;
+  padding: 12px 16px;
   background: #fff;
   border-radius: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-size: 12px;
   color: var(--text-secondary)
 }
@@ -164,7 +165,7 @@ onMounted(loadDocs)
 
 .kb-svg-link-icon {
   vertical-align: middle;
-  margin-right: 3px
+  margin-right: 4px
 }
 
 .kb-search-score {
@@ -174,8 +175,9 @@ onMounted(loadDocs)
 }
 
 .kb-search-snippet {
-  margin-top: 4px;
-  color: var(--text-secondary)
+  margin-top: 6px;
+  color: var(--text-secondary);
+  line-height: 1.5
 }
 
 /* doc list */
@@ -183,17 +185,17 @@ onMounted(loadDocs)
   font-size: 13px;
   font-weight: 700;
   color: var(--text-secondary);
-  margin-bottom: 8px
+  margin: 20px 0 10px
 }
 
 .kb-doc-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
+  gap: 12px;
+  padding: 14px 18px;
   background: #fff;
   border-radius: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   border: 1px solid var(--border)
 }
 
@@ -246,9 +248,12 @@ onMounted(loadDocs)
 }
 
 .kb-list-empty {
-  padding: 40px;
+  padding: 60px 20px;
   text-align: center;
   color: var(--text-tertiary);
-  font-size: 14px
+  font-size: 14px;
+  background: var(--bg-surface, #fff);
+  border-radius: 12px;
+  border: 1px dashed var(--border);
 }
 </style>
