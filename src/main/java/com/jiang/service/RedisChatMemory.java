@@ -91,6 +91,39 @@ public class RedisChatMemory implements ChatMemory {
     @Override
     public void clear(String conversationId) {
         redisTemplate.delete(buildKey(conversationId));
+        redisTemplate.delete(buildSummaryKey(conversationId));
+    }
+
+    // ==================== 摘要管理 ====================
+
+    private static final String SUMMARY_KEY_PREFIX = "agent:chat:summary:";
+
+    /** 获取当前消息总数 */
+    public long getMessageCount(String conversationId) {
+        Long size = redisTemplate.opsForList().size(buildKey(conversationId));
+        return size != null ? size : 0;
+    }
+
+    /** 保存摘要，TTL 与消息列表同步 */
+    public void saveSummary(String conversationId, String summary) {
+        String key = buildSummaryKey(conversationId);
+        redisTemplate.opsForValue().set(key, summary, TTL_MINUTES, TimeUnit.MINUTES);
+    }
+
+    /** 获取已累积的摘要（可能为 null） */
+    public String getSummary(String conversationId) {
+        Object val = redisTemplate.opsForValue().get(buildSummaryKey(conversationId));
+        return val != null ? val.toString() : null;
+    }
+
+    /** 裁剪消息列表，只保留尾部最近 keepCount 条 */
+    public void trimMessages(String conversationId, int keepCount) {
+        String key = buildKey(conversationId);
+        Long size = redisTemplate.opsForList().size(key);
+        if (size != null && size > keepCount) {
+            // LTRIM 保留 [0, keepCount-1]，即尾部最近 keepCount 条
+            redisTemplate.opsForList().trim(key, size - keepCount, -1);
+        }
     }
 
     // ==================== 内部：手动序列化 ====================
@@ -134,5 +167,9 @@ public class RedisChatMemory implements ChatMemory {
 
     private String buildKey(String conversationId) {
         return KEY_PREFIX + conversationId;
+    }
+
+    private String buildSummaryKey(String conversationId) {
+        return SUMMARY_KEY_PREFIX + conversationId;
     }
 }

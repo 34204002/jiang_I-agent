@@ -12,6 +12,14 @@ public final class AgentConstants {
      * Redis ChatMemory 默认 TTL（分钟）
      */
     public static final int MEMORY_TTL_MINUTES = 30;
+    /**
+     * 触发对话摘要的消息数阈值（约 20 轮对话）
+     */
+    public static final int SUMMARY_THRESHOLD = 40;
+    /**
+     * 摘要后保留的最近消息条数
+     */
+    public static final int KEEP_RECENT = 20;
 
     private AgentConstants() {
     }

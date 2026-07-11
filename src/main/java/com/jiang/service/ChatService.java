@@ -19,7 +19,6 @@ import com.jiang.model.resp.ChatResponse;
 import com.jiang.tool.ToolContext;
 import com.jiang.tool.ToolRegistry;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -44,6 +43,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 对话服务 — Agent 核心调度。
@@ -60,7 +60,7 @@ public class ChatService {
     private static final int MAX_TOOL_ROUNDS = AgentConstants.MAX_TOOL_ROUNDS;
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Duration STREAM_REQUEST_TIMEOUT = Duration.ofMinutes(3);
-    private final ChatMemory chatMemory;
+    private final RedisChatMemory chatMemory;
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final AgentConfigMapper agentConfigMapper;
@@ -78,7 +78,7 @@ public class ChatService {
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
 
-    public ChatService(ChatMemory chatMemory, ConversationMapper conversationMapper,
+    public ChatService(RedisChatMemory chatMemory, ConversationMapper conversationMapper,
                        MessageMapper messageMapper, AgentConfigMapper agentConfigMapper,
                        VectorStore vectorStore, ToolRegistry toolRegistry,
                        @Qualifier("defaultSystemPrompt") String defaultSystemPrompt) {
@@ -177,17 +177,19 @@ public class ChatService {
             chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
         }
         updateConversationMeta(convoId);
+        CompletableFuture.runAsync(() -> summarizeIfNeeded(convoId, memoryKey));
     }
 
     private String doCall(List<Message> history, String userMsg, Long userId, Long convoId) {
-        String body = buildRequestBody(history, userMsg, false, false);
+        String body = buildRequestBody(history, userMsg, String.valueOf(convoId), false, false);
         String resp = syncHttp(body);
         try {
             var completion = MAPPER.readValue(resp, ChatCompletion.class);
             var msg = completion.choices().get(0).message();
 
             if (msg.toolCalls() != null && !msg.toolCalls().isEmpty()) {
-                return runToolLoop(history, userMsg, msg, userId, convoId);
+                return runToolLoop(history, userMsg, msg, userId, convoId,
+                        String.valueOf(convoId));
             }
             return stripDsml(msg.content());
         } catch (Exception e) {
@@ -206,7 +208,7 @@ public class ChatService {
         final StringBuilder contentBuf = new StringBuilder();
         final StringBuilder thinkingBuf = thinking ? new StringBuilder() : null;
         final StringBuilder dsmlBuf = new StringBuilder();  // 记录被过滤的 DSML 内容
-        String body = buildRequestBody(history, userMsg, thinking, true);
+        String body = buildRequestBody(history, userMsg, memoryKey, thinking, true);
 
         return streamHttp(body)
                 .<String>handle((chunk, sink) -> {
@@ -280,6 +282,7 @@ public class ChatService {
                             chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
                         }
                         updateConversationMeta(convoId);
+                        CompletableFuture.runAsync(() -> summarizeIfNeeded(convoId, memoryKey));
                         return Flux.empty();
                     }
 
@@ -339,7 +342,7 @@ public class ChatService {
         Flux<String> followupFlux = Flux.defer(() -> {
             try {
                 List<Map<String, Object>> messages = buildMessagesWithTools(
-                        history, userMsg, toolCalls, userId, convoId);
+                        history, userMsg, toolCalls, userId, convoId, memoryKey);
                 boolean thinking = ToolContext.getReasoning() != null;
                 return streamToolFollowup(messages, 0, thinking, convoId, memoryKey, userId);
             } catch (Exception e) {
@@ -471,6 +474,7 @@ public class ChatService {
                     } else {
                         chatMemory.add(memoryKey, List.of(new AssistantMessage(content)));
                     }
+                    CompletableFuture.runAsync(() -> summarizeIfNeeded(convoId, memoryKey));
                     return Flux.empty();
                 }));
     }
@@ -478,11 +482,16 @@ public class ChatService {
     private List<Map<String, Object>> buildMessagesWithTools(List<Message> history,
                                                              String userMsg,
                                                              List<ToolCall> toolCalls,
-                                                             Long userId, Long convoId) {
+                                                             Long userId, Long convoId,
+                                                             String memoryKey) {
         ToolContext.setUser(userId);
         ToolContext.setConversation(convoId);
         List<Map<String, Object>> messages = new ArrayList<>();
         String systemPrompt = getSystemPrompt();
+        String summary = injectSummary(memoryKey);
+        if (summary != null) {
+            systemPrompt = "## 历史对话摘要\n" + summary + "\n\n" + systemPrompt;
+        }
         if (systemPrompt != null && !systemPrompt.isBlank()) {
             messages.add(Map.of("role", "system", "content", systemPrompt));
         }
@@ -598,7 +607,8 @@ public class ChatService {
     }
 
     private String runToolLoop(List<Message> history, String userMsg,
-                               ChatCompletionMessage msg, Long userId, Long convoId) {
+                               ChatCompletionMessage msg, Long userId, Long convoId,
+                               String memoryKey) {
         ToolContext.setUser(userId);
         ToolContext.setConversation(convoId);
         try {
@@ -613,7 +623,7 @@ public class ChatService {
             }
 
             List<Map<String, Object>> messages = buildMessagesWithTools(
-                    history, userMsg, toolCalls, userId, convoId);
+                    history, userMsg, toolCalls, userId, convoId, memoryKey);
             return callLlmWithTools(messages, 0);
         } finally {
             ToolContext.clear();
@@ -679,12 +689,87 @@ public class ChatService {
 
     // ==================== HTTP 传输（替代 DeepSeekStreamService） ====================
 
-    private String buildRequestBody(List<Message> history, String userMsg, boolean thinking,
-                                    boolean stream) {
+    /** 从 Redis 读取摘要，拼接在 system prompt 前面 */
+    private String injectSummary(String memoryKey) {
+        if (memoryKey == null) return null;
+        String summary = chatMemory.getSummary(memoryKey);
+        return (summary != null && !summary.isBlank()) ? summary : null;
+    }
+
+    // ==================== 对话摘要 ====================
+
+    /** 异步检查并触发摘要（不阻塞流式响应） */
+    private void summarizeIfNeeded(Long convoId, String memoryKey) {
+        long count = chatMemory.getMessageCount(memoryKey);
+        if (count <= AgentConstants.SUMMARY_THRESHOLD) return;
+
+        String newSummary = doSummarize(convoId, memoryKey);
+        if (newSummary == null) return;
+
+        // 累积摘要：如果已有旧摘要则拼接
+        String oldSummary = chatMemory.getSummary(memoryKey);
+        String merged = (oldSummary != null && !oldSummary.isBlank())
+                ? oldSummary + "\n\n（以下为更早的对话）\n\n" + newSummary
+                : newSummary;
+        chatMemory.saveSummary(memoryKey, merged);
+        chatMemory.trimMessages(memoryKey, AgentConstants.KEEP_RECENT);
+        log.info("对话摘要完成: convoId={}, 裁剪前={}, 保留最近={}", convoId, count, AgentConstants.KEEP_RECENT);
+    }
+
+    /** 调用 LLM 生成对话摘要 */
+    private String doSummarize(Long convoId, String memoryKey) {
+        try {
+            var history = chatMemory.get(memoryKey);
+            if (history == null || history.size() <= AgentConstants.KEEP_RECENT) return null;
+
+            int toSummarize = history.size() - AgentConstants.KEEP_RECENT;
+            var oldMessages = history.subList(0, toSummarize);
+
+            StringBuilder sb = new StringBuilder();
+            for (var msg : oldMessages) {
+                String role = msg.getMessageType().name().equals("USER") ? "用户" : "AI";
+                sb.append(role).append(": ").append(msg.getText()).append("\n");
+            }
+
+            String prompt = "请用1-2段中文简要总结以下对话的关键信息(用户问了什么、AI答了什么、有什么重要结论)。"
+                    + "只输出摘要内容,不要加任何前缀或说明。\n\n对话历史:\n" + sb;
+
+            String body = buildSummaryRequestBody(prompt);
+            String resp = syncHttp(body);
+            var completion = MAPPER.readValue(resp, ChatCompletion.class);
+            String summary = completion.choices().get(0).message().content();
+            return summary != null ? summary.strip() : null;
+
+        } catch (Exception e) {
+            log.warn("对话摘要生成失败（不影响对话）: convoId={}", convoId, e);
+            return null;
+        }
+    }
+
+    private String buildSummaryRequestBody(String userPrompt) {
+        List<Map<String, String>> msgs = List.of(
+                Map.of("role", "user", "content", userPrompt));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", getModel());
+        body.put("messages", msgs);
+        body.put("stream", false);
+        try {
+            return MAPPER.writeValueAsString(body);
+        } catch (Exception e) {
+            throw new RuntimeException("构建摘要请求失败", e);
+        }
+    }
+
+    private String buildRequestBody(List<Message> history, String userMsg, String memoryKey,
+                                    boolean thinking, boolean stream) {
         String ragContext = retrieveRelevantContext(userMsg);
 
         List<Map<String, Object>> messages = new ArrayList<>();
         String systemPrompt = getSystemPrompt();
+        String summary = injectSummary(memoryKey);
+        if (summary != null) {
+            systemPrompt = "## 历史对话摘要\n" + summary + "\n\n" + systemPrompt;
+        }
         if (ragContext != null) {
             systemPrompt = systemPrompt + "\n\n## 知识库参考资料\n" + ragContext
                     + "\n请根据以上参考资料优先回答用户问题。如果资料不足以回答，请如实告知并结合你的知识给出补充。";
