@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import {computed, reactive, ref, useTemplateRef, watch} from 'vue'
-import {useEventSource} from '@vueuse/core'
 import {activeStreamUrl, agent, state, USER} from '../stores/state'
 import {loadConversations} from '../stores/chat'
 import {token} from '../utils/storage'
@@ -15,15 +14,20 @@ const streamThinkCollapsed = ref(false)
 const thinkingCollapsed = reactive<Record<number, boolean>>({})
 const thinkHdr = computed(() => state.toolRunning ? `调用: ${state.toolRunning}` : '思考中...')
 
-const {data, status, close: closeES} = useEventSource(activeStreamUrl, [], {autoReconnect: false})
+let es: EventSource | null = null
 let hasContent = false
 
 function mdSafe(text: string): string {
   return DOMPurify.sanitize(marked.parse(text || '') as string)
 }
 
-function finalizeMessage() {
+function closeStream() {
+  if (es) { es.close(); es = null }
   activeStreamUrl.value = ''
+}
+
+function finalizeMessage() {
+  closeStream()
   state.streaming = false
   state.toolRunning = null
   if (streamContent.value) {
@@ -44,35 +48,9 @@ function finalizeMessage() {
   }, 600)
 }
 
-// 监听 SSE 数据到达
-watch(data, (raw) => {
-  if (!raw) return
-  try {
-    const evt = JSON.parse(raw)
-    if (evt.type === 'thinking') {
-      streamThinking.value += evt.content;
-      return
-    }
-    if (evt.type === 'content') {
-      streamContent.value += evt.content;
-      hasContent = true;
-      return
-    }
-    if (evt.type === 'tool_call') {
-      state.toolRunning = evt.name;
-      streamContent.value = '';
-      return
-    }
-  } catch { /* ignore malformed JSON */
-  }
-})
-
-// 监听连接状态：CONNECTING 表示浏览器在尝试重连，判断是闪断还是流结束
-watch(status, (s) => {
-  if (s !== 'CONNECTING') return
-  if (!hasContent) return  // 网络闪断，让浏览器自动重连
-  closeES();               // 已有内容 → 流正常结束，阻止重连
-  finalizeMessage()
+// chat.ts 中 newChat/selectConvo 会清空 activeStreamUrl，这里同步关掉 EventSource
+watch(activeStreamUrl, (url) => {
+  if (!url && es) closeStream()
 })
 
 function send() {
@@ -88,7 +66,23 @@ function send() {
   hasContent = false
 
   const url = `/api/chat/stream?message=${encodeURIComponent(text)}&token=${encodeURIComponent(token.value)}${state.conversationId ? '&conversationId=' + state.conversationId : ''}${state.thinking ? '&thinking=true' : ''}`
+  closeStream()
   activeStreamUrl.value = url
+
+  es = new EventSource(url)
+  es.onmessage = (e: MessageEvent) => {
+    try {
+      const evt = JSON.parse(e.data)
+      if (evt.type === 'thinking') { streamThinking.value += evt.content; return }
+      if (evt.type === 'content') { streamContent.value += evt.content; hasContent = true; return }
+      if (evt.type === 'tool_call') { state.toolRunning = evt.name; streamContent.value = ''; return }
+    } catch { /* ignore malformed JSON */ }
+  }
+  es.onerror = () => {
+    if (!hasContent) return  // 网络闪断，浏览器自动重连
+    es?.close(); es = null   // 流正常结束，阻止重连
+    finalizeMessage()
+  }
 }
 
 function sendHint(t: string) {
@@ -179,15 +173,6 @@ function avatar(isUser: boolean): string {
 </template>
 
 <style scoped>
-.chat-shell {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0
-}
-
-.chat-body {
-  flex: 1;
-  overflow-y: auto
-}
+.chat-shell { flex: 1; display: flex; flex-direction: column; min-height: 0 }
+.chat-body { flex: 1; overflow-y: auto }
 </style>
