@@ -110,10 +110,11 @@ function avatar(isUser: boolean): string {
     <div id="chatBody" class="chat-body">
       <div v-if="!state.conversationId && !state.messages.length" class="welcome">
         <div class="welcome-emoji">
-          <svg fill="none" height="72" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" width="72">
-            <path d="M12 2a5 5 0 0 1 5 5c0 2.5-1.2 4-2.5 5.5h-5c-1.3-1.5-2.5-3-2.5-5.5a5 5 0 0 1 5-5z"/>
-            <path d="M7 16v5a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3v-5"/>
-            <line x1="8" x2="16" y1="21" y2="21"/>
+          <svg fill="none" height="64" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="64">
+            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.8-.1 2.6-.4l4.1 1.3-1.1-3.8C19.5 17.3 22 14.9 22 12c0-5.5-4.5-10-10-10z"/>
+            <circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>
+            <circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/>
           </svg>
         </div>
         <h2>Jiang I-Agent</h2>
