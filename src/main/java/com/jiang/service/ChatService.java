@@ -487,12 +487,8 @@ public class ChatService {
         ToolContext.setUser(userId);
         ToolContext.setConversation(convoId);
         List<Map<String, Object>> messages = new ArrayList<>();
-        String systemPrompt = getSystemPrompt();
-        String summary = injectSummary(memoryKey);
-        if (summary != null) {
-            systemPrompt = "## 历史对话摘要\n" + summary + "\n\n" + systemPrompt;
-        }
-        if (systemPrompt != null && !systemPrompt.isBlank()) {
+        String systemPrompt = buildSystemPrompt(memoryKey);
+        if (!systemPrompt.isBlank()) {
             messages.add(Map.of("role", "system", "content", systemPrompt));
         }
         if (history != null) {
@@ -696,6 +692,17 @@ public class ChatService {
         return (summary != null && !summary.isBlank()) ? summary : null;
     }
 
+    /** 将摘要注入 system prompt，防止 null 拼接产生 "null" 字符串 */
+    private String buildSystemPrompt(String memoryKey) {
+        String prompt = getSystemPrompt();
+        if (prompt == null) prompt = "";
+        String summary = injectSummary(memoryKey);
+        if (summary != null) {
+            prompt = "## 历史对话摘要\n" + summary + "\n\n" + prompt;
+        }
+        return prompt;
+    }
+
     // ==================== 对话摘要 ====================
 
     /** 异步检查并触发摘要（不阻塞流式响应） */
@@ -765,16 +772,12 @@ public class ChatService {
         String ragContext = retrieveRelevantContext(userMsg);
 
         List<Map<String, Object>> messages = new ArrayList<>();
-        String systemPrompt = getSystemPrompt();
-        String summary = injectSummary(memoryKey);
-        if (summary != null) {
-            systemPrompt = "## 历史对话摘要\n" + summary + "\n\n" + systemPrompt;
-        }
+        String systemPrompt = buildSystemPrompt(memoryKey);
         if (ragContext != null) {
             systemPrompt = systemPrompt + "\n\n## 知识库参考资料\n" + ragContext
                     + "\n请根据以上参考资料优先回答用户问题。如果资料不足以回答，请如实告知并结合你的知识给出补充。";
         }
-        if (systemPrompt != null && !systemPrompt.isBlank()) {
+        if (!systemPrompt.isBlank()) {
             messages.add(Map.of("role", "system", "content", systemPrompt));
         }
         if (history != null) {
