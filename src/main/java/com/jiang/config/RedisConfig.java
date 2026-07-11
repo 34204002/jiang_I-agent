@@ -2,7 +2,6 @@ package com.jiang.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiang.service.RedisChatMemory;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -43,7 +42,7 @@ public class RedisConfig {
     }
 
     @Bean
-    public ChatMemory chatMemory(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
+    public RedisChatMemory chatMemory(RedisTemplate<String, Object> redisTemplate, ObjectMapper objectMapper) {
         return new RedisChatMemory(redisTemplate, objectMapper);
     }
 }
