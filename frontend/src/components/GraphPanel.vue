@@ -1,20 +1,27 @@
 <script lang="ts" setup>
-import {nextTick, onMounted, ref} from 'vue'
+import {onMounted, ref, shallowRef} from 'vue'
 import {state} from '../stores/state'
 import {api} from '../utils/api'
 import {showToast} from '../utils/toast'
-import {Network} from 'vis-network'
-import {DataSet} from 'vis-data'
-import type {Concept, ConceptDetail, GraphPayload, PageResult} from '../types'
+import VChart from 'vue-echarts'
+import {use} from 'echarts/core'
+import {GraphChart} from 'echarts/charts'
+import {TooltipComponent, LegendComponent} from 'echarts/components'
+import {CanvasRenderer} from 'echarts/renderers'
+import type {Concept, ConceptDetail, GraphEdge, GraphNode, GraphPayload, PageResult} from '../types'
 import CloseIcon from './icons/CloseIcon.vue'
 import FileIcon from './icons/FileIcon.vue'
+
+use([GraphChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
 const concepts = ref<Concept[]>([])
 const adding = ref(false), newName = ref(''), newDesc = ref(''), newCat = ref(''), newDiff = ref(3)
 const detail = ref<ConceptDetail | null>(null)
 const graphRelFilter = ref<'all' | 'prereq' | 'related'>('prereq')
-let graphNetwork: any = null
-let currentGraphData: GraphPayload | null = null
+
+const graphOption = shallowRef<Record<string, unknown>>({})
+const graphData = ref<GraphPayload | null>(null)
+const chartLoading = ref(false)
 
 const RELATION_TYPES = {
   PREREQUISITE: 'PREREQUISITE_OF',
@@ -49,9 +56,7 @@ async function doAdd() {
     category: newCat.value || '其他',
     difficulty: newDiff.value
   })
-  adding.value = false;
-  newName.value = '';
-  search()
+  adding.value = false; newName.value = ''; search()
 }
 
 async function showDetail(name: string) {
@@ -60,159 +65,115 @@ async function showDetail(name: string) {
   detail.value = json.data
 }
 
-async function toggleGraphView() {
-  state.graphViewMode = !state.graphViewMode
-  if (state.graphViewMode) {
-    await nextTick()
-    if (!state.graphKeyword.trim()) {
-      state.graphViewMode = false;
-      return showToast('请先输入概念名称', 'error')
-    }
-    const json = await api.get<GraphPayload>(`/api/graph/concepts/${encodeURIComponent(state.graphKeyword.trim())}/graph`)
-    if (json.code !== 200 || !json.data.nodes.length) {
-      state.graphViewMode = false;
-      return showToast('未找到', 'error')
-    }
-    renderGraph(json.data)
-  }
+// ==================== ECharts Graph ====================
+
+function edgesVisible(e: GraphEdge): boolean {
+  if (graphRelFilter.value === 'prereq') return e.label === RELATION_TYPES.PREREQUISITE
+  if (graphRelFilter.value === 'related') return e.label === RELATION_TYPES.RELATED
+  return true
 }
 
-function renderGraph(data: GraphPayload) {
-  currentGraphData = data  // 保存以便过滤切换
-  const el = document.getElementById('graphNetContainer')
-  if (!el) return;
-  if (graphNetwork) graphNetwork.destroy()
-  const filter = graphRelFilter.value
-
-  const nodeOpts = (cat: string, center: boolean) => {
-    const bg = center ? '#ec4899' : (COLORS[cat] || '#4b5563')
-    return {
-      color: {
-        background: bg,
-        border: bg,
-        highlight: {background: bg, border: bg},
-        hover: {background: bg, border: bg}
-      },
-      font: {color: '#fff', size: 13, face: 'Inter', bold: {color: '#fff', size: 13, face: 'Inter', mod: 'bold'}},
-      borderWidth: 0,
-      shape: 'box',
-      shapeProperties: {borderRadius: 8},
-      margin: {top: 8, right: 14, bottom: 8, left: 14},
-      shadow: {enabled: true, color: 'rgba(0,0,0,.12)', size: 4, x: 0, y: 1}
-    }
-  }
-
-  const nodes = new DataSet<any>(data.nodes.map((n: {
-    id: string;
-    label: string;
-    level?: number;
-    category?: string;
-    center?: boolean
-  }) => {
-    const isCenter = n.center === true
-    return {id: n.id, label: n.id, level: n.level, ...nodeOpts(n.category || '其他', isCenter)}
+function buildOption(data: GraphPayload) {
+  // 建 nodes/links
+  const categories = Object.keys(COLORS).map(name => ({name, itemStyle: {color: COLORS[name]}}))
+  const nodes = data.nodes.map((n: GraphNode) => ({
+    name: n.id,
+    symbolSize: n.center ? 36 : 24,
+    category: n.category || '其他',
+    itemStyle: n.center ? {borderColor: '#ec4899', borderWidth: 2, borderType: 'solid' as const} : {},
+    label: {show: true, fontSize: 13, fontWeight: n.center ? 'bold' as const : 'normal' as const},
   }))
-
-  const existingEdges = new Set<string>()
-  const addEdgeSet = (from: string, to: string, label: string) => existingEdges.add(`${from}|||${to}|||${label}`)
-  const hasEdge = (from: string, to: string, label: string) => existingEdges.has(`${from}|||${to}|||${label}`)
-
-  // 关系类型过滤
-  const edgeVisible = (label: string) => {
-    if (filter === 'prereq') return label === RELATION_TYPES.PREREQUISITE
-    if (filter === 'related') return label === RELATION_TYPES.RELATED
-    return true
-  }
-  const edges = new DataSet<any>(data.edges.filter((e: { label: string }) => edgeVisible(e.label)).map((e: {
-    from: string;
-    to: string;
-    label: string
-  }, i: number) => {
-    addEdgeSet(e.from, e.to, e.label)
-    return {
-      id: i, from: e.from, to: e.to,
-      label: e.label === RELATION_TYPES.PREREQUISITE ? '← 前置' : e.label === RELATION_TYPES.RELATED ? '相关' : e.label,
-      arrows: {to: {enabled: true, scaleFactor: 0.6}},
-      smooth: {enabled: true, type: 'cubicBezier', forceDirection: 'horizontal', roundness: 0.4},
-      color: {
-        color: e.label === RELATION_TYPES.PREREQUISITE ? '#7c3aed' : '#cbd5e1',
-        highlight: e.label === RELATION_TYPES.PREREQUISITE ? '#6d28d9' : '#94a3b8'
-      },
-      font: {size: 10, color: '#64748b', strokeWidth: 2, strokeColor: '#fff', align: 'middle'},
+  const visibleEdges = data.edges.filter(edgesVisible)
+  const links = visibleEdges.map((e: GraphEdge) => ({
+    source: e.from,
+    target: e.to,
+    label: {
+      show: true,
+      formatter: e.label === RELATION_TYPES.PREREQUISITE ? '← 前置' : e.label === RELATION_TYPES.RELATED ? '相关' : e.label,
+      fontSize: 10,
+      color: '#64748b',
+    },
+    lineStyle: {
+      color: e.label === RELATION_TYPES.PREREQUISITE ? '#7c3aed' : '#cbd5e1',
       width: e.label === RELATION_TYPES.PREREQUISITE ? 2.5 : 1.5,
-      dashes: e.label === RELATION_TYPES.RELATED
-    }
+      type: e.label === RELATION_TYPES.RELATED ? 'dashed' as const : 'solid' as const,
+    },
   }))
 
-  graphNetwork = new Network(el, {nodes, edges}, {
-    layout: {
-      hierarchical: {
-        enabled: true,
-        direction: 'LR',
-        sortMethod: 'directed',
-        nodeSpacing: 120,
-        levelSeparation: 220,
-        treeSpacing: 80,
-        shakeTowards: 'roots'
-      }
+  graphOption.value = {
+    tooltip: {
+      trigger: 'item' as const,
+      formatter: (params: { name: string }) => {
+        const node = data.nodes.find(n => n.id === params.name)
+        return node ? `<b>${node.id}</b><br/>${node.category || '其他'}` : params.name
+      },
     },
-    physics: {enabled: false},
-    interaction: {
-      hover: true,
-      zoomView: true,
-      dragView: true,
-      navigationButtons: false,
-      dragNodes: true
+    legend: {
+      data: categories.map(c => c.name),
+      top: 8,
+      textStyle: {fontSize: 11, color: '#64748b'},
     },
-    edges: {
-      smooth: {enabled: true, type: 'cubicBezier', forceDirection: 'horizontal', roundness: 0.4}
-    }
-  })
-
-  graphNetwork.on('doubleClick', (p: { nodes: string[] }) => {
-    if (!p.nodes.length) return
-    api.get<GraphPayload>(`/api/graph/concepts/${encodeURIComponent(p.nodes[0])}/graph`)
-        .then((json) => {
-          if (json.code !== 200 || !json.data) return
-          const newNodes: any[] = [], newEdges: any[] = []
-          ;(json.data.nodes || []).forEach((n: { id: string; label: string; category?: string }) => {
-            if (nodes.getIds().indexOf(n.id) === -1) newNodes.push({
-              id: n.id,
-              label: n.id, ...nodeOpts(n.category || '其他', false)
-            })
-          })
-          ;(json.data.edges || []).forEach((e: { from: string; to: string; label: string }) => {
-            if (!hasEdge(e.from, e.to, e.label)) {
-              addEdgeSet(e.from, e.to, e.label)
-              newEdges.push({
-                id: `e_${e.from}_${e.to}`, from: e.from, to: e.to,
-                label: e.label === RELATION_TYPES.PREREQUISITE ? '← 前置' : e.label === RELATION_TYPES.RELATED ? '相关' : e.label,
-                arrows: {to: {enabled: true, scaleFactor: 0.6}},
-                smooth: {enabled: true, type: 'cubicBezier', forceDirection: 'horizontal', roundness: 0.4},
-                color: {
-                  color: e.label === RELATION_TYPES.PREREQUISITE ? '#7c3aed' : '#cbd5e1',
-                  highlight: e.label === RELATION_TYPES.PREREQUISITE ? '#6d28d9' : '#94a3b8'
-                },
-                font: {size: 10, color: '#64748b', strokeWidth: 2, strokeColor: '#fff', align: 'middle'},
-                width: e.label === RELATION_TYPES.PREREQUISITE ? 2.5 : 1.5,
-                dashes: e.label === RELATION_TYPES.RELATED
-              })
-            }
-          })
-          if (newNodes.length || newEdges.length) {
-            if (newNodes.length) nodes.add(newNodes)
-            if (newEdges.length) edges.add(newEdges)
-            // 短暂启动物理引擎重新布局，之后回到静态层次
-            graphNetwork.setOptions({physics: {enabled: true, solver: 'hierarchicalRepulsion'}})
-            setTimeout(() => graphNetwork.setOptions({physics: {enabled: false}}), 1200)
-          }
-        })
-  })
-
+    series: [{
+      type: 'graph',
+      layout: 'force',
+      categories,
+      data: nodes,
+      links,
+      roam: true,
+      draggable: true,
+      force: {repulsion: 350, gravity: 0.08, edgeLength: [100, 250]},
+      label: {show: true, position: 'right' as const, fontSize: 12, color: '#334155'},
+      emphasis: {focus: 'adjacency' as const, lineStyle: {width: 4}},
+      lineStyle: {curveness: 0.2, opacity: 0.7},
+    }],
+  }
 }
 
 function refilterGraph() {
-  if (currentGraphData) renderGraph(currentGraphData)
+  if (graphData.value) buildOption(graphData.value)
+}
+
+function onChartClick(params: { dataType?: string; name?: string }) {
+  if (params.dataType !== 'node' || !params.name) return
+  chartLoading.value = true
+  api.get<GraphPayload>(`/api/graph/concepts/${encodeURIComponent(params.name)}/graph`)
+    .then((json) => {
+      chartLoading.value = false
+      if (json.code !== 200 || !json.data || !json.data.nodes.length) return
+
+      // merge new nodes/edges into existing data
+      const existing = graphData.value
+      if (!existing) return
+      const existIds = new Set(existing.nodes.map(n => n.id))
+      const existEdges = new Set(existing.edges.map(e => `${e.from}|||${e.to}|||${e.label}`))
+      const newNodes = (json.data.nodes || []).filter(n => !existIds.has(n.id))
+      const newEdges = (json.data.edges || []).filter(e => !existEdges.has(`${e.from}|||${e.to}|||${e.label}`))
+      newEdges.forEach(e => existEdges.add(`${e.from}|||${e.to}|||${e.label}`))
+      if (newNodes.length || newEdges.length) {
+        existing.nodes.push(...newNodes)
+        existing.edges.push(...newEdges)
+        graphData.value = {...existing}
+        buildOption(graphData.value)
+      }
+    })
+}
+
+async function toggleGraphView() {
+  state.graphViewMode = !state.graphViewMode
+  if (!state.graphViewMode) return
+  if (!state.graphKeyword.trim()) {
+    state.graphViewMode = false
+    return showToast('请先输入概念名称', 'error')
+  }
+  chartLoading.value = true
+  const json = await api.get<GraphPayload>(`/api/graph/concepts/${encodeURIComponent(state.graphKeyword.trim())}/graph`)
+  chartLoading.value = false
+  if (json.code !== 200 || !json.data || !json.data.nodes.length) {
+    state.graphViewMode = false
+    return showToast('未找到', 'error')
+  }
+  graphData.value = json.data
+  buildOption(json.data)
 }
 
 async function deleteConcept(name: string) {
@@ -247,23 +208,13 @@ onMounted(search)
         <input v-model="newDesc" class="kbase-search-input" placeholder="描述">
         <select v-model="newCat" class="kbase-search-input">
           <option value="">分类</option>
-          <option>中间件</option>
-          <option>编程语言</option>
-          <option>数据库</option>
-          <option>算法</option>
-          <option>网络</option>
-          <option>操作系统</option>
-          <option>架构</option>
-          <option>前端</option>
-          <option>安全</option>
-          <option>其他</option>
+          <option>中间件</option><option>编程语言</option><option>数据库</option><option>算法</option>
+          <option>网络</option><option>操作系统</option><option>架构</option><option>前端</option>
+          <option>安全</option><option>其他</option>
         </select>
         <select v-model="newDiff" class="kbase-search-input">
-          <option :value="1">入门</option>
-          <option :value="2">基础</option>
-          <option :value="3">中级</option>
-          <option :value="4">进阶</option>
-          <option :value="5">专家</option>
+          <option :value="1">入门</option><option :value="2">基础</option><option :value="3">中级</option>
+          <option :value="4">进阶</option><option :value="5">专家</option>
         </select>
       </div>
       <div class="graph-add-actions">
@@ -283,16 +234,11 @@ onMounted(search)
       <button :class="{ active: graphRelFilter==='all' }" class="graph-filter-btn" type="button"
               @click="graphRelFilter='all'; refilterGraph()">全部
       </button>
-      <button class="graph-reset-btn" title="重置视图"
-              type="button" @click="graphNetwork && graphNetwork.fit({ animation: true })">
-        <svg fill="none" height="12" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="12">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="8 12 12 8 16 12"/>
-          <line x1="12" x2="12" y1="16" y2="8"/>
-        </svg>
-      </button>
     </div>
-    <div v-if="state.graphViewMode" id="graphNetContainer" class="graph-net"></div>
+    <div v-if="state.graphViewMode" class="graph-net">
+      <div v-if="chartLoading" class="graph-loading">加载中…</div>
+      <v-chart :option="graphOption" class="graph-chart" @click="onChartClick"/>
+    </div>
 
     <!-- List view -->
     <div v-if="!state.graphViewMode" class="doc-list">
@@ -308,30 +254,22 @@ onMounted(search)
 
     <!-- Pagination -->
     <div v-if="!state.graphViewMode" class="graph-pager">
-      <button :disabled="state.graphPage<=1" class="kbase-search-btn" type="button" @click="state.graphPage--;search()">
-        上一页
-      </button>
+      <button :disabled="state.graphPage<=1" class="kbase-search-btn" type="button" @click="state.graphPage--;search()">上一页</button>
       <span class="graph-page-num">{{ state.graphPage }}</span>
       <button class="kbase-search-btn" type="button" @click="state.graphPage++;search()">下一页</button>
     </div>
 
-    <!-- Detail modal (Teleported to body) -->
+    <!-- Detail modal -->
     <Teleport to="body">
       <div v-if="detail" class="graph-modal-overlay" @click.self="detail=null">
         <div class="graph-modal">
-          <button class="graph-modal-close" type="button" @click="detail=null">
-            <CloseIcon :size="12"/>
-          </button>
-          <h2>{{ detail.name }} <span class="graph-cat-tag">{{ detail.category || '' }}</span> {{
-              detail.difficulty || 1
-            }}</h2>
+          <button class="graph-modal-close" type="button" @click="detail=null"><CloseIcon :size="12"/></button>
+          <h2>{{ detail.name }} <span class="graph-cat-tag">{{ detail.category || '' }}</span> {{ detail.difficulty || 1 }}</h2>
           <p class="graph-detail-desc">{{ detail.description || '' }}</p>
           <template v-if="detail.prerequisites?.length">
             <div class="graph-section-title">前置知识</div>
             <div class="graph-chip-row">
-              <span v-for="p in detail.prerequisites" :key="p.name" class="graph-ref-chip">{{ p.name }} {{
-                  p.difficulty
-                }}</span>
+              <span v-for="p in detail.prerequisites" :key="p.name" class="graph-ref-chip">{{ p.name }} {{ p.difficulty }}</span>
             </div>
           </template>
           <template v-if="detail.related?.length">
@@ -355,169 +293,60 @@ onMounted(search)
 
 <style scoped>
 /* ---- Toolbar extras ---- */
-.graph-cat-select {
-  max-width: 140px
-}
-
-.graph-btn-accent {
-  background: var(--accent);
-  color: #fff
-}
-
-.graph-btn-view {
-  margin-left: auto
-}
+.graph-cat-select { max-width: 140px }
+.graph-btn-accent { background: var(--accent); color: #fff }
+.graph-btn-view { margin-left: auto }
 
 /* ---- Add form ---- */
-.graph-add-form {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 16px;
-}
-
-.graph-add-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.graph-add-actions {
-  margin-top: 14px;
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
+.graph-add-form { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+.graph-add-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.graph-add-actions { margin-top: 14px; display: flex; gap: 8px; justify-content: flex-end; }
 
 /* ---- Graph network ---- */
 .graph-net {
-  width: 100%;
-  height: 450px;
-  border-radius: 12px;
-  margin-bottom: 16px;
-  background: #fafafa;
-  border: 1px solid var(--border);
+  width: 100%; height: 450px; border-radius: 12px; margin-bottom: 16px;
+  background: #fafafa; border: 1px solid var(--border); position: relative;
+}
+.graph-chart { width: 100%; height: 100%; }
+.graph-loading {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  z-index: 10; font-size: 13px; color: var(--text-tertiary);
 }
 
 /* ---- Concept card ---- */
 .graph-concept-card {
-  padding: 12px 16px;
-  background: #fff;
-  border-radius: 10px;
-  margin-bottom: 6px;
-  cursor: pointer;
-  border: 1px solid var(--border);
+  padding: 12px 16px; background: #fff; border-radius: 10px;
+  margin-bottom: 6px; cursor: pointer; border: 1px solid var(--border);
 }
-
-.graph-concept-name {
-  font-weight: 700
-}
-
-.graph-concept-rel {
-  font-size: 12px;
-  color: var(--text-secondary);
-  float: right
-}
-
-.graph-concept-desc {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  margin-top: 4px
-}
+.graph-concept-name { font-weight: 700 }
+.graph-concept-rel { font-size: 12px; color: var(--text-secondary); float: right }
+.graph-concept-desc { font-size: 12px; color: var(--text-tertiary); margin-top: 4px }
 
 /* ---- Pager ---- */
-.graph-pager {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  padding: 12px 0;
-}
-
-.graph-page-num {
-  line-height: 32px;
-  font-size: 13px;
-  color: var(--text-secondary)
-}
+.graph-pager { display: flex; gap: 8px; justify-content: center; padding: 12px 0; }
+.graph-page-num { line-height: 32px; font-size: 13px; color: var(--text-secondary) }
 
 /* ---- Detail modal ---- */
-.graph-detail-desc {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-bottom: 8px
-}
-
-.graph-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px
-}
-
-.graph-doc-item {
-  font-size: 13px;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.graph-detail-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px }
+.graph-chip-row { display: flex; flex-wrap: wrap; gap: 6px }
+.graph-doc-item { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
 
 /* ---- Filter bar ---- */
-.graph-filter-bar {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  padding: 8px 0;
-  margin-bottom: 4px;
-}
-
+.graph-filter-bar { display: flex; gap: 6px; align-items: center; padding: 8px 0; margin-bottom: 4px; }
 .graph-filter-btn {
-  padding: 5px 14px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1.5px solid var(--border);
-  background: var(--bg-surface);
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition: all .2s;
+  padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  border: 1.5px solid var(--border); background: var(--bg-surface);
+  color: var(--text-tertiary); cursor: pointer; transition: all .2s;
 }
-
-.graph-filter-btn:hover {
-  border-color: var(--accent-light);
-  color: var(--accent)
-}
-
-.graph-filter-btn.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
+.graph-filter-btn:hover { border-color: var(--accent-light); color: var(--accent) }
+.graph-filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* ---- Concept delete ---- */
 .graph-concept-del {
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition: all .15s;
-  flex-shrink: 0;
-  margin-left: auto;
-  margin-right: 8px;
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; color: var(--text-tertiary); cursor: pointer;
+  transition: all .15s; flex-shrink: 0; margin-left: auto; margin-right: 8px;
 }
-
-.graph-concept-del:hover {
-  background: #FEE2E2;
-  color: #EF4444
-}
-
-.graph-name-input {
-  grid-column: 1 / -1
-}
-
-.graph-reset-btn {
-  margin-left: auto
-}
+.graph-concept-del:hover { background: #FEE2E2; color: #EF4444 }
+.graph-name-input { grid-column: 1 / -1 }
 </style>
