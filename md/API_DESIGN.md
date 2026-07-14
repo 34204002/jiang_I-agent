@@ -324,7 +324,7 @@ GET /api/graph/concepts/{name}/path?target={targetName}&maxHops=5
 
 > 查询策略：PREREQUISITE_OF → RELATED_TO → 任意关系 fallback。
 
-### 4.4 子图（vis-network 可视化）
+### 4.4 子图（ECharts 可视化）
 
 ```
 GET /api/graph/concepts/{name}/graph
@@ -575,7 +575,7 @@ PUT /api/profile             # 更新信息 {"nickname":"...","password":"..."}
 | GET | `/api/graph/concepts` | 概念列表/搜索 |
 | GET | `/api/graph/concepts/{name}` | 概念详情 |
 | GET | `/api/graph/concepts/{name}/path` | 知识链查询 |
-| GET | `/api/graph/concepts/{name}/graph` | 子图 (vis-network) |
+| GET | `/api/graph/concepts/{name}/graph` | 子图 (ECharts) |
 | POST | `/api/graph/concepts` | 添加概念 |
 | DELETE | `/api/graph/concepts/{name}` | 删除概念 |
 | POST | `/api/graph/concepts/{name}/relations` | 添加关系 |

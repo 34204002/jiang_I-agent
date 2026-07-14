@@ -5,10 +5,12 @@ Vue 3 + Vite SPA。组件化聊天界面，SSE 流式 + 知识图谱可视化 + 
 ## 技术栈
 
 - Vue 3 (Composition API + `<script setup>`)
-- Vite 6
-- vue-router 4
+- Vite 8
+- vue-router 5
 - marked (Markdown 渲染)
-- vis-network + vis-data (图谱可视化)
+- ECharts + vue-echarts (图谱可视化)
+- VueUse (useStorage / useEventSource / useTemplateRef)
+- DOMPurify (XSS 防护)
 
 ## 开发
 
@@ -31,15 +33,16 @@ src/
 ├── main.js                    # 入口: createApp + router + 全局样式
 ├── router.js                  # /login /chat /settings /admin + 导航守卫
 ├── stores/state.js            # reactive 全局状态 + loadAgentConfig + logout
-├── assets/style.css           # 全局设计系统 (26KB CSS 自定义属性)
+├── assets/style.css           # 全局设计系统 (30KB CSS 自定义属性)
 ├── utils/
 │   ├── api.js                 # HTTP 客户端 (JWT auth, 统一错误处理)
 │   ├── chat.js                # 会话加载/选择/创建
-│   └── toast.js               # Toast 通知
+│   ├── toast.js               # Toast 通知
+│   └── storage.ts             # localStorage 封装 (VueUse useStorage)
 ├── components/
 │   ├── ChatPanel.vue          # SSE 流式聊天
 │   ├── Sidebar.vue            # 会话列表 + 登出
-│   ├── GraphPanel.vue         # Neo4j 图谱 (vis-network)
+│   ├── GraphPanel.vue         # Neo4j 图谱 (ECharts)
 │   ├── KnowledgePanel.vue     # RAG 知识库管理
 │   └── ToolsPanel.vue         # 工具列表 + 待办
 └── views/

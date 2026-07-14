@@ -2,7 +2,7 @@ sh# Jiang I-Agent
 
 > 个人 AI 知识库助手 —— Spring Boot 4.1 + DeepSeek v4-flash + Neo4j + Qdrant + Vue 3 SPA
 
-一个面向程序员的单智能体个人 AI 助理。支持多轮对话（SSE 流式 + thinking 思考模式）、RAG 知识库（Qdrant 向量检索）、Neo4j 知识图谱（概念建模 + 学习路径查询）、18 个 Agent 工具自主调用。前端 Vue 3 SPA，完整设计系统。
+一个面向程序员的单智能体个人 AI 助理。支持多轮对话（SSE 流式 + thinking 思考模式 + 上下文摘要压缩）、RAG 知识库（Qdrant 向量检索）、Neo4j 知识图谱（概念建模 + 学习路径查询）、18 个 Agent 工具自主调用。前端 Vue 3 SPA，完整设计系统。
 
 ## 本项目开源仅供学习交流，禁止用于毕设 / 面试抄袭等违规用途
 
@@ -15,10 +15,10 @@ sh# Jiang I-Agent
 ## 特性
 
 ### 对话
-- **SSE 流式输出**：EventSource 实时推送，逐字打字机效果
+- **SSE 流式输出**：EventSource 实时推送，逐字打字机效果，防无限重连保护
 - **DeepSeek thinking 思考模式**：思考过程可视化，思考框自动折叠 + chevron 切换
-- **多轮对话**：Redis ChatMemory 30min TTL，MySQL 持久化历史
-- **工具调用**：LLM 自主选择 17 个工具，最多 10 轮工具循环，并行调用支持
+- **多轮对话**：Redis ChatMemory 30min TTL，MySQL 持久化历史，上下文摘要自动压缩
+- **工具调用**：LLM 自主选择 18 个工具，最多 10 轮工具循环，并行调用支持
 
 ### 知识库（RAG）
 - 文档上传（PDF/Markdown/TXT/DOCX）→ Tika 解析 → BAAI/bge-m3 向量化 → Qdrant 语义检索
@@ -28,7 +28,7 @@ sh# Jiang I-Agent
 ### 知识图谱（Neo4j）
 - 概念节点 + PREREQUISITE_OF / RELATED_TO 关系
 - **知识链查询**："学 Redis 前需要先学什么" → 前置知识路径
-- vis-network 层次化树形图（LR）：双击节点加载邻居，关系过滤（仅前置/仅相关/全部）
+- ECharts 层次化树形图（LR）：双击节点加载邻居，关系过滤（仅前置/仅相关/全部）
 - 循环检测 + 传递化简 + 自环预防：后端自动清理冗余边
 - AI 对话自动沉淀概念，手动添加/编辑/删除
 
@@ -47,7 +47,6 @@ sh# Jiang I-Agent
 - JWT 无状态认证，BCrypt 密码加密
 - USER / ADMIN 角色隔离
 - Bucket4j 令牌桶限流（30 tokens，≈60 req/min 每用户，429 超限）
-- `@Transactional` 全覆盖写入操作（3 个 Service，事务回滚保护）
 - 个人设置（头像/昵称/密码）+ 管理后台
 
 ---
@@ -67,14 +66,13 @@ sh# Jiang I-Agent
           └────────┬────────┘
 ┌──────────────────▼──────────────────────────────────┐
 │              Spring Boot 4.1 (Java 21)               │
-│              @Transactional 事务保护                   │
 │                                                      │
 │  ChatController ──→ ChatService (Agent 核心)         │
 │                        │                             │
 │     ┌──────────────────┼──────────────────┐          │
 │     ▼         ▼         ▼         ▼        ▼         │
 │   Redis     @Tool     Qdrant    Neo4j   DeepSeekApi  │
-│   Memory    17工具    向量检索   概念关系  (Spring AI) │
+│   Memory    18工具    向量检索   概念关系  (Spring AI) │
 │                                                      │
 │  AuthController  ConversationController              │
 │  KnowledgeController  GraphController                │
@@ -96,17 +94,16 @@ sh# Jiang I-Agent
 | AI | Spring AI 2.0 + DeepSeekApi | reasoning_content 原生支持 |
 | 模型 | DeepSeek v4-flash | 默认思考模式，工具调用 |
 | 嵌入 | BAAI/bge-m3 (硅基流动) | 1024 维 |
-| 前端 | Vue 3 + Vite 6 | SFC 组件 + vue-router SPA |
-| 图谱可视化 | vis-network + vis-data | 层次化树形图（LR） |
+| 前端 | Vue 3 + Vite 8 | SFC 组件 + vue-router SPA |
+| 图谱可视化 | ECharts + vue-echarts | 层次化树形图（LR） |
 | Markdown | marked | 消息渲染 |
 | 关系库 | MySQL 8 + MyBatis-Plus | 用户/会话/消息/文档/待办 |
-| 缓存 | Redis 7 + Lettuce | ChatMemory |
+| 缓存 | Redis 7 + Lettuce | ChatMemory + 上下文摘要 |
 | 向量库 | Qdrant | 语义检索 |
 | 图数据库 | Neo4j 5 | 概念关系 + 路径查询 |
 | 对象存储 | 阿里云 OSS | 文档 + 头像 |
 | 鉴权 | JWT Filter + BCrypt | 无状态认证 |
 | 限流 | Bucket4j | 令牌桶（30cap, 1/s refill） |
-| 事务 | Spring @Transactional | 6 Service 写入保护 |
 
 ---
 
@@ -198,8 +195,8 @@ jiang_I-agent/
 │       ├── App.vue          # 主布局
 │       ├── router.js        # 路由 + 守卫
 │       ├── stores/state.js  # 全局状态 + logout
-│       ├── assets/style.css # 设计系统 (26KB)
-│       ├── utils/           # api.js / chat.js / toast.js
+│       ├── assets/style.css # 设计系统 (30KB)
+│       ├── utils/           # api.js / chat.js / toast.js / storage.ts
 │       ├── components/      # 5 个面板组件
 │       └── views/           # 3 个页面视图
 ├── md/                      # 项目文档
@@ -218,7 +215,7 @@ jiang_I-agent/
 |------|------|
 | `ChatPanel.vue` | SSE 流式聊天：thinking/content/tool_call 事件分派、思考框折叠、打字机光标、marked 渲染 |
 | `Sidebar.vue` | 会话列表 + 批量删除 + 登出按钮 + 设置/管理入口（SVG 图标） |
-| `GraphPanel.vue` | Neo4j 图谱：层次化树形图 + 关系过滤 + 概念删除 + 搜索/分页/路径查询 + Teleport 模态框 |
+| `GraphPanel.vue` | Neo4j 图谱：ECharts 层次化树形图 + 关系过滤 + 概念删除 + 搜索/分页/路径查询 + Teleport 模态框 |
 | `KnowledgePanel.vue` | RAG 知识库：文档上传/搜索/列表/删除/下载（SVG 文件图标） |
 | `ToolsPanel.vue` | 工具标签卡片（名称+描述）+ 待办 checkbox CRUD |
 | `LoginView.vue` | 登录/注册切换、JWT 存储 |
@@ -238,7 +235,7 @@ jiang_I-agent/
 | 时间 | `get_current_time` | 1 |
 | 网络 | `read_web_page` `search_web` | 2 |
 | 对话 | `search_conversation` `export_conversation` | 2 |
-| 系统 | `get_status` `list_knowledge` | 2 |
+| 系统 | `get_status` | 1 |
 
 ---
 
@@ -258,7 +255,7 @@ jiang_I-agent/
 | GET | `/api/graph/concepts` | 概念搜索 |
 | GET | `/api/graph/concepts/{name}` | 概念详情 |
 | GET | `/api/graph/concepts/{name}/path` | 知识链查询 |
-| GET | `/api/graph/concepts/{name}/graph` | 子图 (vis-network) |
+| GET | `/api/graph/concepts/{name}/graph` | 子图 (ECharts) |
 | POST | `/api/graph/concepts` | 添加概念 |
 | DELETE | `/api/graph/concepts/{name}` | 删除概念（级联） |
 | DELETE | `/api/graph/concepts/{name}/relations` | 删除关系 |

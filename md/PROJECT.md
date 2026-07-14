@@ -13,7 +13,7 @@
 - **对话**：多轮对话 + SSE 流式输出（DeepSeek v4-flash thinking 思考模式），Redis 会话记忆 + MySQL 持久化
 - **工具调用**：自研 `@Tool` 注解框架，18 个工具自动注册，LLM 自主选择调用，最多 10 轮工具循环
 - **RAG 知识库**：文档上传 → Tika 解析 → 分片 → BAAI/bge-m3 向量化 → Qdrant 语义检索增强回答
-- **知识图谱**：Neo4j 概念关联建模 + 前置知识链查询（"学 Redis 前需要先学什么"），AI 对话自动沉淀 + 循环检测 + 传递化简 + vis-network 层次化可视化 + 关系过滤
+- **知识图谱**：Neo4j 概念关联建模 + 前置知识链查询（"学 Redis 前需要先学什么"），AI 对话自动沉淀 + 循环检测 + 传递化简 + ECharts 层次化可视化 + 关系过滤
 - **待办 & 提醒**：CRUD 待办管理 + 定时提醒（`@Scheduled` 每分钟检查）
 
 **差异化**：不是"查文档 + 喂 LLM"的普通 RAG。Neo4j 图谱返回的是**知识结构**和**学习路径**，纯向量检索做不到。
@@ -53,7 +53,7 @@
 | 大模型 | DeepSeek 官方 API | v4-flash (默认思考) |
 | 嵌入模型 | BAAI/bge-m3（硅基流动） | 1024 维 |
 | 前端 | Vue 3 + Vite + vue-router | 3.x / 8.x |
-| 图谱可视化 | vis-network + vis-data | — |
+| 图谱可视化 | ECharts + vue-echarts | 5.x |
 | Markdown | marked | — |
 | 缓存 | Redis + Lettuce | 7.x |
 | 向量库 | Qdrant | — |
@@ -133,7 +133,7 @@ frontend/src/
 | GET | `/api/graph/concepts` | 概念列表/搜索 |
 | GET | `/api/graph/concepts/{name}` | 概念详情+关联 |
 | GET | `/api/graph/concepts/{name}/path` | 知识链查询 |
-| GET | `/api/graph/concepts/{name}/graph` | 子图（vis-network） |
+| GET | `/api/graph/concepts/{name}/graph` | 子图（ECharts） |
 | POST | `/api/graph/concepts` | 手动添加概念 |
 | DELETE | `/api/graph/concepts/{name}` | 删除概念（级联删关系） |
 | DELETE | `/api/graph/concepts/{name}/relations` | 删除关系 |

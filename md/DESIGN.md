@@ -248,7 +248,7 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 
 ### 图可视化
 
-前端 vis-network 配置：
+前端 ECharts 配置：
 - **布局**：hierarchical LR（左→右树形），physics disabled 保持稳定
 - **过滤**：默认"仅前置"（最干净），可切换"仅相关"/"全部"
 - **交互**：双击节点加载邻居（去重），拖拽节点，缩放平移
