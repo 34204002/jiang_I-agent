@@ -15,7 +15,8 @@ sh# Jiang I-Agent
 ## 特性
 
 ### 对话
-- **SSE 流式输出**：EventSource 实时推送，逐字打字机效果，防无限重连保护
+- **SSE 流式输出**：fetch + ReadableStream 流式读取，逐字打字机效果，防无限重连保护
+- **拖拽上传文件**：桌面拖入 PDF/MD/TXT/DOCX → 自动 Tika 解析 → AI 理解文件内容
 - **DeepSeek thinking 思考模式**：思考过程可视化，思考框自动折叠 + chevron 切换
 - **多轮对话**：Redis ChatMemory 30min TTL，MySQL 持久化历史，上下文摘要自动压缩
 - **工具调用**：LLM 自主选择 18 个工具，最多 10 轮工具循环，并行调用支持
@@ -246,7 +247,8 @@ jiang_I-agent/
 | POST | `/api/auth/login` | 登录 |
 | POST | `/api/auth/register` | 注册 |
 | POST | `/api/chat` | 同步对话 |
-| GET | `/api/chat/stream` | SSE 流式对话（?thinking=true 开启思考） |
+| GET/POST | `/api/chat/stream` | SSE 流式对话（POST 支持附件，?thinking=true 开启思考） |
+| POST | `/api/chat/upload` | 上传对话附件（Tika 解析返回文本） |
 | POST | `/api/knowledge/documents` | 上传文档 |
 | GET | `/api/knowledge/documents` | 文档列表 |
 | DELETE | `/api/knowledge/documents/{id}` | 删除文档 |

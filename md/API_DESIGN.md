@@ -56,7 +56,36 @@ POST /api/auth/register
 
 ## 二、对话接口
 
-### 2.1 同步对话
+### 2.1 上传对话附件
+
+```
+POST /api/chat/upload
+Content-Type: multipart/form-data
+```
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| file | File | 是 | 支持 .md / .txt / .pdf / .docx，最大 20MB |
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "data": {
+    "filename": "设计文档.pdf",
+    "fileType": "pdf",
+    "content": "Apache Tika 解析后的纯文本内容...",
+    "size": 153600
+  }
+}
+```
+
+> 前端拖拽文件后立即调用此接口获取解析后的文本，发送消息时作为 `attachments` 字段传给对话接口。
+
+---
+
+### 2.2 同步对话
 
 ```
 POST /api/chat
@@ -75,6 +104,15 @@ POST /api/chat
 |------|------|------|------|
 | message | String | 是 | 用户消息 |
 | conversationId | Long | 否 | 会话 ID，不传则自动创建新会话 |
+| attachments | Attachment[] | 否 | 附件列表（`POST /api/chat/upload` 返回的 data 对象） |
+
+**Attachment 结构：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| filename | String | 文件名 |
+| fileType | String | 文件类型（pdf/md/txt/docx） |
+| content | String | Tika 解析后的纯文本 |
 
 **响应：**
 
@@ -91,10 +129,12 @@ POST /api/chat
 
 ---
 
-### 2.2 流式对话（SSE）★ 核心
+### 2.3 流式对话（SSE）★ 核心
 
 ```
 GET /api/chat/stream?message={msg}&conversationId={cid}&token={jwt}&thinking=true
+
+POST /api/chat/stream?thinking=true     ← 推荐：支持附件 + token 在 Header
 ```
 
 **请求参数：**
@@ -565,7 +605,8 @@ PUT /api/profile             # 更新信息 {"nickname":"...","password":"..."}
 | POST | `/api/auth/register` | 注册 |
 | POST | `/api/chat` | 同步对话 |
 | GET | `/api/chat/stream` | SSE 流式对话 (?thinking=true) |
-| POST | `/api/chat/stream` | SSE 流式对话（POST 变体） |
+| POST | `/api/chat/stream` | SSE 流式对话（POST 变体，支持附件） |
+| POST | `/api/chat/upload` | 上传对话附件（Tika 解析） |
 | POST | `/api/knowledge/documents` | 上传文档 |
 | POST | `/api/knowledge/documents/batch` | 批量上传文档 |
 | GET | `/api/knowledge/documents` | 文档列表 |

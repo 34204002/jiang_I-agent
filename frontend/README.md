@@ -1,6 +1,6 @@
 # Jiang I-Agent Frontend
 
-Vue 3 + Vite SPA。组件化聊天界面，SSE 流式 + 知识图谱可视化 + 知识库管理 + 工具面板。
+Vue 3 + Vite SPA。组件化聊天界面，SSE 流式 + 拖拽文件上传 + 知识图谱可视化 + 知识库管理 + 工具面板。
 
 ## 技术栈
 
@@ -40,7 +40,7 @@ src/
 │   ├── toast.js               # Toast 通知
 │   └── storage.ts             # localStorage 封装 (VueUse useStorage)
 ├── components/
-│   ├── ChatPanel.vue          # SSE 流式聊天
+│   ├── ChatPanel.vue          # SSE 流式聊天 + 拖拽文件上传
 │   ├── Sidebar.vue            # 会话列表 + 登出
 │   ├── GraphPanel.vue         # Neo4j 图谱 (ECharts)
 │   ├── KnowledgePanel.vue     # RAG 知识库管理

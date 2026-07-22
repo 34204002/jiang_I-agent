@@ -10,7 +10,7 @@
 
 面向程序员的个人 AI 助理：
 
-- **对话**：多轮对话 + SSE 流式输出（DeepSeek v4-flash thinking 思考模式），Redis 会话记忆 + MySQL 持久化
+- **对话**：多轮对话 + SSE 流式输出（DeepSeek v4-flash thinking 思考模式），Redis 会话记忆 + MySQL 持久化，拖拽文件上传 AI 解析（PDF/MD/TXT/DOCX → Tika）
 - **工具调用**：自研 `@Tool` 注解框架，18 个工具自动注册，LLM 自主选择调用，最多 10 轮工具循环
 - **RAG 知识库**：文档上传 → Tika 解析 → 分片 → BAAI/bge-m3 向量化 → Qdrant 语义检索增强回答
 - **知识图谱**：Neo4j 概念关联建模 + 前置知识链查询（"学 Redis 前需要先学什么"），AI 对话自动沉淀 + 循环检测 + 传递化简 + ECharts 层次化可视化 + 关系过滤
@@ -124,7 +124,8 @@ frontend/src/
 | POST | `/api/auth/login` | 登录，返回 JWT token |
 | POST | `/api/auth/register` | 注册 |
 | POST | `/api/chat` | 同步对话 |
-| GET | `/api/chat/stream` | SSE 流式对话（?thinking=true 开启思考模式） |
+| GET/POST | `/api/chat/stream` | SSE 流式对话（POST 支持附件，?thinking=true 开启思考模式） |
+| POST | `/api/chat/upload` | 上传对话附件（Tika 解析返回文本） |
 | POST | `/api/knowledge/documents` | 上传文档 |
 | GET | `/api/knowledge/documents` | 文档列表 |
 | DELETE | `/api/knowledge/documents/{id}` | 删除文档 |
