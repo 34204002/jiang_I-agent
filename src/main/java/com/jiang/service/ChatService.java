@@ -124,8 +124,9 @@ public class ChatService {
     // ==================== 公开接口 ====================
 
     public ChatResponse chat(ChatRequest request, Long userId) {
-        var ctx = prepareConversation(request, userId);
-        String aiContent = doCall(ctx.history, request.getMessage(), userId, ctx.convoId);
+        String fullMsg = buildUserMessage(request);
+        var ctx = prepareConversation(request, fullMsg, userId);
+        String aiContent = doCall(ctx.history, fullMsg, userId, ctx.convoId);
         saveAssistantMessage(ctx, aiContent);
         return ChatResponse.builder()
                 .content(aiContent)
@@ -135,31 +136,50 @@ public class ChatService {
     }
 
     public Flux<String> streamChat(ChatRequest request, Long userId) {
-        var ctx = prepareConversation(request, userId);
+        String fullMsg = buildUserMessage(request);
+        var ctx = prepareConversation(request, fullMsg, userId);
         ToolContext.setUser(userId);
         ToolContext.setConversation(ctx.convoId);
-        return streamWithPossibleTools(ctx.history, request.getMessage(),
+        return streamWithPossibleTools(ctx.history, fullMsg,
                 ctx.convoId, ctx.memoryKey, false, userId)
                 .doFinally(s -> ToolContext.clear());
     }
 
     public Flux<String> streamChatWithThinking(ChatRequest request, Long userId) {
-        var ctx = prepareConversation(request, userId);
+        String fullMsg = buildUserMessage(request);
+        var ctx = prepareConversation(request, fullMsg, userId);
         ToolContext.setUser(userId);
         ToolContext.setConversation(ctx.convoId);
-        return streamWithPossibleTools(ctx.history, request.getMessage(),
+        return streamWithPossibleTools(ctx.history, fullMsg,
                 ctx.convoId, ctx.memoryKey, true, userId)
                 .doFinally(s -> ToolContext.clear());
     }
 
     // ==================== 会话准备 & 持久化 ====================
 
-    private ConversationContext prepareConversation(ChatRequest request, Long userId) {
-        Long convoId = resolveConversationId(request.getConversationId(), request.getMessage(), userId);
+    /** 将附件内容拼接到用户消息前面，供 LLM 理解 */
+    private String buildUserMessage(ChatRequest request) {
+        String msg = request.getMessage();
+        if (request.getAttachments() == null || request.getAttachments().isEmpty()) {
+            return msg;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (var att : request.getAttachments()) {
+            sb.append("【上传文件: ").append(att.getFilename())
+                    .append(" (.").append(att.getFileType()).append(")】\n")
+                    .append(att.getContent()).append("\n\n");
+        }
+        sb.append("---\n用户问题: ").append(msg);
+        return sb.toString();
+    }
+
+    private ConversationContext prepareConversation(ChatRequest request, String fullMessage, Long userId) {
+        Long convoId = resolveConversationId(request.getConversationId(),
+                request.getMessage() != null ? request.getMessage() : fullMessage, userId);
         String memoryKey = String.valueOf(convoId);
-        saveMessage(convoId, "user", request.getMessage(), null, null);
+        saveMessage(convoId, "user", fullMessage, null, null);
         var history = chatMemory.get(memoryKey);
-        chatMemory.add(memoryKey, List.of(new UserMessage(request.getMessage())));
+        chatMemory.add(memoryKey, List.of(new UserMessage(fullMessage)));
         return new ConversationContext(convoId, memoryKey, history);
     }
 
