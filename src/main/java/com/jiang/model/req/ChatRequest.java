@@ -40,17 +40,17 @@ public class ChatRequest {
     }
 
     /**
-     * 对话附件 —— 前端上传文件后后端解析返回的文本内容
+     * 对话附件 —— 文件已上传并暂存，LLM 通过 read_uploaded_file 工具按需读取。
      */
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Attachment {
+        /** 文件暂存 ID */
+        private String fileId;
         /** 文件名 */
         private String filename;
         /** 文件类型（pdf/md/txt/docx） */
         private String fileType;
-        /** 已解析的文本内容 */
-        private String content;
     }
 }

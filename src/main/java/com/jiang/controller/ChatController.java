@@ -5,6 +5,7 @@ import com.jiang.constant.FileConstants;
 import com.jiang.model.req.ChatRequest;
 import com.jiang.model.resp.ChatResponse;
 import com.jiang.service.ChatService;
+import com.jiang.service.UploadedFileStore;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.apache.tika.Tika;
@@ -31,6 +32,7 @@ public class ChatController {
     private static final long MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
     private final ChatService chatService;
+    private final UploadedFileStore fileStore;
 
     /**
      * 同步对话
@@ -69,11 +71,12 @@ public class ChatController {
     }
 
     /**
-     * 上传对话附件 — 拖拽文件到聊天框时调用，后端解析文本内容返回给前端
+     * 上传对话附件 — 拖拽文件到聊天框时调用。
+     * 后端解析文本内容暂存到内存，返回 fileId。
+     * LLM 通过 {@code read_uploaded_file} 工具按需读取文件内容。
      */
     @PostMapping("/upload")
     public Result<Map<String, Object>> uploadAttachment(@RequestParam MultipartFile file) {
-        // 校验
         if (file.isEmpty()) {
             return Result.fail(400, "文件为空");
         }
@@ -109,16 +112,18 @@ public class ChatController {
             return Result.fail(400, "文件内容为空或无法解析");
         }
 
-        // 限制解析后的文本长度（防止超大文件撑爆上下文）
+        // 截断保护
         int maxLen = 100_000;
         if (content.length() > maxLen) {
             content = content.substring(0, maxLen) + "\n\n（文件过长，已截断至 " + (maxLen / 1000) + "k 字符）";
         }
 
+        // 存入临时存储，返回 fileId
+        String fileId = fileStore.put(originalName, ext, content);
         Map<String, Object> data = new LinkedHashMap<>();
+        data.put("fileId", fileId);
         data.put("filename", originalName);
         data.put("fileType", ext);
-        data.put("content", content);
         data.put("size", file.getSize());
         return Result.success(data);
     }

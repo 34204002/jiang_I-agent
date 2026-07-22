@@ -157,19 +157,20 @@ public class ChatService {
 
     // ==================== 会话准备 & 持久化 ====================
 
-    /** 将附件内容拼接到用户消息前面，供 LLM 理解 */
+    /** 将附件信息注入用户消息：只告知 LLM 文件的存在和 ID，LLM 自行调用 read_uploaded_file 工具读取内容 */
     private String buildUserMessage(ChatRequest request) {
         String msg = request.getMessage();
         if (request.getAttachments() == null || request.getAttachments().isEmpty()) {
             return msg;
         }
         StringBuilder sb = new StringBuilder();
+        sb.append("用户上传了以下文件，请根据需要调用 read_uploaded_file 工具读取文件内容：\n");
         for (var att : request.getAttachments()) {
-            sb.append("【上传文件: ").append(att.getFilename())
-                    .append(" (.").append(att.getFileType()).append(")】\n")
-                    .append(att.getContent()).append("\n\n");
+            sb.append("- ").append(att.getFilename())
+                    .append(" (.").append(att.getFileType())
+                    .append(")  fileId: ").append(att.getFileId()).append("\n");
         }
-        sb.append("---\n用户问题: ").append(msg);
+        sb.append("\n用户问题: ").append(msg);
         return sb.toString();
     }
 
