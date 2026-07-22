@@ -8,12 +8,13 @@ import DOMPurify from 'dompurify'
 import ChevronIcon from './icons/ChevronIcon.vue'
 
 interface Attachment {
+  fileId: string
   filename: string
   fileType: string
-  content: string
 }
 
 interface MsgAttachment {
+  fileId: string
   filename: string
   fileType: string
 }
@@ -165,10 +166,10 @@ function doSendSimple(text: string) {
   }
 }
 
-/** 带附件 — POST fetch（文件内容在 JSON body） */
+/** 带附件 — POST fetch（发 fileId，LLM 自行调工具读取） */
 function doSendWithFiles(text: string) {
   const fileMetas: MsgAttachment[] = attachments.value.map(a => ({
-    filename: a.filename, fileType: a.fileType
+    fileId: a.fileId, filename: a.filename, fileType: a.fileType
   }))
   state.messages = [...state.messages, {
     role: 'user' as const, content: text,
@@ -179,7 +180,7 @@ function doSendWithFiles(text: string) {
   const body: Record<string, unknown> = {
     message: text,
     ...(state.conversationId ? { conversationId: state.conversationId } : {}),
-    attachments: attachments.value
+    attachments: fileMetas
   }
   closeStream()
   attachments.value = []
@@ -238,15 +239,18 @@ async function fetchSSE(url: string, opts: RequestInit) {
         const raw = buf.slice(0, idx)
         buf = buf.slice(idx + 2)
 
-        // 取 data: 行
-        const dataLine = raw.split('\n').find(l => l.startsWith('data: '))
-        if (!dataLine) continue
+        // 取 data: 行（兼容 data:/data: 不同空格数 + 无 data 前缀时整行兜底）
+        const dataLine = raw.split('\n').find(l => l.startsWith('data:'))
+        const payload = dataLine
+          ? dataLine.slice(dataLine.indexOf(':') + 1).trimStart()
+          : raw.trim()
+        if (!payload || !payload.startsWith('{')) continue
         try {
-          const evt = JSON.parse(dataLine.slice(6))
+          const evt = JSON.parse(payload)
           if (evt.type === 'thinking') { streamThinking.value += evt.content }
           else if (evt.type === 'content') { streamContent.value += evt.content; hasContent = true }
           else if (evt.type === 'tool_call') { state.toolRunning = evt.name; streamContent.value = '' }
-        } catch { /* ignore */ }
+        } catch { /* ignore malformed JSON */ }
       }
     }
   } catch (e: unknown) {
