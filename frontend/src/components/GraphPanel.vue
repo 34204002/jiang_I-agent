@@ -15,6 +15,7 @@ import FileIcon from './icons/FileIcon.vue'
 use([GraphChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
 const concepts = ref<Concept[]>([])
+const categories = ref<string[]>([])
 const adding = ref(false), newName = ref(''), newDesc = ref(''), newCat = ref(''), newDiff = ref(3)
 const detail = ref<ConceptDetail | null>(null)
 const graphRelFilter = ref<'all' | 'prereq' | 'related'>('prereq')
@@ -46,6 +47,12 @@ async function search() {
   const c = state.graphCategory ? `category=${encodeURIComponent(state.graphCategory)}&` : ''
   const json = await api.get<PageResult<Concept>>(`/api/graph/concepts?${p}${c}page=${state.graphPage}`)
   if (json.code === 200 && json.data) concepts.value = json.data.records || []
+}
+
+/** 加载全部概念分类，填充筛选下拉 */
+async function loadCategories() {
+  const json = await api.get<string[]>('/api/graph/categories')
+  if (json.code === 200 && Array.isArray(json.data)) categories.value = json.data
 }
 
 async function doAdd() {
@@ -183,7 +190,10 @@ async function deleteConcept(name: string) {
   concepts.value = concepts.value.filter(c => c.name !== name)
 }
 
-onMounted(search)
+onMounted(() => {
+  loadCategories()
+  search()
+})
 </script>
 
 <template>
@@ -191,8 +201,10 @@ onMounted(search)
     <!-- Toolbar -->
     <div class="kbase-toolbar">
       <input v-model="state.graphKeyword" class="kbase-search-input" placeholder="搜索概念…" @keydown.enter="search">
-      <select v-model="state.graphCategory" class="kbase-search-input graph-cat-select">
+      <select v-model="state.graphCategory" class="kbase-search-input graph-cat-select"
+              @change="state.graphPage=1; search()">
         <option value="">全部分类</option>
+        <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
       </select>
       <button class="kbase-search-btn" type="button" @click="search">搜索</button>
       <button class="kbase-search-btn graph-btn-accent" type="button" @click="adding=!adding">+ 添加</button>

@@ -50,6 +50,40 @@ async function save() {
   } else showToast(json.message || '保存失败', 'error')
 }
 
+// ====== 修改密码 ======
+const oldPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const changingPassword = ref(false)
+
+async function changePassword() {
+  if (!oldPassword.value) {
+    showToast('请输入原密码', 'error')
+    return
+  }
+  if (!newPassword.value || newPassword.value.length < 6) {
+    showToast('新密码至少 6 位', 'error')
+    return
+  }
+  if (newPassword.value !== confirmPassword.value) {
+    showToast('两次输入的新密码不一致', 'error')
+    return
+  }
+  changingPassword.value = true
+  try {
+    const json = await api.put('/api/profile/password', {
+      oldPassword: oldPassword.value,
+      newPassword: newPassword.value
+    })
+    if (json.code === 200) {
+      showToast('密码已修改', 'ok')
+      oldPassword.value = newPassword.value = confirmPassword.value = ''
+    } else showToast(json.message || '修改失败', 'error')
+  } finally {
+    changingPassword.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -76,6 +110,14 @@ onMounted(load)
         <div class="field"><label>昵称</label><input v-model="nickname" placeholder="给自己取个名字"></div>
         <div class="field"><label>角色</label><input :value="role" class="settings-disabled" disabled></div>
         <button class="btn" @click="save">保存</button>
+      </div>
+      <div class="card"><h3>修改密码</h3>
+        <div class="field"><label>原密码</label><input v-model="oldPassword" placeholder="当前登录密码" type="password"></div>
+        <div class="field"><label>新密码</label><input v-model="newPassword" placeholder="至少 6 位" type="password"></div>
+        <div class="field"><label>确认新密码</label><input v-model="confirmPassword" placeholder="再次输入新密码" type="password"></div>
+        <button class="btn" :disabled="changingPassword" @click="changePassword">
+          {{ changingPassword ? '提交中...' : '修改密码' }}
+        </button>
       </div>
     </div>
   </div>
