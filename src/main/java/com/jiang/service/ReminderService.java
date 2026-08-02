@@ -5,7 +5,6 @@ import com.jiang.entity.Reminder;
 import com.jiang.mapper.ReminderMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -50,19 +49,19 @@ public class ReminderService {
     }
 
     /**
-     * 每分钟检查一次，标记到期的提醒为已触发。
+     * 标记提醒为已触发（前端弹通知后确认）。
+     * <p>
+     * 说明：不再用后端定时任务自动置 fired —— 那会在前端看到之前就把提醒标记掉，
+     * 导致通知永远无法送达。改为前端轮询 pending 提醒、到期弹提示后调用此接口确认。
+     * 离线错过的提醒会一直保持 pending，下次打开应用时补弹。幂等：仅未触发的会更新。
      */
-    @Scheduled(fixedRate = 60_000)
-    public void fireDueReminders() {
-        LocalDateTime now = LocalDateTime.now();
-        List<Reminder> due = reminderMapper.selectList(
-                new LambdaQueryWrapper<Reminder>()
-                        .eq(Reminder::getFired, 0)
-                        .le(Reminder::getRemindAt, now));
-        for (Reminder r : due) {
+    public void ack(Long userId, Long id) {
+        Reminder r = reminderMapper.selectById(id);
+        if (r != null && r.getUserId().equals(userId)
+                && r.getFired() != null && r.getFired() == 0) {
             r.setFired(1);
             reminderMapper.updateById(r);
-            log.info("提醒到期触发: id={}, message={}", r.getId(), r.getMessage());
+            log.info("提醒已确认: id={}, message={}", id, r.getMessage());
         }
     }
 }
