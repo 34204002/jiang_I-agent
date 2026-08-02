@@ -2,7 +2,7 @@ sh# Jiang I-Agent
 
 > 个人 AI 知识库助手 —— Spring Boot 4.1 + DeepSeek v4-flash + Neo4j + Qdrant + Vue 3 SPA
 
-一个面向程序员的单智能体个人 AI 助理。支持多轮对话（SSE 流式 + thinking 思考模式 + 上下文摘要压缩）、RAG 知识库（Qdrant 向量检索）、Neo4j 知识图谱（概念建模 + 学习路径查询）、18 个 Agent 工具自主调用。前端 Vue 3 SPA，完整设计系统。
+一个面向程序员的单智能体个人 AI 助理。支持多轮对话（SSE 流式 + thinking 思考模式 + 上下文摘要压缩）、RAG 知识库（Qdrant 向量检索）、Neo4j 知识图谱（概念建模 + 学习路径查询）、19 个 Agent 工具自主调用。前端 Vue 3 SPA，完整设计系统。
 
 ## 本项目开源仅供学习交流，禁止用于毕设 / 面试抄袭等违规用途
 
@@ -19,7 +19,7 @@ sh# Jiang I-Agent
 - **拖拽上传文件**：桌面拖入 PDF/MD/TXT/DOCX → 自动 Tika 解析 → AI 理解文件内容
 - **DeepSeek thinking 思考模式**：思考过程可视化，思考框自动折叠 + chevron 切换
 - **多轮对话**：Redis ChatMemory 30min TTL，MySQL 持久化历史，上下文摘要自动压缩
-- **工具调用**：LLM 自主选择 18 个工具，最多 10 轮工具循环，并行调用支持
+- **工具调用**：LLM 自主选择 19 个工具，最多 10 轮工具循环，并行调用支持
 
 ### 知识库（RAG）
 - 文档上传（PDF/Markdown/TXT/DOCX）→ Tika 解析 → BAAI/bge-m3 向量化 → Qdrant 语义检索
@@ -34,9 +34,9 @@ sh# Jiang I-Agent
 - AI 对话自动沉淀概念，手动添加/编辑/删除
 
 ### 工具 & 待办
-- 18 个 Agent 工具（待办/提醒/知识库/图谱/时间/网络/对话/系统）
-- 待办 CRUD + 定时提醒（@Scheduled）
-- 工具调用日志可观测性
+- 19 个 Agent 工具（文件/待办/提醒/知识库/图谱/时间/网络/对话/系统）
+- 待办 CRUD + 定时提醒（前端轮询到点弹通知）
+- 对话附件经 `read_uploaded_file` 工具由 LLM 按需读取
 
 ### 前端
 - Vue 3 + Vite + vue-router SPA
@@ -49,6 +49,7 @@ sh# Jiang I-Agent
 - USER / ADMIN 角色隔离
 - Bucket4j 令牌桶限流（30 tokens，≈60 req/min 每用户，429 超限）
 - 个人设置（头像/昵称/密码）+ 管理后台
+- **知识库文档 / 知识图谱按用户隔离**：各用户数据互不可见、不可删
 
 ---
 
@@ -137,6 +138,14 @@ mysql -u root < src/main/resources/sql/schema.sql
 
 # 如果从旧版本升级 (thinking 字段)
 mysql -u root jiang_i_agent < src/main/resources/sql/migration_add_thinking.sql
+
+# 如果从旧版本升级 (模型默认值统一为 deepseek-v4-flash)
+mysql -u root jiang_i_agent < src/main/resources/sql/migration_update_model.sql
+
+# 如果从旧版本升级 (知识库/图谱用户隔离，存量数据归最早用户)
+mysql -u root jiang_i_agent < src/main/resources/sql/migration_add_user_isolation.sql
+# 再在 Neo4j 执行（替换 <OLDEST_USER_ID> 为最早用户 id）：
+#   MATCH (c:Concept) WHERE NOT EXISTS(c.userId) SET c.userId = <OLDEST_USER_ID>
 ```
 
 ### 3. 配置
@@ -183,7 +192,7 @@ jiang_I-agent/
 │   ├── repository/          # Neo4j Repository
 │   ├── service/             # 业务服务
 │   │   └── ChatService.java # Agent 核心 (773行)
-│   └── tool/                # @Tool 注解 + ToolRegistry + 18 个工具实现
+│   └── tool/                # @Tool 注解 + ToolRegistry + 19 个工具实现
 ├── src/main/resources/
 │   ├── prompts/system.md    # Agent 系统提示词
 │   ├── sql/
@@ -229,6 +238,7 @@ jiang_I-agent/
 
 | 类别 | 工具 | 数量 |
 |------|------|------|
+| 文件 | `read_uploaded_file` | 1 |
 | 待办 | `create_todo` `list_todos` `complete_todo` `delete_todo` | 4 |
 | 提醒 | `create_reminder` `list_reminders` `cancel_reminder` | 3 |
 | 知识库 | `search_knowledge` `list_knowledge` | 2 |
@@ -255,6 +265,7 @@ jiang_I-agent/
 | GET | `/api/knowledge/documents/{id}/download` | 下载文档 |
 | POST | `/api/knowledge/search` | RAG 问答 |
 | GET | `/api/graph/concepts` | 概念搜索 |
+| GET | `/api/graph/categories` | 概念分类列表（筛选下拉） |
 | GET | `/api/graph/concepts/{name}` | 概念详情 |
 | GET | `/api/graph/concepts/{name}/path` | 知识链查询 |
 | GET | `/api/graph/concepts/{name}/graph` | 子图 (ECharts) |
@@ -263,6 +274,8 @@ jiang_I-agent/
 | DELETE | `/api/graph/concepts/{name}/relations` | 删除关系 |
 | GET | `/api/tools` | 工具列表 |
 | GET/POST/PUT/DELETE | `/api/todos[/{id}/complete]` | 待办 CRUD |
+| GET | `/api/reminders` | 提醒列表（pending 筛选，前端轮询） |
+| POST | `/api/reminders/{id}/ack` | 确认提醒已送达 |
 | GET | `/api/conversations` | 会话列表 |
 | GET | `/api/conversations/{id}/messages` | 消息列表 (含 thinking) |
 | DELETE | `/api/conversations/{id}` | 删除会话 |
@@ -270,6 +283,7 @@ jiang_I-agent/
 | GET/PUT | `/api/admin/agent` | Agent 配置 |
 | GET/DELETE | `/api/admin/users/*` | 用户管理 |
 | GET/POST/PUT | `/api/profile/*` | 个人设置 |
+| PUT | `/api/profile/password` | 修改密码 |
 
 完整接口文档见 [API_DESIGN.md](md/API_DESIGN.md)。
 

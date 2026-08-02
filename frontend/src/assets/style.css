@@ -256,25 +256,6 @@ input, textarea {
     font-size: 13px;
 }
 
-.sidebar-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 28px;
-    color: var(--text-tertiary);
-    font-size: 13px;
-    gap: 8px;
-}
-
-.sidebar-loading .spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin .6s linear infinite;
-}
-
 @keyframes spin {
     to {
         transform: rotate(360deg)
@@ -793,62 +774,6 @@ input, textarea {
     }
 }
 
-/* tool call badge */
-.tool-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 12px;
-    border-radius: var(--radius-full);
-    background: linear-gradient(135deg, rgba(139, 92, 246, .08), rgba(167, 139, 250, .06));
-    color: var(--lavender);
-    font-size: 11px;
-    font-weight: 700;
-    margin: 2px 4px 2px 0;
-    border: 1px solid rgba(139, 92, 246, .15);
-}
-
-/* ===== Placeholder ===== */
-.placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: 50px 28px;
-    text-align: center;
-    gap: 16px;
-}
-
-.placeholder-icon {
-    font-size: 60px;
-    filter: grayscale(.15);
-    animation: float 3s ease-in-out infinite;
-}
-
-.placeholder h3 {
-    font-size: 20px;
-    font-weight: 800
-}
-
-.placeholder p {
-    font-size: 14px;
-    color: var(--text-secondary);
-    max-width: 420px;
-    line-height: 1.8
-}
-
-.placeholder-badge {
-    display: inline-block;
-    padding: 5px 14px;
-    border: 2px solid var(--border);
-    border-radius: var(--radius-full);
-    font-size: 12px;
-    color: var(--text-tertiary);
-    background: var(--bg-surface);
-    font-weight: 600;
-}
-
 /* ===== Input Bar ===== */
 .input-area {
     padding: 12px 28px 24px;
@@ -1042,76 +967,6 @@ input, textarea {
     transition: color .3s;
 }
 
-.input-footnote.working {
-    color: var(--accent);
-    font-weight: 600;
-}
-
-/* ---- Pulse dots for streaming indicator ---- */
-.dot-pulse {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    vertical-align: middle
-}
-
-.dot-pulse span {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--accent-light);
-    animation: dotPulse 1.4s ease-in-out infinite;
-}
-
-.dot-pulse span:nth-child(2) {
-    animation-delay: .2s
-}
-
-.dot-pulse span:nth-child(3) {
-    animation-delay: .4s
-}
-
-@keyframes dotPulse {
-    0%, 80%, 100% {
-        transform: scale(.6);
-        opacity: .4
-    }
-    40% {
-        transform: scale(1);
-        opacity: 1
-    }
-}
-
-/* ---- Tool call status in thinking block ---- */
-.tc-status {
-    padding: 6px 14px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--lavender);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.tc-status .tc-spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid rgba(139, 92, 246, .2);
-    border-top-color: var(--lavender);
-    border-radius: 50%;
-    animation: spin .6s linear infinite;
-    flex-shrink: 0;
-}
-
-/* ---- SVG icon base ---- */
-.icon-svg {
-    width: 1em;
-    height: 1em;
-    display: inline-block;
-    vertical-align: -.15em;
-    flex-shrink: 0;
-}
-
 /* ===== Toast ===== */
 .toast-wrap {
     position: fixed;
@@ -1244,37 +1099,6 @@ input, textarea {
     color: var(--text-tertiary)
 }
 
-/* Upload button — matches welcome-card style */
-.kbase-upload-btn {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 10px 22px;
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius-full);
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text-secondary);
-    background: var(--bg-surface);
-    transition: all var(--transition);
-    box-shadow: var(--shadow-xs);
-    flex-shrink: 0;
-    cursor: pointer;
-}
-
-.kbase-upload-btn:hover {
-    border-color: var(--accent-light);
-    color: var(--accent);
-    background: var(--accent-subtle);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
-
-.kbase-upload-btn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px
-}
-
 /* Search action button */
 .kbase-search-btn {
     padding: 10px 20px;
@@ -1311,112 +1135,6 @@ input, textarea {
     gap: 10px;
 }
 
-.doc-card {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 16px 20px;
-    background: var(--bg-surface);
-    border-radius: var(--radius);
-    border: 1px solid var(--border-light);
-    box-shadow: var(--shadow-xs);
-    transition: all var(--transition);
-    animation: msgIn .3s ease;
-}
-
-.doc-card:hover {
-    border-color: var(--accent-light);
-    box-shadow: var(--shadow-sm);
-    transform: translateY(-1px);
-}
-
-.doc-card-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    flex-shrink: 0;
-    background: var(--ai-bubble);
-    color: var(--lavender);
-}
-
-.doc-card-info {
-    flex: 1;
-    min-width: 0
-}
-
-.doc-card-name {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.doc-card-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 3px;
-    font-size: 12px;
-    color: var(--text-tertiary);
-}
-
-.doc-card-meta span {
-    white-space: nowrap
-}
-
-/* Status badges */
-.doc-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 10px;
-    border-radius: var(--radius-full);
-    font-size: 11px;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.doc-status.pending {
-    background: #F1F5F9;
-    color: #64748B
-}
-
-.doc-status.parsed {
-    background: #FEF9C3;
-    color: #A16207
-}
-
-.doc-status.vectorized {
-    background: #DCFCE7;
-    color: #166534
-}
-
-/* Delete button */
-.doc-card-del {
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-sm);
-    color: var(--text-tertiary);
-    transition: all var(--transition);
-    cursor: pointer;
-    flex-shrink: 0;
-    font-size: 16px;
-}
-
-.doc-card-del:hover {
-    background: #FEE2E2;
-    color: #EF4444
-}
-
 /* ---- Search Result ---- */
 .kbase-search-answer {
     padding: 18px 20px;
@@ -1430,50 +1148,6 @@ input, textarea {
 
 .kbase-search-answer:empty {
     display: none
-}
-
-.kbase-sources {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 8px;
-}
-
-.kbase-sources-label {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text-secondary);
-    padding-left: 2px;
-}
-
-.source-card {
-    padding: 12px 16px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-sm);
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--text-secondary);
-    box-shadow: var(--shadow-xs);
-}
-
-.source-card-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.source-card-score {
-    padding: 2px 8px;
-    border-radius: var(--radius-full);
-    background: var(--accent-subtle);
-    color: var(--accent);
-    font-size: 11px;
-    font-weight: 700;
 }
 
 /* ---- Empty state ---- */
@@ -1537,12 +1211,6 @@ input, textarea {
     margin-left: 8px;
     font-weight: 600;
     vertical-align: middle
-}
-
-.graph-stars {
-    color: #f59e0b;
-    font-size: 12px;
-    letter-spacing: 1px
 }
 
 /* Concept detail modal */
@@ -1640,39 +1308,6 @@ input, textarea {
     box-shadow: 0 2px 6px rgba(0, 0, 0, .1)
 }
 
-/* Path chain */
-.graph-path-chain {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 12px 16px;
-    background: var(--bg-card, #fff);
-    border-radius: var(--r-md, 12px);
-    margin-bottom: 8px;
-    font-size: 13px
-}
-
-.graph-path-arrow {
-    color: var(--accent, #7c3aed);
-    font-weight: 700;
-    margin: 0 2px
-}
-
-.graph-path-node {
-    padding: 3px 10px;
-    background: var(--accent-light, #ede9fe);
-    color: var(--accent, #7c3aed);
-    border-radius: 99px;
-    font-weight: 600
-}
-
-/* Pager */
-.graph-page-active {
-    background: var(--accent);
-    color: #fff
-}
-
 /* ---- Batch Delete ---- */
 .batch-bar {
     display: flex;
@@ -1752,20 +1387,6 @@ input, textarea {
         padding: 12px 14px
     }
 
-    .kbase-upload-btn {
-        width: 100%;
-        justify-content: center
-    }
-
-    .doc-card {
-        padding: 12px 14px
-    }
-}
-
-/* ---- Todo done state ---- */
-.todo-done .doc-card-name {
-    text-decoration: line-through;
-    opacity: .55;
 }
 
 /* ---- Tool chips grid ---- */

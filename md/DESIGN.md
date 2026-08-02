@@ -115,16 +115,18 @@ CREATE TABLE t_message (
 ```sql
 CREATE TABLE t_document (
     id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id      BIGINT UNSIGNED NOT NULL,                  -- 所属用户（用户隔离）
     filename     VARCHAR(255)    NOT NULL,
     file_type    VARCHAR(20)     NOT NULL,                  -- md / pdf / txt / docx
     file_size    BIGINT UNSIGNED NOT NULL DEFAULT 0,
-    content_hash VARCHAR(64)     NOT NULL DEFAULT '',       -- SHA-256 去重
+    content_hash VARCHAR(64)     NOT NULL DEFAULT '',       -- SHA-256 去重（按用户）
     chunk_count  INT UNSIGNED    NOT NULL DEFAULT 0,
     status       TINYINT         NOT NULL DEFAULT 0,        -- 0-待处理 1-已解析 2-已向量化
     summary      VARCHAR(500)    NOT NULL DEFAULT '',
     oss_key      VARCHAR(200)    NOT NULL DEFAULT '',       -- OSS 存储 key
     uploaded_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_content_hash (content_hash),
+    UNIQUE KEY uk_user_hash (user_id, content_hash),
+    INDEX idx_user (user_id),
     INDEX idx_status (status)
 );
 
@@ -156,7 +158,11 @@ CREATE TABLE t_todo_item (
 );
 ```
 
-### 2.5 工具调用日志（可观测性）
+### 2.5 工具调用日志（可观测性，未实现）
+
+曾设计 `t_tool_usage_log` 表用于记录每次工具调用（入参/出参/耗时/成败），
+但当前没有任何代码写入它，属死表，已从 `schema.sql` 移除。若后续要实现可观测性，
+可重新建表并在 `ToolRegistry.execute` 里落日志。
 
 ```sql
 CREATE TABLE t_tool_usage_log (
@@ -179,7 +185,8 @@ CREATE TABLE t_tool_usage_log (
 |------|------|
 | `uk_username` | 用户名唯一，登录查询 |
 | `idx_conv_msg(conversation_id, created_at)` | 按会话查消息是最高频查询 |
-| `uk_content_hash` | SHA-256 唯一，防止重复上传同一文件 |
+| `uk_user_hash(user_id, content_hash)` | 同一用户防止重复上传同一文件（不同用户可各自拥有） |
+| `idx_user(user_id)` | 按用户隔离查询文档 |
 | `idx_done(is_done, due_date)` | 查未完成待办按截止日期排序 |
 | `idx_user(user_id)` | 按用户隔离会话数据 |
 | `idx_tool_time(tool_name, created_at)` | 按工具名统计调用量 |
@@ -191,9 +198,10 @@ CREATE TABLE t_tool_usage_log (
 ### 节点标签
 
 ```cypher
--- 知识概念
+-- 知识概念（userId 实现用户隔离：不同用户的同名概念是不同节点）
 (:Concept {
   name: "Redis",
+  userId: 1,
   description: "内存键值数据库，支持持久化、主从、哨兵、集群",
   category: "中间件",
   difficulty: 3
@@ -355,5 +363,5 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 | P1（框架） | `t_user` `t_agent_config` | Redis |
 | P2（RAG） | `t_document` `t_document_chunk` | Qdrant |
 | P3（图谱） | — | Neo4j |
-| P4（工程化） | `t_conversation` `t_message` `t_todo_item` `t_tool_usage_log` | — |
+| P4（工程化） | `t_conversation` `t_message` `t_todo_item` | — |
 | P5（前端） | `t_message.thinking` 列 | — |

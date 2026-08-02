@@ -132,23 +132,24 @@ POST /api/chat
 ### 2.3 流式对话（SSE）★ 核心
 
 ```
-GET /api/chat/stream?message={msg}&conversationId={cid}&token={jwt}&thinking=true
-
-POST /api/chat/stream?thinking=true     ← 推荐：支持附件 + token 在 Header
+POST /api/chat/stream?thinking=true     ← 唯一方式（token 走 Authorization 头，不再放 URL）
 ```
 
 **请求参数：**
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| message | String | 是 | 用户消息（需 URL encode） |
-| conversationId | Long | 否 | 会话 ID |
-| token | String | 是 | JWT token |
-| thinking | Boolean | 否 | 是否开启思考模式（默认 false，传 true 启用） |
+| message | String | 是 | 用户消息（POST body，无需 URL encode） |
+| conversationId | Long | 否 | 会话 ID（不传自动创建，SSE 首帧返回新 ID） |
+| thinking | Boolean | 否 | 是否开启思考模式（默认 false，query 参数） |
+
+> 鉴权：JWT 放在 `Authorization: Bearer <token>` 头。历史上曾支持 `?token=` 供
+> EventSource 使用，因 token 会暴露在 URL/日志中，已移除。
 
 **响应：** `text/event-stream`，每个 data 块为 JSON 对象：
 
 ```
+data: {"type":"conversation_id","id":"12"}
 data: {"type":"thinking","content":"用户问的是Redis持久化..."}
 data: {"type":"content","content":"Redis"}
 data: {"type":"content","content":" 提供"}
@@ -159,27 +160,29 @@ data: {"type":"content","content":"根据知识库..."}
 
 | type | 说明 | 前端行为 |
 |------|------|---------|
+| `conversation_id` | 流开始即返回本次会话 ID（新建会话时前端由此获取 id） | 设置 conversationId |
 | `thinking` | DeepSeek reasoning_content 增量 | 追加到思考框 |
 | `content` | 回复正文增量（实时逐 chunk，打字机效果） | 追加到消息气泡 + 光标闪烁 |
 | `tool_call` | 工具调用开始 | 更新 thinkHdr，清空 content 暂存 |
 
-**前端接入示例：**
+**前端接入示例（fetch 手写 SSE，token 在头）：**
 
 ```javascript
-const url = `/api/chat/stream?message=${encodeURIComponent(text)}&token=${token}&thinking=true`
-const es = new EventSource(url)
-es.onmessage = e => {
-  const evt = JSON.parse(e.data)
-  if (evt.type === 'thinking') streamThinking += evt.content
-  if (evt.type === 'content') streamContent += evt.content
-  if (evt.type === 'tool_call') { /* 清 content, 显示工具名 */ }
-}
-es.onerror = () => { es.close(); /* 保存消息到 state */ }
+const resp = await fetch('/api/chat/stream?thinking=true', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+  body: JSON.stringify({ message: text, conversationId })
+})
+const reader = resp.body.getReader()
+// 按 \n\n 切分事件，JSON.parse 后按 type 分派
 ```
 
 ---
 
 ## 三、知识库接口（RAG）
+
+> **用户隔离**：知识库所有接口按当前登录用户过滤——只能看到/删除/检索自己的文档。
+> 检索先走 Qdrant 召回、再按 MySQL 归属过滤（Qdrant 存量向量可能缺 userId payload）。
 
 ### 3.1 上传文档
 
@@ -283,6 +286,9 @@ POST /api/knowledge/search
 ---
 
 ## 四、知识图谱接口（Neo4j）
+
+> **用户隔离**：图谱所有接口按当前登录用户过滤——概念按 `(name, userId)` 归属，
+> 不同用户的同名概念是独立节点。
 
 ### 4.1 概念列表/搜索
 
@@ -486,6 +492,16 @@ GET /api/tools
 | PUT | `/api/todos/{id}/complete` | 标记完成 |
 | DELETE | `/api/todos/{id}` | 删除待办 |
 
+### 5.3 定时提醒
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/reminders?pending=true` | 提醒列表（pending 只返回未触发，前端轮询用） |
+| POST | `/api/reminders/{id}/ack` | 确认提醒已送达（幂等，标记 fired=1） |
+
+> 通知机制：前端每 30s 轮询 pending 提醒，到期弹 toast 后调 ack 确认。
+> 后端不再自动置 fired，离线错过的提醒会在下次打开应用时补弹。
+
 ---
 
 ## 六、历史记录接口
@@ -575,9 +591,10 @@ DELETE /api/admin/users/{id}            # 删除用户
 ### 7.3 个人设置
 
 ```
-GET /api/profile             # 获取个人信息
+GET /api/user/me             # 获取个人信息
+PUT /api/user/me             # 更新昵称/头像 {"nickname":"...","avatar":"..."}
 POST /api/profile/avatar     # 上传头像 (multipart)
-PUT /api/profile             # 更新信息 {"nickname":"...","password":"..."}
+PUT /api/profile/password    # 修改密码 {"oldPassword":"...","newPassword":"..."}
 ```
 
 ---
