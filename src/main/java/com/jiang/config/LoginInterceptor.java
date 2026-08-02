@@ -21,7 +21,8 @@ public class LoginInterceptor implements HandlerInterceptor {
     /**
      * 拦截请求，校验 JWT Token。
      *
-     * <p>校验顺序：OPTIONS 预检放行 → Authorization Header → token Query 参数（EventSource GET 兼容）。
+     * <p>只接受 Authorization Header（前端已统一走 fetch 带 Bearer 头，
+     * 不再用 EventSource，故不再支持 token Query 参数——那会让 JWT 暴露在 URL/日志里）。
      * 校验通过后将 userId、username、role 写入 request attribute 供 Controller 使用。</p>
      */
     @Override
@@ -31,11 +32,7 @@ public class LoginInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 优先 Header，其次 Query 参数（EventSource 不支持自定义 Header）
         String token = jwtUtil.extractToken(request.getHeader("Authorization"));
-        if (token == null) {
-            token = request.getParameter("token");
-        }
         if (token == null) {
             response.setStatus(401);
             response.setContentType("application/json;charset=UTF-8");

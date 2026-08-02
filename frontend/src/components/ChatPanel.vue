@@ -28,7 +28,6 @@ const thinkHdr = computed(() => state.toolRunning ? `调用: ${state.toolRunning
 const attachments = ref<Attachment[]>([])
 const dragOver = ref(false)
 
-let es: EventSource | null = null
 let streamAbort: AbortController | null = null
 let hasContent = false
 
@@ -37,7 +36,6 @@ function mdSafe(text: string): string {
 }
 
 function closeStream() {
-  if (es) { es.close(); es = null }
   if (streamAbort) { streamAbort.abort(); streamAbort = null }
   activeStreamUrl.value = ''
 }
@@ -58,14 +56,16 @@ function finalizeMessage() {
   streamContent.value = ''
   streamThinking.value = ''
   streamThinkCollapsed.value = false
-  loadConversations()
-  if (!state.conversationId) setTimeout(() => {
-    if (state.convos.length && !state.conversationId) state.conversationId = String(state.convos[0].id)
-  }, 600)
+  loadConversations().then(() => {
+    // 兜底：正常情况下 SSE 首帧的 conversation_id 事件已设置好 id；
+    // 万一该事件丢失，这里用最新会话补上（避免下次发消息重复建会话）
+    if (!state.conversationId && state.convos.length) state.conversationId = String(state.convos[0].id)
+  })
 }
 
 watch(activeStreamUrl, (url) => {
-  if (!url && es) closeStream()
+  // 置空 = 切换会话 / 新建会话等场景主动中断流（fetch 通道也会被 abort）
+  if (!url) closeStream()
 })
 
 // ====== 文件类型图标（SVG） ======
@@ -138,36 +138,16 @@ function send() {
   const text = msgInput.value?.value?.trim()
   if (!text || state.streaming) return
   if (msgInput.value) msgInput.value.value = ''
-
-  // 无附件 → EventSource GET（浏览器原生 SSE 解析）
-  if (attachments.value.length === 0) {
-    doSendSimple(text)
-    return
-  }
-
-  // 有附件 → 文件内容太大，GET URL 放不下，走 POST fetch
-  doSendWithFiles(text)
+  sendMessage(text)
 }
 
-/** 纯文本 — EventSource GET */
-function doSendSimple(text: string) {
-  state.messages = [...state.messages, {role: 'user', content: text}]
-  beginStream()
-  const url = `/api/chat/stream?message=${encodeURIComponent(text)}&token=${encodeURIComponent(token.value)}${state.conversationId ? '&conversationId=' + state.conversationId : ''}${state.thinking ? '&thinking=true' : ''}`
-  closeStream()
-  activeStreamUrl.value = url
-
-  es = new EventSource(url)
-  es.onmessage = handleSSEEvent
-  es.onerror = () => {
-    if (!hasContent) return
-    es?.close(); es = null
-    finalizeMessage()
-  }
-}
-
-/** 带附件 — POST fetch（发 fileId，LLM 自行调工具读取） */
-function doSendWithFiles(text: string) {
+/**
+ * 统一发送 — 全部走 POST fetch 手写 SSE。
+ * token 放在 Authorization 头，杜绝 JWT 进 URL（EventSource 无法带自定义头，
+ * 且出错会自动重连重发同一请求；fetch 手动解析更可控）。
+ * attachments 只发 fileId，LLM 自行调 read_uploaded_file 工具按需读取。
+ */
+function sendMessage(text: string) {
   const fileMetas: MsgAttachment[] = attachments.value.map(a => ({
     fileId: a.fileId, filename: a.filename, fileType: a.fileType
   }))
@@ -177,16 +157,18 @@ function doSendWithFiles(text: string) {
   }]
   beginStream()
 
+  const url = `/api/chat/stream?thinking=${state.thinking}`
   const body: Record<string, unknown> = {
     message: text,
     ...(state.conversationId ? { conversationId: state.conversationId } : {}),
     attachments: fileMetas
   }
-  closeStream()
+  closeStream()  // 先切断上一次可能的流
   attachments.value = []
   streamAbort = new AbortController()
+  activeStreamUrl.value = url  // 活跃流标记：切换会话时置空 → watch → abort
 
-  fetchSSE(`/api/chat/stream?thinking=${state.thinking}`, {
+  fetchSSE(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token.value}` },
     body: JSON.stringify(body),
@@ -202,16 +184,6 @@ function beginStream() {
   streamThinking.value = ''
   streamThinkCollapsed.value = false
   hasContent = false
-}
-
-/** EventSource 事件处理 */
-function handleSSEEvent(e: MessageEvent) {
-  try {
-    const evt = JSON.parse(e.data)
-    if (evt.type === 'thinking') { streamThinking.value += evt.content; return }
-    if (evt.type === 'content') { streamContent.value += evt.content; hasContent = true; return }
-    if (evt.type === 'tool_call') { state.toolRunning = evt.name; streamContent.value = ''; return }
-  } catch { /* ignore */ }
 }
 
 /** fetch 手动解析 SSE — 按 \n\n 分隔事件 */
@@ -247,7 +219,8 @@ async function fetchSSE(url: string, opts: RequestInit) {
         if (!payload || !payload.startsWith('{')) continue
         try {
           const evt = JSON.parse(payload)
-          if (evt.type === 'thinking') { streamThinking.value += evt.content }
+          if (evt.type === 'conversation_id') { if (evt.id) state.conversationId = String(evt.id) }
+          else if (evt.type === 'thinking') { streamThinking.value += evt.content }
           else if (evt.type === 'content') { streamContent.value += evt.content; hasContent = true }
           else if (evt.type === 'tool_call') { state.toolRunning = evt.name; streamContent.value = '' }
         } catch { /* ignore malformed JSON */ }
@@ -267,10 +240,14 @@ function sendHint(t: string) {
   }
 }
 
-function avatar(isUser: boolean): string {
-  const url = isUser ? (USER.avatar || '') : agent.avatar
-  if (url) return `<img class="msg-avatar-img" src="${url.replace(/"/g, '&quot;')}" alt="">`
-  return `<div class="msg-avatar-fallback"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">${isUser ? '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>' : '<path d="M12 2a5 5 0 0 1 5 5c0 2.5-1.2 4-2.5 5.5h-5c-1.3-1.5-2.5-3-2.5-5.5a5 5 0 0 1 5-5z"/><path d="M7 16v5a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3v-5"/>'}</svg></div>`
+/** 头像 URL（无则返回空串）。模板用 :src 绑定，由 Vue 自动转义，杜绝手写 HTML 注入 */
+function avatarUrl(isUser: boolean): string {
+  return isUser ? (USER.avatar || '') : (agent.avatar || '')
+}
+
+/** 无头像时的 SVG 兜底 —— 纯静态内容，无用户输入，可安全 v-html */
+function fallbackSvg(isUser: boolean): string {
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">${isUser ? '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>' : '<path d="M12 2a5 5 0 0 1 5 5c0 2.5-1.2 4-2.5 5.5h-5c-1.3-1.5-2.5-3-2.5-5.5a5 5 0 0 1 5-5z"/><path d="M7 16v5a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3v-5"/>'}</svg>`
 }
 </script>
 
@@ -300,7 +277,10 @@ function avatar(isUser: boolean): string {
         </div>
       </div>
       <div v-for="(m, i) in state.messages" :key="i" :class="['msg', m.role]">
-        <div class="msg-avatar" v-html="avatar(m.role==='user')"></div>
+        <div class="msg-avatar">
+          <img v-if="avatarUrl(m.role==='user')" class="msg-avatar-img" :src="avatarUrl(m.role==='user')" alt="">
+          <div v-else class="msg-avatar-fallback" v-html="fallbackSvg(m.role==='user')"></div>
+        </div>
         <div class="msg-body">
           <div class="msg-label">{{ m.role === 'user' ? 'You' : agent.name }}</div>
           <template v-if="m.role==='assistant' && m.thinking">
@@ -331,7 +311,10 @@ function avatar(isUser: boolean): string {
         </div>
       </div>
       <div v-if="state.streaming" class="msg assistant">
-        <div class="msg-avatar" v-html="avatar(false)"></div>
+        <div class="msg-avatar">
+          <img v-if="avatarUrl(false)" class="msg-avatar-img" :src="avatarUrl(false)" alt="">
+          <div v-else class="msg-avatar-fallback" v-html="fallbackSvg(false)"></div>
+        </div>
         <div class="msg-body">
           <div class="msg-label">{{ agent.name }}</div>
           <div v-if="streamThinking" :class="{ collapsed: streamThinkCollapsed }" class="thinking-block">
