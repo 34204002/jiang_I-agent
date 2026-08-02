@@ -56,7 +56,7 @@ POST /api/auth/register
 
 ## 二、对话接口
 
-### 2.1 上传对话附件
+### 2.1 上传对话附件（Agent Tool 模式）
 
 ```
 POST /api/chat/upload
@@ -73,15 +73,17 @@ Content-Type: multipart/form-data
 {
   "code": 200,
   "data": {
+    "fileId": "a3f9c1...",
     "filename": "设计文档.pdf",
     "fileType": "pdf",
-    "content": "Apache Tika 解析后的纯文本内容...",
     "size": 153600
   }
 }
 ```
 
-> 前端拖拽文件后立即调用此接口获取解析后的文本，发送消息时作为 `attachments` 字段传给对话接口。
+> **注意**：接口只返回 `fileId`，**不返回解析后的文本内容**。文本暂存在内存
+> （`UploadedFileStore`），由 LLM 通过 `read_uploaded_file` 工具在工具循环中按需读取。
+> 前端发送消息时 `attachments` 只带 `fileId` + `filename` + `fileType`，避免大文本进出前端。
 
 ---
 
@@ -106,13 +108,16 @@ POST /api/chat
 | conversationId | Long | 否 | 会话 ID，不传则自动创建新会话 |
 | attachments | Attachment[] | 否 | 附件列表（`POST /api/chat/upload` 返回的 data 对象） |
 
-**Attachment 结构：**
+**Attachment 结构（Agent Tool 模式）：**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
+| fileId | String | 文件暂存 ID（后端 `UploadedFileStore` 内存中） |
 | filename | String | 文件名 |
 | fileType | String | 文件类型（pdf/md/txt/docx） |
-| content | String | Tika 解析后的纯文本 |
+
+> LLM 在工具循环中调用 `read_uploaded_file(fileId)` 按需读取文件内容，
+> 附件文本不随消息体传输。
 
 **响应：**
 

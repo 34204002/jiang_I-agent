@@ -158,7 +158,25 @@ CREATE TABLE t_todo_item (
 );
 ```
 
-### 2.5 工具调用日志（可观测性，未实现）
+### 2.5 提醒表
+
+```sql
+CREATE TABLE t_reminder (
+    id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id    BIGINT UNSIGNED NOT NULL,
+    message    VARCHAR(500)    NOT NULL,
+    remind_at  DATETIME        NOT NULL,
+    fired      TINYINT         NOT NULL DEFAULT 0,    -- 0-未触发 1-已触发
+    created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_remind (user_id, remind_at)
+);
+```
+
+> **通知机制**：后端**不再**自动触发（避免隐藏到期提醒），前端每 30s 轮询
+> `GET /api/reminders?pending=true`，到期弹 toast 后调 `POST /api/reminders/{id}/ack` 标记 fired。
+> 离线错过的提醒会在下次打开应用时补弹。
+
+### 2.6 工具调用日志（可观测性，未实现）
 
 曾设计 `t_tool_usage_log` 表用于记录每次工具调用（入参/出参/耗时/成败），
 但当前没有任何代码写入它，属死表，已从 `schema.sql` 移除。若后续要实现可观测性，
@@ -280,10 +298,15 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 {
   "document_id": 1,
   "chunk_index": 3,
+  "user_id": 1,
   "content": "Redis 持久化主要有 RDB 和 AOF 两种方式...",
   "filename": "Redis实战笔记.md"
 }
 ```
+
+> **用户隔离**：检索走 Qdrant 召回后，再按 MySQL `t_document.user_id` 归属二次过滤
+> （post-filter）。存量向量可能缺 `user_id` payload，因此不过滤条件依赖 Qdrant 过滤，
+> 而是统一在服务层过滤，保证新老数据行为一致。
 
 ---
 
@@ -299,18 +322,24 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 
 ## 六、鉴权设计
 
-- **方案**：无状态 JWT Token
-- **Filter**：`JwtAuthFilter` 拦截 `/api/**`（白名单：`/api/auth/login`、`/api/auth/register`）
-- **前端**：`Authorization: Bearer <token>` header，token 存 localStorage
-- **用户角色**：USER / ADMIN（admin 可访问 `/api/admin/**`）
+- **方案**：无状态 JWT Token（HS256，secret 在配置中）
+- **拦截器**：`LoginInterceptor` 解析 `Authorization: Bearer <token>` header，把
+  userId/role 写入 request attribute 供 Controller/Service 使用
+- **限流**：`RateLimitInterceptor`（Bucket4j 令牌桶，30 tokens / 1s refill）叠加在登录校验之后
+- **前端**：token 存 localStorage，请求统一带 `Authorization` header
+- **安全**：token **只走 header**，历史上曾支持 `?token=` 查询参数（EventSource 所需），
+  因 token 会暴露在 URL/日志中已移除（见 ISSUES.md §26）
+- **用户角色**：USER / ADMIN（admin 可访问 `/api/admin/**`，`AdminController` 前置校验）
 
 ---
 
 ## 七、SSE 流式协议
 
-流式端点 `GET /api/chat/stream` 返回 `text/event-stream`，每个 `data` 块为 JSON：
+流式端点 `POST /api/chat/stream`（支持 `?thinking=true`）返回 `text/event-stream`，
+每个 `data` 块为 JSON。**首帧一定是 `conversation_id`**，用于新建会话时让前端拿到 ID：
 
 ```json
+{"type":"conversation_id","id":"12"}
 {"type":"thinking","content":"思考过程文本片段..."}
 {"type":"content","content":"回复文本片段..."}
 {"type":"tool_call","name":"search_knowledge","args":"{\"query\":\"...\"}"}
@@ -318,11 +347,16 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 
 | type | 说明 | 前端处理 |
 |------|------|---------|
+| `conversation_id` | 流开始即返回本次会话 ID（新建会话时前端由此获取 id） | 设置 conversationId |
 | `thinking` | DeepSeek reasoning_content 增量 | 追加到思考框 |
-| `content` | 回复正文增量 | 追加到气泡（打字机效果） |
-| `tool_call` | 工具调用开始 | 显示 "调用: toolName"，清 content 暂存 |
+| `content` | 回复正文增量（实时逐 chunk，打字机效果） | 追加到气泡 + 光标闪烁 |
+| `tool_call` | 工具调用开始 | 更新思考标题，清 content 暂存 |
 
 > **关键设计**：content 实时逐 chunk 发射（不是缓冲后再一次性发送），tool_call 事件时前端清空中间 content。详见 ISSUES.md §14。
+>
+> **传输**：前端用 `fetch` + `ReadableStream` 手写 SSE（不用 EventSource，见 ISSUES.md §25），
+> 鉴权走 header。工具调用在 Reactor 调度线程执行，ThreadLocal 上下文通过
+> `ToolContext.runWithContext` 显式传入（见 ISSUES.md §24）。
 
 ---
 
@@ -339,20 +373,27 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 
 ## 九、前端设计系统
 
-全局 CSS 自定义属性（`frontend/src/assets/style.css`，30KB）：
+全局 CSS 自定义属性（`frontend/src/assets/style.css`）：
 
 ```
 :root {
   --accent: #F472B6;        --accent-deep: #EC4899;     --accent-light: #FBCFE8;
-  --lavender: #8B5CF6;      --lavender-light: #A78BFA;
-  --color-error: #EF4444;   --color-success: #22C55E;   --color-warning: #F59E0B;
+  --sky: #38BDF8;           --sky-deep: #0EA5E9;        --sky-light: #BAE6FD;
+  --lavender: #8B5CF6;      --lavender-light: #A78BFA;   --color-error: #EF4444;
+  --color-success: #22C55E; --color-warning: #F59E0B;
   --text-primary: #1E293B;  --text-secondary: #64748B;  --text-tertiary: #94A3B8;
-  --bg-body: #FDF2F8;       --bg-surface: #FFFFFF;
+  --bg-body: #FDF4F9;       --bg-body-blue: #EFF8FF;    --bg-surface: #FFFFFF;
   --radius-sm: 8px;         --radius: 12px;             --radius-lg: 18px;
   --font-sans: "Inter", ...; --font-mono: "SF Mono", ...;
   /* + 间距/字重/阴影/过渡 scale */
 }
 ```
+
+**配色语义**（粉蓝双色，粉为主蓝为次）：
+- 背景：粉→天蓝垂直渐变（`body`），登录页 160° 渐变
+- 用户气泡 `--user-bubble` 淡粉；AI 气泡 `--ai-bubble: #EFF8FF` 淡天蓝——对话一眼分角色
+- 主按钮/发送/登录 = 粉色渐变（主操作）；outline 次要按钮/链接/图谱前置边 = 天蓝（次强调）
+- 思考框保留 `--lavender` 紫色——与 AI 正文天蓝区分"在想 vs 说出"
 
 ---
 
@@ -365,3 +406,9 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 | P3（图谱） | — | Neo4j |
 | P4（工程化） | `t_conversation` `t_message` `t_todo_item` | — |
 | P5（前端） | `t_message.thinking` 列 | — |
+| P6（提醒） | `t_reminder` | — |
+| P7（隔离） | `t_document.user_id`、概念 `userId` 属性 | — |
+
+> **迁移脚本**：`src/main/resources/sql/` 下有 `migration_add_user_isolation.sql`
+> （知识库/图谱用户隔离，存量数据归最早用户）与 `migration_update_model.sql`
+> （模型默认值统一为 `deepseek-v4-flash`）。全新安装只需执行 `schema.sql`。

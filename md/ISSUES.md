@@ -49,7 +49,7 @@
 
 > 核心思想：**用框架的类型解析，保留自己的编排控制**。类型安全但不失灵活性。
 
-现注册 **18 个工具**，最多 **10 轮**工具循环。schema 规范：所有工具含 `"type":"object"` + `"required"` 字段（即使为空数组）。
+现注册 **19 个工具**，最多 **10 轮**工具循环。schema 规范：所有工具含 `"type":"object"` + `"required"` 字段（即使为空数组）。
 
 ---
 
@@ -231,6 +231,102 @@ Spring AI 不自动建 collection。Qdrant gRPC（6334）和 REST（6333）端�
 
 ---
 
+## 24. ThreadLocal 跨线程丢失（工具执行 401/会话错乱）★
+
+**症状**：工具执行时 `ToolContext.getUser()` 为 null → 知识库/图谱工具报 401 或查错用户。
+
+**根因**：`ChatService` 用 Reactor（`Schedulers.boundedElastic()`）做流式/同步 HTTP，工具在
+`onSubscribe`/`doOnNext` 回调里执行——那是在**另一个线程**，主线程设置的 ThreadLocal 不可见。
+
+**修复**：`ToolContext.runWithContext(userId, convoId, reasoning, Supplier<T>)`——
+显式把 userId/convoId 作为参数传进执行线程，在目标线程内 set ThreadLocal，finally 恢复旧值。
+所有工具入口改为 `executeTool(name, args, userId, convoId)`。
+
+> **教训**：WebFlux/Reactor 回调链里 ThreadLocal 不可信，跨线程上下文要么显式传参、要么用
+> Reactor 的 Context，别指望 ThreadLocal 跟着线程池走。
+
+---
+
+## 25. SSE 无内容无限重连风暴 ★
+
+**症状**：SSE 流未收到任何 `content` 事件时，前端 EventSource 报错后自动重连 → 死循环刷接口。
+
+**根因**：`EventSource` 一旦建立即视为连接成功，服务端异常中断（无数据帧）时浏览器
+自动重连；后端每次重连又消费一次 token。
+
+**修复**：弃用 EventSource，改用 `fetch` + `ReadableStream` 手写 SSE 读取——
+HTTP 状态码非 200 立即判失败不再重连；配合 `AbortController` 支持取消。
+
+---
+
+## 26. JWT 明文进 URL
+
+**症状**：SSE 用 `EventSource` 无法自定义 header，只能 `?token=xxx` 传参。
+
+**风险**：token 出现在 URL、浏览器历史、服务端访问日志中。
+
+**修复**：`LoginInterceptor` 只认 `Authorization: Bearer <token>` header，
+**移除 token 查询参数兜底**（不兼容旧前端，但安全优先）。
+
+---
+
+## 27. 前端 v-html XSS
+
+**症状**：头像用 `v-html` 注入 SVG，恶意内容可执行脚本。
+
+**修复**：头像改 `avatarUrl()` + `:src` 绑定（图片），兜底 `fallbackSvg()` 由组件内部
+生成不可注入的 SVG 字符串；用户/AI 消息正文仍走 marked + DOMPurify 白名单。
+
+---
+
+## 28. 登录后不显示聊天历史（刷新才显示）
+
+**症状**：退出登录 → 重新登录 → 会话列表为空，刷新后才加载。
+
+**根因**：`App.vue` 只在 `onMounted` 加载一次数据；SPA 内部 `router.push('/chat')`
+不会重新触发 mounted，登录动作没有重新加载。
+
+**修复**：`watch(token, ..., {immediate: true})` 监听登录态变化，登录即加载
+会话列表 / Agent 配置 / 提醒轮询。
+
+---
+
+## 29. GraphService ObjectMapper 污染
+
+**症状**：Neo4j 返回的节点含 `__typeId` 等 Jackson 类型注解 → API 400。
+
+**根因**：Redis ChatMemory 的手动序列化对共享 ObjectMapper 开了 `activateDefaultTyping`
+（序列化多态类型信息），该 Mapper 注入 GraphService 后污染了 API 序列化。
+
+**修复**：`CLEAN_MAPPER` 独立静态实例，图谱节点转换用干净 Mapper；Redis 侧自建
+独立的默认序列化，不再污染全局 ObjectMapper。
+
+---
+
+## 30. 登录后 SSE 重建时旧连接未关闭
+
+**症状**：快速切换会话时，旧 SSE 流还在跑，消息串到新会话。
+
+**修复**：发送前 `closeStream()` 关闭旧流；所有连接持有 `AbortController`，
+新消息/卸载时统一 abort。
+
+---
+
+## 31. 用户隔离迁移（存量数据归属）
+
+**背景**：知识库文档与 Neo4j 概念从"全局共享"改为"按用户隔离"，存量数据无归属。
+
+**策略**：`ALTER TABLE t_document ADD user_id` → 存量行 `UPDATE ... SET user_id = 最早用户 id` →
+唯一键 `uk_content_hash` 改 `uk_user_hash(user_id, content_hash)` →
+Neo4j 侧 `MATCH (c:Concept) WHERE c.userId IS NULL SET c.userId = <oldest>`。
+
+**要点**：
+- 先全库备份再动结构；唯一键变更可能因存量重复失败，需先查重
+- Qdrant 存量向量缺 userId payload，检索后按 MySQL 归属二次过滤（post-filter）
+- `WHERE NOT EXISTS(c.userId)` 是 Neo4j 5 已废弃语法，用 `WHERE c.userId IS NULL`
+
+---
+
 ## 教训
 
 1. **非标准字段不信任任何 SDK** — 直接从 HTTP 层验证
@@ -243,3 +339,8 @@ Spring AI 不自动建 collection。Qdrant gRPC（6334）和 REST（6333）端�
 8. **思考独立存储** — 不要用 HTML 标签包裹在正文中
 9. **API 响应格式要对齐** — 前后端数据结构不一致是最常见的 bug
 10. **SVG currentColor 必设 color** — 否则继承不可预期的 body 颜色
+11. **ThreadLocal 在响应式回调里不可信** — 跨线程上下文显式传参或走 Reactor Context
+12. **EventSource 重连是无底洞** — 需要错误态控制就用 fetch + ReadableStream
+13. **token 只走 header** — 任何放 URL/日志的方案都是安全隐患
+14. **共享 ObjectMapper 是地雷** — 特殊序列化用独立实例，别污染全局
+15. **登录态是"事件"不是"页面事件"** — SPA 内部跳转不触发 onMounted，用状态 watch
