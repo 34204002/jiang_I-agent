@@ -73,7 +73,7 @@ watch(activeStreamUrl, (url) => {
 const FILE_TYPE_COLORS: Record<string, string> = {
   pdf: '#EF4444',   // red
   docx: '#3B82F6',  // blue
-  md: '#8B5CF6',    // lavender
+  md: '#0EA5E9',    // sky blue
   txt: '#6B7280',   // gray
 }
 

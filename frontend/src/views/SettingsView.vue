@@ -194,11 +194,17 @@ onMounted(load)
 
 .btn-outline {
   background: transparent;
-  color: #EC4899;
-  border: 1.5px solid #EC4899;
+  color: #0EA5E9;
+  border: 1.5px solid #38BDF8;
   border-radius: 8px;
   font-weight: 600;
-  cursor: pointer
+  cursor: pointer;
+  transition: all .2s
+}
+
+.btn-outline:hover {
+  background: rgba(56, 189, 248, .08);
+  border-color: #0EA5E9
 }
 
 .toast {

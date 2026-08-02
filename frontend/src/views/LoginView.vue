@@ -142,7 +142,7 @@ async function submit() {
   justify-content: center;
   min-height: 100vh;
   width: 100%;
-  background: var(--bg-body, #FDF2F8)
+  background: linear-gradient(160deg, #FDF2F8 0%, #F0F9FF 55%, #EFF8FF 100%)
 }
 
 .login-card {
@@ -191,7 +191,7 @@ async function submit() {
 
 .field input:focus {
   border-color: var(--accent, #EC4899);
-  box-shadow: 0 0 0 3px rgba(236, 72, 153, .1)
+  box-shadow: 0 0 0 3px rgba(244, 114, 182, .12)
 }
 
 /* ---- 密码显示/隐藏 ---- */

@@ -88,7 +88,7 @@ onMounted(loadDocs)
       <div v-for="d in docs" :key="d.id" class="kb-doc-item">
         <FileIcon v-if="d.fileType==='pdf'" :color="'#EF4444'"/>
         <FileIcon v-else-if="d.fileType==='md'" :color="'#3B82F6'"/>
-        <FileIcon v-else :color="'#8B5CF6'"/>
+        <FileIcon v-else :color="'#0EA5E9'"/>
         <span class="kb-doc-name">{{ d.filename }}</span>
         <span class="kb-doc-size">{{ formatSize(d.fileSize) }}</span>
         <span class="kb-doc-status">{{ d.status === 2 ? '已向量化' : d.status === 1 ? '已解析' : '待处理' }}</span>

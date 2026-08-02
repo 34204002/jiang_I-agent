@@ -1,12 +1,13 @@
 /*===========================================================================
  * Jiang I-Agent — Soft UI Evolution
- * Design System: soft pink + lavender accent, Inter typography, WCAG AA+
+ * Design System: soft pink + sky blue accent, Inter typography, WCAG AA+
  *=========================================================================== */
 
 /* ===== Design Tokens ===== */
 :root {
-    /* Surfaces — skill: #FDF2F8 bg + #FFFFFF card */
-    --bg-body: #FDF2F8;
+    /* Surfaces — skill: pink #FDF2F8 bg + #FFFFFF card, blue #F0F9FF pairing */
+    --bg-body: #FDF4F9;
+    --bg-body-blue: #EFF8FF;
     --bg-surface: #FFFFFF;
     --bg-elevated: #FEF7FA;
     --bg-hover: #FDF0F5;
@@ -25,15 +26,23 @@
     --accent-glow: rgba(244, 114, 182, .15);
     --accent-subtle: rgba(244, 114, 182, .06);
 
-    /* Secondary accents — skill: lavender accent */
+    /* Secondary — sky blue (cute pastel pairing) */
+    --sky: #38BDF8;
+    --sky-deep: #0EA5E9;
+    --sky-light: #BAE6FD;
+    --sky-bg: #F0F9FF;
+    --sky-glow: rgba(56, 189, 248, .15);
+    --sky-subtle: rgba(56, 189, 248, .06);
+
+    /* Tertiary — lavender (kept for depth) */
     --lavender: #8B5CF6;
     --lavender-light: #A78BFA;
 
-    /* Chat bubbles */
+    /* Chat bubbles — user pink / AI sky blue */
     --user-bubble: #FEF2F7;
     --user-border: #FDD8E7;
-    --ai-bubble: #F5F3FA;
-    --ai-border: #E8E2F4;
+    --ai-bubble: #EFF8FF;
+    --ai-border: #D6ECFC;
 
     /* Radius — skill: 8-12px for Soft UI Evolution */
     --radius-sm: 8px;
@@ -100,7 +109,7 @@ body {
     font-size: 15px;
     line-height: 1.65;
     color: var(--text-primary);
-    background: var(--bg-body);
+    background: linear-gradient(180deg, var(--bg-body) 0%, var(--bg-body-blue) 100%);
     -webkit-font-smoothing: antialiased;
 }
 
@@ -161,7 +170,7 @@ input, textarea {
     width: 38px;
     height: 38px;
     border-radius: var(--radius-sm);
-    background: linear-gradient(135deg, var(--accent), var(--lavender));
+    background: linear-gradient(135deg, var(--accent) 0%, var(--sky-deep) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -287,7 +296,7 @@ input, textarea {
     height: 36px;
     border-radius: 50%;
     object-fit: cover;
-    background: linear-gradient(135deg, var(--accent), var(--lavender));
+    background: linear-gradient(135deg, var(--accent) 0%, var(--sky-deep) 100%);
     flex-shrink: 0;
 }
 
@@ -363,16 +372,16 @@ input, textarea {
     padding: 8px 12px;
     font-size: 12px;
     font-weight: 600;
-    color: var(--lavender);
+    color: var(--sky-deep);
     text-decoration: none;
     border-radius: var(--radius-sm);
-    border: 1px dashed rgba(139, 92, 246, .25);
+    border: 1px dashed rgba(56, 189, 248, .3);
     transition: all var(--transition);
 }
 
 .sidebar-admin-link:hover {
-    background: rgba(139, 92, 246, .06);
-    border-color: var(--lavender)
+    background: rgba(56, 189, 248, .06);
+    border-color: var(--sky-deep)
 }
 
 .sidebar-copyright {
@@ -502,7 +511,7 @@ input, textarea {
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(236,72,153,.08), rgba(139,92,246,.08));
+    background: linear-gradient(135deg, rgba(236,72,153,.08), rgba(56,189,248,.08));
     animation: float 3s ease-in-out infinite;
     color: var(--accent);
     box-shadow: 0 12px 32px rgba(236, 72, 153, .1), inset 0 1px 0 rgba(255,255,255,.6);
@@ -521,7 +530,7 @@ input, textarea {
     font-size: 28px;
     font-weight: 800;
     letter-spacing: -.4px;
-    background: linear-gradient(135deg, var(--accent), var(--lavender));
+    background: linear-gradient(135deg, var(--accent) 0%, var(--sky-deep) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -605,7 +614,7 @@ input, textarea {
 }
 
 .msg.assistant .msg-avatar {
-    background: linear-gradient(135deg, var(--accent), var(--lavender));
+    background: linear-gradient(135deg, var(--accent) 0%, var(--sky-deep) 100%);
     box-shadow: 0 3px 12px rgba(236, 72, 153, .2);
     color: #fff;
     font-size: 18px;
@@ -631,7 +640,7 @@ input, textarea {
     font-size: 16px;
     flex-shrink: 0;
     margin-top: 2px;
-    background: linear-gradient(135deg, var(--accent), var(--lavender));
+    background: linear-gradient(135deg, var(--accent) 0%, var(--sky-deep) 100%);
     color: #fff;
 }
 
@@ -654,7 +663,7 @@ input, textarea {
 }
 
 .msg.assistant .msg-label {
-    color: var(--accent)
+    color: var(--sky-deep)
 }
 
 .msg-bubble {
@@ -751,8 +760,15 @@ input, textarea {
 }
 
 .msg-bubble a {
-    color: var(--accent);
-    font-weight: 600
+    color: var(--sky-deep);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid var(--sky-light)
+}
+
+.msg-bubble a:hover {
+    color: var(--sky);
+    border-bottom-color: var(--sky)
 }
 
 .msg-bubble hr {
@@ -778,7 +794,7 @@ input, textarea {
 .input-area {
     padding: 12px 28px 24px;
     flex-shrink: 0;
-    background: linear-gradient(transparent 0%, var(--bg-body) 50%);
+    background: linear-gradient(transparent 0%, var(--bg-body-blue) 60%);
 }
 
 .input-row {
@@ -1206,8 +1222,8 @@ input, textarea {
     font-size: 11px;
     padding: 1px 8px;
     border-radius: 99px;
-    background: var(--accent-light, #ede9fe);
-    color: var(--accent, #7c3aed);
+    background: var(--sky-light, #bae6fd);
+    color: var(--sky-deep, #0ea5e9);
     margin-left: 8px;
     font-weight: 600;
     vertical-align: middle

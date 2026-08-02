@@ -101,7 +101,7 @@ function buildOption(data: GraphPayload) {
       color: '#64748b',
     },
     lineStyle: {
-      color: e.label === RELATION_TYPES.PREREQUISITE ? '#7c3aed' : '#cbd5e1',
+      color: e.label === RELATION_TYPES.PREREQUISITE ? '#38BDF8' : '#cbd5e1',
       width: e.label === RELATION_TYPES.PREREQUISITE ? 2.5 : 1.5,
       type: e.label === RELATION_TYPES.RELATED ? 'dashed' as const : 'solid' as const,
     },
