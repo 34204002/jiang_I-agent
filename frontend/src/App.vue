@@ -1,9 +1,10 @@
 <script lang="ts" setup>
-import {computed, onMounted} from 'vue'
+import {computed, onMounted, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {loadAgentConfig, state} from './stores/state'
 import {token} from './utils/storage'
 import {loadConversations} from './stores/chat'
+import {startReminderPolling} from './utils/reminders'
 import Sidebar from './components/Sidebar.vue'
 import ChatPanel from './components/ChatPanel.vue'
 import GraphPanel from './components/GraphPanel.vue'
@@ -18,11 +19,18 @@ const isLogin = computed(() => route.path === '/login')
 
 onMounted(() => {
   if (!token.value && !isLogin.value) router.replace('/login')
-  if (token.value) {
-    loadConversations();
-    loadAgentConfig()
-  }
 })
+
+// 登录态变化时加载数据。
+// 关键：登录成功是 SPA 内部 router.push('/chat')，App.vue 不会重新 onMounted，
+// 若不 watch，登录后会话列表/Agent 配置/提醒轮询都不会触发（只有刷新才加载）。
+// immediate:true 同时覆盖"刷新时已登录"的首屏加载。
+watch(token, (t) => {
+  if (!t) return
+  loadConversations()
+  loadAgentConfig()
+  startReminderPolling()
+}, {immediate: true})
 </script>
 
 <template>

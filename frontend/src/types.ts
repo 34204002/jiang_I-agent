@@ -80,6 +80,15 @@ export interface TodoItem {
     dueDate?: string
 }
 
+// ==================== Reminders ====================
+
+export interface Reminder {
+    id: number
+    message: string
+    remindAt: string
+    fired: number // 0-未触发 1-已触发
+}
+
 // ==================== Knowledge Base ====================
 
 export interface DocumentItem {
@@ -124,12 +133,4 @@ export interface ToolInfo {
     name: string
     description: string
     category?: string
-}
-
-// ==================== SSE Stream ====================
-
-export interface StreamEvent {
-    type: 'thinking' | 'content' | 'tool_call'
-    content?: string
-    name?: string
 }
