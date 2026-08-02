@@ -37,7 +37,7 @@ public class GraphTool {
     public String searchConcepts(String keyword, String category) {
         var result = graphService.searchConcepts(
                 keyword != null ? keyword : "",
-                category, 1, 20);
+                category, 1, 20, ToolContext.getUser());
 
         int total = (int) result.get("total");
         var records = (java.util.List<?>) result.get("records");
@@ -77,7 +77,7 @@ public class GraphTool {
                     """)
     public String findLearningPath(String from, String to) {
         try {
-            LearningPath paths = graphService.findPath(from, to, 5);
+            LearningPath paths = graphService.findPath(from, to, 5, ToolContext.getUser());
             if (paths.isEmpty()) {
                 return "未找到从「" + from + "」到「" + to + "」的学习路径。"
                         + "建议先用 search_concepts 确认概念是否存在，或用 add_concept 补充概念和关系。";
@@ -128,6 +128,7 @@ public class GraphTool {
                     """)
     public String addConcept(String name, String description, String category, Integer difficulty,
                              String prerequisiteOf, String relatedTo, String concepts) {
+        Long userId = ToolContext.getUser();
 
         // 批量模式优先
         if (concepts != null && !concepts.isBlank()) {
@@ -147,7 +148,7 @@ public class GraphTool {
 
                     addSingleConcept(cn, cd != null ? cd : "",
                             cc != null ? cc : "未分类",
-                            Math.min(5, Math.max(1, cdif)), cpo, crt);
+                            Math.min(5, Math.max(1, cdif)), cpo, crt, userId);
                     added++;
                 }
                 return "已批量记录 " + added + " 个概念到知识图谱。";
@@ -162,7 +163,8 @@ public class GraphTool {
                 category != null ? category : "未分类",
                 difficulty != null ? Math.min(5, Math.max(1, difficulty)) : 1,
                 normalizeStringValue(prerequisiteOf),
-                normalizeStringValue(relatedTo));
+                normalizeStringValue(relatedTo),
+                userId);
     }
 
     /**
@@ -209,13 +211,13 @@ public class GraphTool {
     }
 
     private String addSingleConcept(String name, String description, String category, int difficulty,
-                                    String prerequisiteOf, String relatedTo) {
+                                    String prerequisiteOf, String relatedTo, Long userId) {
         if (name == null || name.isBlank()) return "概念名称不能为空。";
 
         var c = graphService.addConcept(name,
                 description != null ? description : "",
                 category != null ? category : "未分类",
-                difficulty);
+                difficulty, userId);
 
         StringBuilder sb = new StringBuilder();
         sb.append("已记录概念: ").append(name)
@@ -223,7 +225,7 @@ public class GraphTool {
 
         if (prerequisiteOf != null && !prerequisiteOf.isBlank()) {
             try {
-                graphService.addPrerequisite(name, prerequisiteOf);
+                graphService.addPrerequisite(name, prerequisiteOf, userId);
                 sb.append("\n  关系: ").append(name).append(" --[前置知识]--> ").append(prerequisiteOf);
             } catch (Exception e) {
                 sb.append("\n  (关系添加失败: ").append(e.getMessage()).append(")");
@@ -231,7 +233,7 @@ public class GraphTool {
         }
         if (relatedTo != null && !relatedTo.isBlank()) {
             try {
-                graphService.addRelated(name, relatedTo);
+                graphService.addRelated(name, relatedTo, userId);
                 sb.append("\n  关系: ").append(name).append(" --[相关]--> ").append(relatedTo);
             } catch (Exception e) {
                 sb.append("\n  (关系添加失败: ").append(e.getMessage()).append(")");

@@ -24,6 +24,13 @@ public class ConceptEntity {
     @Id
     private String name;
 
+    /**
+     * 所属用户 ID —— 概念按用户隔离。
+     * 注意：@Id 仍是 name，但所有读写都按 (name, userId) 匹配，
+     * 不同用户的同名概念是 Neo4j 中不同的节点。
+     */
+    private Long userId;
+
     private String description;
 
     private String category;
@@ -67,6 +74,14 @@ public class ConceptEntity {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     public String getDescription() {

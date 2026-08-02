@@ -19,6 +19,11 @@ public class Document {
     private Long id;
 
     /**
+     * 所属用户 ID（用户隔离）
+     */
+    private Long userId;
+
+    /**
      * 原始文件名
      */
     private String filename;

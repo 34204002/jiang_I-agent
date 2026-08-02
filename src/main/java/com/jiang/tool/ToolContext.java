@@ -39,4 +39,28 @@ public class ToolContext {
         CURRENT_CONVERSATION.remove();
         CURRENT_REASONING.remove();
     }
+
+    /**
+     * 在指定上下文中执行动作：先设置 ThreadLocal，执行完毕后恢复原值。
+     * <p>
+     * 用于 Reactor 流式场景——工具可能在 boundedElastic 的<b>不同工作线程</b>上执行，
+     * ThreadLocal 不会跨线程自动传播，因此必须在执行前于当前线程重设，
+     * 结束后恢复原值以避免把残留值泄漏给被复用的线程。
+     */
+    public static <T> T runWithContext(Long userId, Long conversationId, String reasoning,
+                                       java.util.function.Supplier<T> action) {
+        Long prevUser = CURRENT_USER.get();
+        Long prevConvo = CURRENT_CONVERSATION.get();
+        String prevReasoning = CURRENT_REASONING.get();
+        if (userId != null) CURRENT_USER.set(userId);
+        if (conversationId != null) CURRENT_CONVERSATION.set(conversationId);
+        if (reasoning != null) CURRENT_REASONING.set(reasoning);
+        try {
+            return action.get();
+        } finally {
+            CURRENT_USER.set(prevUser);
+            CURRENT_CONVERSATION.set(prevConvo);
+            CURRENT_REASONING.set(prevReasoning);
+        }
+    }
 }

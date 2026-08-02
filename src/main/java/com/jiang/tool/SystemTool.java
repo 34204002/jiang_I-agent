@@ -1,5 +1,7 @@
 package com.jiang.tool;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.jiang.entity.Document;
 import com.jiang.entity.Reminder;
 import com.jiang.entity.TodoItem;
 import com.jiang.mapper.DocumentMapper;
@@ -29,7 +31,8 @@ public class SystemTool {
                     {"type":"object","properties":{},"required":[]}
                     """)
     public String listKnowledge() {
-        var docs = documentMapper.selectList(null);
+        var docs = documentMapper.selectList(
+                new LambdaQueryWrapper<Document>().eq(Document::getUserId, ToolContext.getUser()));
         if (docs.isEmpty()) return "知识库中还没有上传任何文档。";
 
         return docs.stream()
@@ -53,7 +56,8 @@ public class SystemTool {
         Long userId = ToolContext.getUser();
         var todos = todoService.listByUser(userId, false);  // pending only
         var reminders = reminderService.listByUser(userId, true); // pending
-        var docs = documentMapper.selectList(null);
+        var docs = documentMapper.selectList(
+                new LambdaQueryWrapper<Document>().eq(Document::getUserId, userId));
         long doneTodos = todoService.listByUser(userId, true).size();
 
         StringBuilder sb = new StringBuilder();

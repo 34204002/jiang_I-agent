@@ -34,7 +34,7 @@ public class KnowledgeTool {
         SearchRequest req = new SearchRequest();
         req.setQuery(query);
         req.setTopK(topK != null ? topK : 5);
-        SearchResponse resp = knowledgeService.search(req);
+        SearchResponse resp = knowledgeService.search(req, ToolContext.getUser());
 
         if (resp.getSources() == null || resp.getSources().isEmpty()) {
             return "知识库中未找到与「" + query + "」相关的内容。";

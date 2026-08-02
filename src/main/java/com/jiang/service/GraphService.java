@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 /**
  * 知识图谱服务 — 概念 CRUD + Cypher 路径查询 + AI 文档概念提取。
  * <p>
+ * 用户隔离：所有操作按 (name, userId) 归属当前用户，不同用户拥有独立概念图。
  * 复杂路径查询走 {@link Neo4jClient}，简单 CRUD 走 {@link ConceptRepository}。
  */
 @Slf4j
@@ -33,11 +34,16 @@ import java.util.stream.Collectors;
 @org.springframework.transaction.annotation.Transactional
 public class GraphService {
 
+    /**
+     * 干净的 ObjectMapper —— RedisConfig 里那个 Bean 开了 DefaultTyping，
+     * 序列化会带 @class 注解，污染发往 LLM 的请求体（见 ISSUES.md #5）。
+     * 凡涉及 API 请求构造一律用此实例。
+     */
+    private static final ObjectMapper CLEAN_MAPPER = new ObjectMapper();
     private final ConceptRepository conceptRepo;
     private final Neo4jClient neo4jClient;
     private final DocumentMapper documentMapper;
     private final DocumentChunkMapper documentChunkMapper;
-    private final ObjectMapper objectMapper;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .build();
@@ -51,9 +57,9 @@ public class GraphService {
     // ==================== 查询 ====================
 
     /**
-     * 分页搜索概念
+     * 分页搜索概念（当前用户）
      */
-    public Map<String, Object> searchConcepts(String keyword, String category, int page, int size) {
+    public Map<String, Object> searchConcepts(String keyword, String category, int page, int size, Long userId) {
         int skip = (page - 1) * size;
         List<ConceptEntity> list;
         int total;
@@ -63,14 +69,14 @@ public class GraphService {
 
         if (hasKeyword) {
             String regex = buildFuzzyRegex(keyword);
-            list = conceptRepo.searchByName(regex, skip, size);
-            total = conceptRepo.countByName(regex);
+            list = conceptRepo.searchByName(userId, regex, skip, size);
+            total = conceptRepo.countByName(userId, regex);
         } else if (hasCategory) {
-            list = conceptRepo.findByCategoryPaged(category, skip, size);
-            total = conceptRepo.countByCategory(category);
+            list = conceptRepo.findByCategoryPaged(userId, category, skip, size);
+            total = conceptRepo.countByCategory(userId, category);
         } else {
-            list = conceptRepo.findAllPaged(skip, size);
-            total = (int) conceptRepo.count();
+            list = conceptRepo.findAllPaged(userId, skip, size);
+            total = (int) conceptRepo.countByUserId(userId);
         }
 
         List<Map<String, Object>> records = list.stream().map(c -> {
@@ -93,17 +99,33 @@ public class GraphService {
     }
 
     /**
-     * 概念详情（含关系）
+     * 查询所有分类（去重，过滤空值），供前端筛选下拉（当前用户）
      */
-    public ConceptDetail getConceptDetail(String name) {
-        ConceptEntity c = conceptRepo.findById(name)
+    public List<String> listCategories(Long userId) {
+        try {
+            return conceptRepo.findAllCategories(userId).stream()
+                    .filter(c -> c != null && !c.isBlank())
+                    .distinct()
+                    .sorted()
+                    .toList();
+        } catch (Exception e) {
+            log.warn("查询分类失败: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * 概念详情（含关系，当前用户）
+     */
+    public ConceptDetail getConceptDetail(String name, Long userId) {
+        ConceptEntity c = conceptRepo.findByNameAndUserId(name, userId)
                 .orElseThrow(() -> new NoSuchElementException("概念不存在: " + name));
 
-        List<ConceptRef> prerequisites = conceptRepo.findDirectPrerequisites(name)
+        List<ConceptRef> prerequisites = conceptRepo.findDirectPrerequisites(userId, name)
                 .stream().map(p -> new ConceptRef(p.getName(), "前置知识", p.getDifficulty()))
                 .collect(Collectors.toList());
 
-        List<ConceptRef> related = conceptRepo.findDirectRelated(name)
+        List<ConceptRef> related = conceptRepo.findDirectRelated(userId, name)
                 .stream().map(r -> new ConceptRef(r.getName(), "相关概念", r.getDifficulty()))
                 .collect(Collectors.toList());
 
@@ -112,7 +134,7 @@ public class GraphService {
             for (Long docId : c.getDocumentIds()) {
                 try {
                     var doc = documentMapper.selectById(docId);
-                    if (doc != null) {
+                    if (doc != null && userId.equals(doc.getUserId())) {
                         documents.add(new DocRef(docId, doc.getFilename()));
                     }
                 } catch (Exception ignored) {
@@ -126,29 +148,29 @@ public class GraphService {
     }
 
     /**
-     * 学习路径查询（核心差异化）。
+     * 学习路径查询（核心差异化，当前用户）。
      * 先用 PREREQUISITE_OF 查，无结果则用 RELATED_TO，再无结果则不限关系类型。
      */
     @SuppressWarnings("unchecked")
-    public LearningPath findPath(String from, String to, int maxHops) {
+    public LearningPath findPath(String from, String to, int maxHops, Long userId) {
         // 尝试 1: PREREQUISITE_OF
-        var paths = findPathWithRel(from, to, maxHops, "PREREQUISITE_OF");
+        var paths = findPathWithRel(from, to, maxHops, "PREREQUISITE_OF", userId);
         if (!paths.isEmpty()) return new LearningPath(paths);
 
         // 尝试 2: RELATED_TO
-        paths = findPathWithRel(from, to, maxHops, "RELATED_TO");
+        paths = findPathWithRel(from, to, maxHops, "RELATED_TO", userId);
         if (!paths.isEmpty()) return new LearningPath(paths);
 
         // 尝试 3: 不限关系类型
-        paths = findPathWithRel(from, to, maxHops, null);
+        paths = findPathWithRel(from, to, maxHops, null, userId);
         return new LearningPath(paths);
     }
 
     @SuppressWarnings("unchecked")
-    private List<List<PathNode>> findPathWithRel(String from, String to, int maxHops, String relType) {
+    private List<List<PathNode>> findPathWithRel(String from, String to, int maxHops, String relType, Long userId) {
         // 先解析概念名（用户可能输入部分名称，模糊匹配精确概念名）
-        String resolvedFrom = resolveName(from);
-        String resolvedTo = resolveName(to);
+        String resolvedFrom = resolveName(from, userId);
+        String resolvedTo = resolveName(to, userId);
         if (resolvedFrom == null || resolvedTo == null) return List.of();
 
         // 关系类型仅允许内部枚举常量，防止注入
@@ -156,7 +178,7 @@ public class GraphService {
                 ? relType : null;
         String relPattern = safeRel != null ? ":" + safeRel : "";
         String cypher = """
-                MATCH path = shortestPath((start:Concept {name: $from})-[%s*..%d]-(end:Concept {name: $to}))
+                MATCH path = shortestPath((start:Concept {name: $from, userId: $userId})-[%s*..%d]-(end:Concept {name: $to, userId: $userId}))
                 RETURN nodes(path) AS nodes
                 """.formatted(relPattern, maxHops);
 
@@ -164,6 +186,7 @@ public class GraphService {
             var results = neo4jClient.query(cypher)
                     .bind(resolvedFrom).to("from")
                     .bind(resolvedTo).to("to")
+                    .bind(userId).to("userId")
                     .fetch()
                     .all();
 
@@ -184,25 +207,26 @@ public class GraphService {
     }
 
     /**
-     * 查询概念的前置知识链（多跳，先 PREREQUISITE_OF 再 RELATED_TO）
+     * 查询概念的前置知识链（多跳，先 PREREQUISITE_OF 再 RELATED_TO，当前用户）
      */
     @SuppressWarnings("unchecked")
-    public LearningPath findPrerequisites(String name, int maxHops) {
-        var paths = findPrereqWithRel(name, maxHops, "PREREQUISITE_OF");
+    public LearningPath findPrerequisites(String name, int maxHops, Long userId) {
+        var paths = findPrereqWithRel(name, maxHops, "PREREQUISITE_OF", userId);
         if (!paths.isEmpty()) return new LearningPath(paths);
-        paths = findPrereqWithRel(name, maxHops, "RELATED_TO");
+        paths = findPrereqWithRel(name, maxHops, "RELATED_TO", userId);
         return new LearningPath(paths);
     }
 
     @SuppressWarnings("unchecked")
-    private List<List<PathNode>> findPrereqWithRel(String name, int maxHops, String relType) {
-        String resolved = resolveName(name);
+    private List<List<PathNode>> findPrereqWithRel(String name, int maxHops, String relType, Long userId) {
+        String resolved = resolveName(name, userId);
         if (resolved == null) return List.of();
-        String cypher = ("MATCH path = (c:Concept {name: $name})-[:%s*1..%d]->(target) RETURN nodes(path) AS nodes")
+        String cypher = ("MATCH path = (c:Concept {name: $name, userId: $userId})-[:%s*1..%d]->(target) RETURN nodes(path) AS nodes")
                 .formatted(relType, maxHops);
         try {
             var results = neo4jClient.query(cypher)
                     .bind(resolved).to("name")
+                    .bind(userId).to("userId")
                     .fetch()
                     .all();
             List<List<PathNode>> paths = new ArrayList<>();
@@ -223,48 +247,46 @@ public class GraphService {
     // ==================== 写入 ====================
 
     /**
-     * 添加/更新概念
+     * 添加/更新概念（当前用户）
      */
-    public ConceptEntity addConcept(String name, String description, String category, Integer difficulty) {
-        ConceptEntity c = conceptRepo.findById(name).orElse(new ConceptEntity());
-        c.setName(name);
-        c.setDescription(description != null ? description : "");
-        c.setCategory(category != null ? category : "未分类");
-        c.setDifficulty(difficulty != null ? difficulty : 1);
-        return conceptRepo.save(c);
+    public ConceptEntity addConcept(String name, String description, String category, Integer difficulty, Long userId) {
+        return conceptRepo.upsert(name, userId,
+                description != null ? description : "",
+                category != null ? category : "未分类",
+                difficulty != null ? difficulty : 1);
     }
 
     /**
-     * 添加前置关系（含校验 + 传递化简）
+     * 添加前置关系（含校验 + 传递化简，当前用户）
      */
-    public void addPrerequisite(String from, String to) {
-        String err = validateRelationship(from, to, "PREREQUISITE_OF");
+    public void addPrerequisite(String from, String to, Long userId) {
+        String err = validateRelationship(from, to, "PREREQUISITE_OF", userId);
         if (err != null) throw new IllegalArgumentException(err);
-        ensureExists(from);
-        ensureExists(to);
-        conceptRepo.addPrerequisite(from, to);
-        log.info("图谱关系: {} --[PREREQUISITE_OF]--> {}", from, to);
-        removeTransitiveRedundancy(from, to);
+        ensureExists(from, userId);
+        ensureExists(to, userId);
+        conceptRepo.addPrerequisite(userId, from, to);
+        log.info("图谱关系: {} --[PREREQUISITE_OF]--> {} (user={})", from, to, userId);
+        removeTransitiveRedundancy(from, to, userId);
     }
 
     /**
-     * 添加相关关系（含校验 + 限流）
+     * 添加相关关系（含校验 + 限流，当前用户）
      */
-    public void addRelated(String from, String to) {
-        String err = validateRelationship(from, to, "RELATED_TO");
+    public void addRelated(String from, String to, Long userId) {
+        String err = validateRelationship(from, to, "RELATED_TO", userId);
         if (err != null) throw new IllegalArgumentException(err);
-        ensureExists(from);
-        ensureExists(to);
-        conceptRepo.addRelated(from, to);
-        log.info("图谱关系: {} --[RELATED_TO]--> {}", from, to);
+        ensureExists(from, userId);
+        ensureExists(to, userId);
+        conceptRepo.addRelated(userId, from, to);
+        log.info("图谱关系: {} --[RELATED_TO]--> {} (user={})", from, to, userId);
     }
 
     /**
-     * 关系校验：自环、循环（PREREQUISITE_OF 仅限 DAG）、重复关系。
+     * 关系校验：自环、循环（PREREQUISITE_OF 仅限 DAG）、重复关系（当前用户）。
      *
      * @return 错误消息，null 表示通过
      */
-    public String validateRelationship(String from, String to, String type) {
+    public String validateRelationship(String from, String to, String type, Long userId) {
         if (from == null || to == null || from.isBlank() || to.isBlank()) {
             return "概念名称不能为空";
         }
@@ -274,7 +296,7 @@ public class GraphService {
         }
         // 循环检测：添加 A→B 前，检查是否已有 B→A 路径
         if ("PREREQUISITE_OF".equals(type)) {
-            var paths = findPathWithRel(to, from, 10, "PREREQUISITE_OF");
+            var paths = findPathWithRel(to, from, 10, "PREREQUISITE_OF", userId);
             if (!paths.isEmpty()) {
                 return to + " 已经是 " + from + " 的前置知识（直接或间接），再添加反向关系会导致循环";
             }
@@ -283,29 +305,29 @@ public class GraphService {
     }
 
     /**
-     * 传递化简：添加 PREQ(A,B) 后，自动删除可通过传递推导的冗余边。
+     * 传递化简：添加 PREQ(A,B) 后，自动删除可通过传递推导的冗余边（当前用户）。
      * <p>
      * 方向1：查 B 的所有直接前置 C（即 PREQ(B,C)），若 PREQ(A,C) 存在 → 冗余（A→B→C 可推导 A→C）
      * 方向2：查 A 的所有直接前置 P（即 PREQ(P,A)），若 PREQ(P,B) 存在 → 冗余（P→A→B 可推导 P→B）
      */
-    private void removeTransitiveRedundancy(String from, String to) {
+    private void removeTransitiveRedundancy(String from, String to, Long userId) {
         int removed = 0;
         try {
             // 方向1: 查 B 是哪些概念的前置 → 看 A 是否已有直达边
-            for (var c : conceptRepo.findDirectPrerequisites(to)) {
+            for (var c : conceptRepo.findDirectPrerequisites(userId, to)) {
                 String target = c.getName();
-                if (!target.equals(from) && conceptRepo.hasRelation(from, target, "PREREQUISITE_OF")) {
-                    conceptRepo.deleteRelation(from, target, "PREREQUISITE_OF");
+                if (!target.equals(from) && conceptRepo.hasRelation(userId, from, target, "PREREQUISITE_OF")) {
+                    conceptRepo.deleteRelation(userId, from, target, "PREREQUISITE_OF");
                     log.info("传递化简: 移除冗余边 {} → {}（可通过 {}→{}→{} 推导）",
                             from, target, from, to, target);
                     removed++;
                 }
             }
             // 方向2: 查 A 有哪些前置 → 看 P 是否现在也连到了 B
-            for (var p : conceptRepo.findDirectPrerequisites(from)) {
+            for (var p : conceptRepo.findDirectPrerequisites(userId, from)) {
                 String source = p.getName();
-                if (!source.equals(to) && conceptRepo.hasRelation(source, to, "PREREQUISITE_OF")) {
-                    conceptRepo.deleteRelation(source, to, "PREREQUISITE_OF");
+                if (!source.equals(to) && conceptRepo.hasRelation(userId, source, to, "PREREQUISITE_OF")) {
+                    conceptRepo.deleteRelation(userId, source, to, "PREREQUISITE_OF");
                     log.info("传递化简: 移除冗余边 {} → {}（可通过 {}→{}→{} 推导）",
                             source, to, source, from, to);
                     removed++;
@@ -320,49 +342,50 @@ public class GraphService {
     }
 
     /**
-     * 关联文档
+     * 关联文档（当前用户）
      */
-    public void linkDocument(String conceptName, Long documentId) {
-        conceptRepo.linkDocument(conceptName, documentId);
+    public void linkDocument(String conceptName, Long documentId, Long userId) {
+        conceptRepo.linkDocument(userId, conceptName, documentId);
     }
 
     /**
-     * 删除概念（级联删除所有关联关系）
+     * 删除概念（级联删除所有关联关系，当前用户）
      */
-    public void deleteConcept(String name) {
-        if (!conceptRepo.findById(name).isPresent()) {
+    public void deleteConcept(String name, Long userId) {
+        if (conceptRepo.findByNameAndUserId(name, userId).isEmpty()) {
             throw new NoSuchElementException("概念不存在: " + name);
         }
-        conceptRepo.deleteById(name);
-        log.info("图谱: 已删除概念 {}", name);
+        conceptRepo.deleteByNameAndUserId(name, userId);
+        log.info("图谱: 已删除概念 {} (user={})", name, userId);
     }
 
     /**
-     * 删除关系
+     * 删除关系（当前用户）
      */
-    public void deleteRelation(String from, String to, String type) {
-        conceptRepo.deleteRelation(from, to, type != null ? type : "RELATED_TO");
-        log.info("图谱: 已删除关系 {} --[{}]--> {}", from, type, to);
+    public void deleteRelation(String from, String to, String type, Long userId) {
+        conceptRepo.deleteRelation(userId, from, to, type != null ? type : "RELATED_TO");
+        log.info("图谱: 已删除关系 {} --[{}]--> {} (user={})", from, type, to, userId);
     }
 
     // ==================== 图可视化 ====================
 
-    public GraphData getGraph(String name) {
-        String resolved = resolveName(name);
+    public GraphData getGraph(String name, Long userId) {
+        String resolved = resolveName(name, userId);
         if (resolved == null) return new GraphData(List.of(), List.of());
 
         // 查目标概念本身
-        var self = conceptRepo.findById(resolved).orElse(null);
+        var self = conceptRepo.findByNameAndUserId(resolved, userId).orElse(null);
         if (self == null) return new GraphData(List.of(), List.of());
 
         // 查邻居
         @SuppressWarnings("unchecked")
         var rows = (List<Map<String, Object>>) neo4jClient.query("""
-                        MATCH (c:Concept {name: $name})-[r]-(neighbor:Concept)
+                        MATCH (c:Concept {name: $name, userId: $userId})-[r]-(neighbor:Concept {userId: $userId})
                         RETURN type(r) AS rel, neighbor.name AS neighbor,
                                neighbor.difficulty AS diff, neighbor.category AS cat
                         """)
                 .bind(resolved).to("name")
+                .bind(userId).to("userId")
                 .fetch().all();
 
         Set<String> seen = new LinkedHashSet<>();
@@ -393,13 +416,13 @@ public class GraphService {
     }
 
     /**
-     * 解析概念名：先精确匹配，失败则模糊搜索取 top1
+     * 解析概念名：先精确匹配，失败则模糊搜索取 top1（当前用户）
      */
-    private String resolveName(String name) {
+    private String resolveName(String name, Long userId) {
         if (name == null || name.isBlank()) return null;
-        if (conceptRepo.findById(name).isPresent()) return name; // 精确匹配
+        if (conceptRepo.findByNameAndUserId(name, userId).isPresent()) return name; // 精确匹配
         String regex = buildFuzzyRegex(name);
-        var list = conceptRepo.searchByName(regex, 0, 1);
+        var list = conceptRepo.searchByName(userId, regex, 0, 1);
         if (!list.isEmpty()) return list.get(0).getName();
         return null; // 完全找不到
     }
@@ -421,20 +444,23 @@ public class GraphService {
         return sb.toString();
     }
 
-    private void ensureExists(String name) {
-        if (conceptRepo.findById(name).isEmpty()) {
-            conceptRepo.save(new ConceptEntity(name, "", "未分类", 1));
+    private void ensureExists(String name, Long userId) {
+        if (conceptRepo.findByNameAndUserId(name, userId).isEmpty()) {
+            conceptRepo.upsert(name, userId, "", "未分类", 1);
         }
     }
 
     /**
-     * 从已上传的知识库文档中提取概念和关系，写入图谱。
+     * 从已上传的知识库文档中提取概念和关系，写入图谱（当前用户）。
      * <p>
      * 流程：读文档全部 chunk → LLM 提取 → parse JSON → merge 节点+关系。
      */
-    public Map<String, Object> extractFromDocument(Long documentId) {
+    public Map<String, Object> extractFromDocument(Long documentId, Long userId) {
         var doc = documentMapper.selectById(documentId);
         if (doc == null) throw new NoSuchElementException("文档不存在: " + documentId);
+        if (!doc.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("无权提取该文档");
+        }
 
         // 1. 读取文档全部 chunk 内容
         var chunks = documentChunkMapper.selectList(
@@ -457,7 +483,7 @@ public class GraphService {
         // 2. 调 LLM 提取概念
         String prompt = """
                 你是一个知识图谱构建助手。从以下文档中提取核心概念及其关系。
-                
+
                 请返回一个 JSON 对象，格式如下：
                 {
                   "concepts": [
@@ -468,14 +494,14 @@ public class GraphService {
                     {"from": "概念C", "to": "概念D", "type": "RELATED_TO"}
                   ]
                 }
-                
+
                 规则：
                 - difficulty 为 1-5 的整数，1=入门，5=专家
                 - PREREQUISITE_OF 表示 from 是 to 的前置知识（先学 from 才能学 to）
                 - RELATED_TO 表示两个概念相关
                 - 只提取文档中明确出现的概念，不要编造
                 - 至少提取 3 个概念，最多 15 个
-                
+
                 文档内容：
                 %s
                 """.formatted(excerpt);
@@ -487,9 +513,9 @@ public class GraphService {
             body.put("stream", false);
             body.put("temperature", 0.3);
 
-            String json = objectMapper.writeValueAsString(body);
+            String json = CLEAN_MAPPER.writeValueAsString(body);
             String resp = syncHttp(json);
-            JsonNode root = objectMapper.readTree(resp);
+            JsonNode root = CLEAN_MAPPER.readTree(resp);
             String content = root.path("choices").get(0).path("message").path("content").asText();
 
             // 提取 JSON 块（LLM 可能包裹在 ```json 中）
@@ -500,7 +526,7 @@ public class GraphService {
                 jsonBlock = content.substring(start, end + 1);
             }
 
-            JsonNode extracted = objectMapper.readTree(jsonBlock);
+            JsonNode extracted = CLEAN_MAPPER.readTree(jsonBlock);
 
             int conceptCount = 0;
             int relationCount = 0;
@@ -514,8 +540,8 @@ public class GraphService {
                     String desc = cn.path("description").asText("");
                     String cat = cn.path("category").asText("未分类");
                     int diff = cn.path("difficulty").asInt(1);
-                    addConcept(name, desc, cat, Math.min(5, Math.max(1, diff)));
-                    linkDocument(name, documentId);
+                    addConcept(name, desc, cat, Math.min(5, Math.max(1, diff)), userId);
+                    linkDocument(name, documentId, userId);
                     conceptCount++;
                 }
             }
@@ -528,12 +554,12 @@ public class GraphService {
                     String to = rn.path("to").asText();
                     String type = rn.path("type").asText("RELATED_TO");
                     if (from.isBlank() || to.isBlank()) continue;
-                    ensureExists(from);
-                    ensureExists(to);
+                    ensureExists(from, userId);
+                    ensureExists(to, userId);
                     if ("PREREQUISITE_OF".equals(type)) {
-                        conceptRepo.addPrerequisite(from, to);
+                        conceptRepo.addPrerequisite(userId, from, to);
                     } else {
-                        conceptRepo.addRelated(from, to);
+                        conceptRepo.addRelated(userId, from, to);
                     }
                     relationCount++;
                 }

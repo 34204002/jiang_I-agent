@@ -40,7 +40,7 @@ CREATE TABLE t_agent_config
     agent_name    VARCHAR(100)  NOT NULL DEFAULT 'Jiang I-Agent' COMMENT 'Agent 名称',
     avatar        VARCHAR(500)  NOT NULL DEFAULT '' COMMENT 'Agent 头像 URL',
     system_prompt TEXT          NULL COMMENT '系统提示词',
-    model         VARCHAR(50)   NOT NULL DEFAULT 'deepseek-ai/DeepSeek-V3.2' COMMENT '默认模型',
+    model         VARCHAR(50)   NOT NULL DEFAULT 'deepseek-v4-flash' COMMENT '默认模型',
     temperature   DECIMAL(3, 2) NOT NULL DEFAULT 0.7 COMMENT '温度参数',
     updated_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE = InnoDB
@@ -97,16 +97,18 @@ CREATE TABLE t_message
 CREATE TABLE t_document
 (
     id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '文档 ID',
+    user_id      BIGINT UNSIGNED NOT NULL COMMENT '所属用户',
     filename     VARCHAR(255)    NOT NULL COMMENT '原始文件名',
     file_type    VARCHAR(20)     NOT NULL COMMENT 'md / pdf / txt / docx',
     file_size    BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '文件大小（字节）',
-    content_hash VARCHAR(64)     NOT NULL DEFAULT '' COMMENT 'SHA-256 去重',
+    content_hash VARCHAR(64)     NOT NULL DEFAULT '' COMMENT 'SHA-256 去重（按用户）',
     chunk_count  INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '分片数',
     status       TINYINT         NOT NULL DEFAULT 0 COMMENT '0-待处理 1-已解析 2-已向量化',
     summary      VARCHAR(500)    NOT NULL DEFAULT '' COMMENT 'LLM 摘要',
     oss_key      VARCHAR(200)    NOT NULL DEFAULT '' COMMENT 'OSS 存储 key',
     uploaded_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_content_hash (content_hash),
+    UNIQUE KEY uk_user_hash (user_id, content_hash),
+    INDEX idx_user (user_id),
     INDEX idx_status (status)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
@@ -144,26 +146,6 @@ CREATE TABLE t_todo_item
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci COMMENT ='待办事项';
-
--- =============================================================================
--- 工具调用日志
--- =============================================================================
-
-CREATE TABLE t_tool_usage_log
-(
-    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '日志 ID',
-    conversation_id BIGINT UNSIGNED NOT NULL COMMENT '所属会话',
-    message_id      BIGINT UNSIGNED NOT NULL COMMENT '所属消息',
-    tool_name       VARCHAR(50)     NOT NULL COMMENT '工具名',
-    input_json      JSON            NULL COMMENT '入参',
-    output_text     TEXT            NULL COMMENT '返回',
-    duration_ms     INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT '耗时（毫秒）',
-    success         TINYINT         NOT NULL DEFAULT 1 COMMENT '0-失败 1-成功',
-    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_tool_time (tool_name, created_at)
-) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
-  COLLATE = utf8mb4_0900_ai_ci COMMENT ='工具调用日志';
 
 -- =============================================================================
 -- 定时提醒

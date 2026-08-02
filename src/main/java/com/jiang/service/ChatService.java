@@ -11,8 +11,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiang.constant.AgentConstants;
 import com.jiang.entity.AgentConfig;
 import com.jiang.entity.Conversation;
+import com.jiang.entity.Document;
 import com.jiang.mapper.AgentConfigMapper;
 import com.jiang.mapper.ConversationMapper;
+import com.jiang.mapper.DocumentMapper;
 import com.jiang.mapper.MessageMapper;
 import com.jiang.model.req.ChatRequest;
 import com.jiang.model.resp.ChatResponse;
@@ -40,9 +42,12 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -64,6 +69,7 @@ public class ChatService {
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final AgentConfigMapper agentConfigMapper;
+    private final DocumentMapper documentMapper;
     private final VectorStore vectorStore;
     private final ToolRegistry toolRegistry;
     private final String defaultSystemPrompt;
@@ -80,12 +86,14 @@ public class ChatService {
 
     public ChatService(RedisChatMemory chatMemory, ConversationMapper conversationMapper,
                        MessageMapper messageMapper, AgentConfigMapper agentConfigMapper,
-                       VectorStore vectorStore, ToolRegistry toolRegistry,
+                       DocumentMapper documentMapper, VectorStore vectorStore,
+                       ToolRegistry toolRegistry,
                        @Qualifier("defaultSystemPrompt") String defaultSystemPrompt) {
         this.chatMemory = chatMemory;
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.agentConfigMapper = agentConfigMapper;
+        this.documentMapper = documentMapper;
         this.vectorStore = vectorStore;
         this.toolRegistry = toolRegistry;
         this.defaultSystemPrompt = defaultSystemPrompt;
@@ -138,20 +146,20 @@ public class ChatService {
     public Flux<String> streamChat(ChatRequest request, Long userId) {
         String fullMsg = buildUserMessage(request);
         var ctx = prepareConversation(request, fullMsg, userId);
-        ToolContext.setUser(userId);
-        ToolContext.setConversation(ctx.convoId);
-        return streamWithPossibleTools(ctx.history, fullMsg,
-                ctx.convoId, ctx.memoryKey, false, userId)
+        // 首帧下发会话 ID，让前端立即拿到新建会话的 id（避免靠轮询/定时器兜底造成竞态）
+        return Flux.just(conversationIdEvent(ctx.convoId))
+                .concatWith(streamWithPossibleTools(ctx.history, fullMsg,
+                        ctx.convoId, ctx.memoryKey, false, userId))
                 .doFinally(s -> ToolContext.clear());
     }
 
     public Flux<String> streamChatWithThinking(ChatRequest request, Long userId) {
         String fullMsg = buildUserMessage(request);
         var ctx = prepareConversation(request, fullMsg, userId);
-        ToolContext.setUser(userId);
-        ToolContext.setConversation(ctx.convoId);
-        return streamWithPossibleTools(ctx.history, fullMsg,
-                ctx.convoId, ctx.memoryKey, true, userId)
+        // 首帧下发会话 ID，让前端立即拿到新建会话的 id（避免靠轮询/定时器兜底造成竞态）
+        return Flux.just(conversationIdEvent(ctx.convoId))
+                .concatWith(streamWithPossibleTools(ctx.history, fullMsg,
+                        ctx.convoId, ctx.memoryKey, true, userId))
                 .doFinally(s -> ToolContext.clear());
     }
 
@@ -184,6 +192,11 @@ public class ChatService {
         return new ConversationContext(convoId, memoryKey, history);
     }
 
+    /** SSE 首帧事件：把当前会话 ID 下发给前端，解决新建会话时前端不知道 id 的竞态 */
+    private String conversationIdEvent(Long convoId) {
+        return "{\"type\":\"conversation_id\",\"id\":\"" + convoId + "\"}";
+    }
+
     private void saveAssistantMessage(ConversationContext ctx, String content) {
         saveMessage(ctx.convoId, "assistant", content, null, null);
         chatMemory.add(ctx.memoryKey, List.of(new AssistantMessage(content)));
@@ -202,7 +215,7 @@ public class ChatService {
     }
 
     private String doCall(List<Message> history, String userMsg, Long userId, Long convoId) {
-        String body = buildRequestBody(history, userMsg, String.valueOf(convoId), false, false);
+        String body = buildRequestBody(history, userMsg, String.valueOf(convoId), false, false, userId);
         String resp = syncHttp(body);
         try {
             var completion = MAPPER.readValue(resp, ChatCompletion.class);
@@ -229,7 +242,7 @@ public class ChatService {
         final StringBuilder contentBuf = new StringBuilder();
         final StringBuilder thinkingBuf = thinking ? new StringBuilder() : null;
         final StringBuilder dsmlBuf = new StringBuilder();  // 记录被过滤的 DSML 内容
-        String body = buildRequestBody(history, userMsg, memoryKey, thinking, true);
+        String body = buildRequestBody(history, userMsg, memoryKey, thinking, true, userId);
 
         return streamHttp(body)
                 .<String>handle((chunk, sink) -> {
@@ -468,7 +481,7 @@ public class ChatService {
                         }
                         // 执行工具，追加结果到 messages，递归调用
                         for (var tc : calls) {
-                            String result = toolRegistry.execute(tc.name(), tc.arguments());
+                            String result = executeTool(tc.name(), tc.arguments(), userId, convoId);
                             log.info("[TOOL_RESULT] followup name={} result={}", tc.name(),
                                     result.length() > 200 ? result.substring(0, 200) + "..." : result);
 
@@ -544,7 +557,7 @@ public class ChatService {
         for (int i = 0; i < toolCalls.size(); i++) {
             var tc = toolCalls.get(i);
             log.info("[TOOL_EXEC] 执行工具: name={} args={}", tc.name(), tc.arguments());
-            String result = toolRegistry.execute(tc.name(), tc.arguments());
+            String result = executeTool(tc.name(), tc.arguments(), userId, convoId);
             log.info("[TOOL_RESULT] name={} result={}", tc.name(),
                     result.length() > 200 ? result.substring(0, 200) + "..." : result);
             messages.add(Map.of("role", "tool",
@@ -554,7 +567,8 @@ public class ChatService {
         return messages;
     }
 
-    private String callLlmWithTools(List<Map<String, Object>> messages, int round) {
+    private String callLlmWithTools(List<Map<String, Object>> messages, int round,
+                                    Long userId, Long convoId) {
         if (round >= MAX_TOOL_ROUNDS) {
             log.warn("工具调用超过最大轮次 {}，强制终止", MAX_TOOL_ROUNDS);
             return "（工具调用次数过多，已终止）";
@@ -580,7 +594,7 @@ public class ChatService {
                 for (var tc : msg.toolCalls()) {
                     String name = tc.function().name();
                     String args = tc.function().arguments();
-                    String result = toolRegistry.execute(name, args);
+                    String result = executeTool(name, args, userId, convoId);
 
                     Map<String, Object> tcAssistant = new LinkedHashMap<>();
                     tcAssistant.put("role", "assistant");
@@ -594,7 +608,7 @@ public class ChatService {
                     messages.add(Map.of("role", "tool",
                             "tool_call_id", "call_" + (round + 1), "content", result));
                 }
-                return callLlmWithTools(messages, round + 1);
+                return callLlmWithTools(messages, round + 1, userId, convoId);
             }
 
             return stripDsml(msg.content());
@@ -623,6 +637,16 @@ public class ChatService {
         return content;
     }
 
+    /**
+     * 工具执行统一入口：显式携带 userId/convoId，确保 ThreadLocal 上下文
+     * 在当前执行线程上就位。Reactor 流式下 boundedElastic 会切换工作线程，
+     * ThreadLocal 不跨线程传播，因此统一走 {@link ToolContext#runWithContext}。
+     */
+    private String executeTool(String name, String args, Long userId, Long convoId) {
+        return ToolContext.runWithContext(userId, convoId, null,
+                () -> toolRegistry.execute(name, args));
+    }
+
     private String runToolLoop(List<Message> history, String userMsg,
                                ChatCompletionMessage msg, Long userId, Long convoId,
                                String memoryKey) {
@@ -641,7 +665,7 @@ public class ChatService {
 
             List<Map<String, Object>> messages = buildMessagesWithTools(
                     history, userMsg, toolCalls, userId, convoId, memoryKey);
-            return callLlmWithTools(messages, 0);
+            return callLlmWithTools(messages, 0, userId, convoId);
         } finally {
             ToolContext.clear();
         }
@@ -789,8 +813,8 @@ public class ChatService {
     }
 
     private String buildRequestBody(List<Message> history, String userMsg, String memoryKey,
-                                    boolean thinking, boolean stream) {
-        String ragContext = retrieveRelevantContext(userMsg);
+                                    boolean thinking, boolean stream, Long userId) {
+        String ragContext = retrieveRelevantContext(userMsg, userId);
 
         List<Map<String, Object>> messages = new ArrayList<>();
         String systemPrompt = buildSystemPrompt(memoryKey);
@@ -831,19 +855,34 @@ public class ChatService {
         }
     }
 
-    private String retrieveRelevantContext(String query) {
+    private String retrieveRelevantContext(String query, Long userId) {
         try {
             var results = vectorStore.similaritySearch(
                     org.springframework.ai.vectorstore.SearchRequest.builder()
                             .query(query).topK(3).similarityThreshold(0.6).build());
-            if (results.isEmpty()) return null;
+            if (results == null || results.isEmpty()) return null;
+            // 用户隔离：只保留属于该用户的文档。MySQL 是归属的唯一真源
+            // （Qdrant 存量向量没有 userId payload），故检索后按文档归属过滤
+            List<Long> docIds = results.stream()
+                    .map(d -> d.getMetadata().get("documentId"))
+                    .filter(Objects::nonNull)
+                    .map(o -> Long.valueOf(o.toString()))
+                    .distinct()
+                    .toList();
+            if (docIds.isEmpty()) return null;
+            Set<Long> owned = new HashSet<>(documentMapper.selectBatchIds(docIds).stream()
+                    .filter(d -> userId.equals(d.getUserId()))
+                    .map(Document::getId)
+                    .toList());
             StringBuilder sb = new StringBuilder();
             for (var doc : results) {
+                Object docId = doc.getMetadata().get("documentId");
+                if (docId == null || !owned.contains(Long.valueOf(docId.toString()))) continue;
                 String filename = doc.getMetadata().getOrDefault("filename", "未知").toString();
                 sb.append("【来源: ").append(filename).append("】\n")
                         .append(doc.getText()).append("\n\n");
             }
-            return sb.toString();
+            return sb.length() > 0 ? sb.toString() : null;
         } catch (Exception e) {
             log.warn("RAG 检索失败（对话不受影响）: {}", e.getMessage());
             return null;

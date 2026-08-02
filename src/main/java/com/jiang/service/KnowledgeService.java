@@ -76,7 +76,7 @@ public class KnowledgeService {
     /**
      * 上传并解析文档 → 分块 → 向量化存入 Qdrant。
      */
-    public DocumentVO upload(MultipartFile file) throws IOException {
+    public DocumentVO upload(MultipartFile file, Long userId) throws IOException {
         // 1. 校验
         String originalFilename = file.getOriginalFilename();
         String ext = getExt(originalFilename).toLowerCase();
@@ -93,7 +93,9 @@ public class KnowledgeService {
         // 2. SHA-256 去重
         String hash = sha256(file.getBytes());
         Document existing = documentMapper.selectOne(
-                new LambdaQueryWrapper<Document>().eq(Document::getContentHash, hash));
+                new LambdaQueryWrapper<Document>()
+                        .eq(Document::getUserId, userId)
+                        .eq(Document::getContentHash, hash));
         if (existing != null) {
             log.info("文档已存在，跳过上传: {} (hash={})", originalFilename, hash.substring(0, 8));
             return toVO(existing);
@@ -116,6 +118,7 @@ public class KnowledgeService {
 
         // 6. 保存文档元数据到 MySQL
         Document doc = new Document();
+        doc.setUserId(userId);
         doc.setFilename(originalFilename);
         doc.setFileType(ext);
         doc.setFileSize(file.getSize());
@@ -138,6 +141,7 @@ public class KnowledgeService {
 
             // 为 Qdrant 添加元数据
             chunk.getMetadata().put("documentId", doc.getId().toString());
+            chunk.getMetadata().put("userId", userId);
             chunk.getMetadata().put("filename", originalFilename);
             chunk.getMetadata().put("chunkIndex", i);
         }
@@ -159,11 +163,11 @@ public class KnowledgeService {
     /**
      * 批量上传文档
      */
-    public List<DocumentVO> batchUpload(List<MultipartFile> files) {
+    public List<DocumentVO> batchUpload(List<MultipartFile> files, Long userId) {
         List<DocumentVO> results = new ArrayList<>();
         for (MultipartFile file : files) {
             try {
-                results.add(upload(file));
+                results.add(upload(file, userId));
             } catch (Exception e) {
                 log.error("批量上传单文件失败: {}", file.getOriginalFilename(), e);
                 // 失败不中断，继续处理剩余文件
@@ -180,9 +184,10 @@ public class KnowledgeService {
     /**
      * 获取文档的下载 URL
      */
-    public String getDownloadUrl(Long id) {
+    public String getDownloadUrl(Long id, Long userId) {
         Document doc = documentMapper.selectById(id);
         if (doc == null) throw new IllegalArgumentException("文档不存在: " + id);
+        if (!doc.getUserId().equals(userId)) throw new BusinessException("无权访问该文档");
         if (doc.getOssKey() == null || doc.getOssKey().isEmpty())
             throw new IllegalArgumentException("该文档没有存储原始文件");
         return ossService.getPublicUrl(doc.getOssKey());
@@ -191,9 +196,10 @@ public class KnowledgeService {
     /**
      * 分页查询文档列表
      */
-    public PageResult<DocumentVO> listDocuments(int page, int size) {
+    public PageResult<DocumentVO> listDocuments(int page, int size, Long userId) {
         Page<Document> pg = new Page<>(page, size);
         LambdaQueryWrapper<Document> qw = new LambdaQueryWrapper<Document>()
+                .eq(Document::getUserId, userId)
                 .orderByDesc(Document::getUploadedAt);
         Page<Document> result = documentMapper.selectPage(pg, qw);
         List<DocumentVO> records = result.getRecords().stream()
@@ -205,10 +211,13 @@ public class KnowledgeService {
     /**
      * 删除文档及其向量和分片
      */
-    public void deleteDocument(Long id) {
+    public void deleteDocument(Long id, Long userId) {
         Document doc = documentMapper.selectById(id);
         if (doc == null) {
             throw new IllegalArgumentException("文档不存在: " + id);
+        }
+        if (!doc.getUserId().equals(userId)) {
+            throw new BusinessException("无权删除该文档");
         }
 
         // 1. 从 Qdrant 删除向量（跳过其他文档的 chunks）
@@ -232,7 +241,7 @@ public class KnowledgeService {
     /**
      * RAG 语义检索 + LLM 增强回答
      */
-    public SearchResponse search(SearchRequest req) {
+    public SearchResponse search(SearchRequest req, Long userId) {
         int topK = req.getTopK() != null ? req.getTopK() : 5;
         String query = req.getQuery();
 
@@ -249,6 +258,10 @@ public class KnowledgeService {
             log.error("Qdrant 检索失败", e);
             throw new RuntimeException("知识库检索服务暂不可用，请稍后重试", e);
         }
+
+        // 1.5 用户隔离：只保留属于该用户的文档。MySQL 是归属的唯一真源
+        //     （Qdrant 存量向量没有 userId payload），故检索后按文档归属过滤
+        hits = filterOwned(hits, userId);
 
         // 2. 构建来源列表
         List<SearchResponse.Source> sources = new ArrayList<>();
@@ -395,6 +408,32 @@ public class KnowledgeService {
     private String getExt(String filename) {
         if (filename == null || !filename.contains(".")) return "";
         return filename.substring(filename.lastIndexOf(".") + 1);
+    }
+
+    /**
+     * 按文档归属过滤检索结果（用户隔离）。
+     * 用 MySQL 判定归属——Qdrant 存量向量可能没有 userId payload，但 MySQL 迁移后是完整的。
+     */
+    private List<org.springframework.ai.document.Document> filterOwned(
+            List<org.springframework.ai.document.Document> hits, Long userId) {
+        if (hits == null || hits.isEmpty()) return hits;
+        List<Long> docIds = hits.stream()
+                .map(h -> h.getMetadata().get("documentId"))
+                .filter(Objects::nonNull)
+                .map(o -> Long.valueOf(o.toString()))
+                .distinct()
+                .toList();
+        if (docIds.isEmpty()) return List.of();
+        var owned = documentMapper.selectBatchIds(docIds).stream()
+                .filter(d -> userId.equals(d.getUserId()))
+                .map(Document::getId)
+                .collect(Collectors.toSet());
+        return hits.stream()
+                .filter(h -> {
+                    Object docId = h.getMetadata().get("documentId");
+                    return docId != null && owned.contains(Long.valueOf(docId.toString()));
+                })
+                .toList();
     }
 
     /**
