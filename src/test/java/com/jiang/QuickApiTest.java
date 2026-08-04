@@ -13,7 +13,8 @@ import java.util.List;
 import java.util.Map;
 
 public class QuickApiTest {
-    static final String AK = "sk-rzwpnfjvvgxfrbsmmnfilalfyeqjzwtgzczmmxocuaaqjuuu";
+    // key 曾硬编码并泄露进公开仓库，已改为环境变量读取：运行前 export SILICONFLOW_API_KEY=sk-xxx
+    static final String AK = System.getenv().getOrDefault("SILICONFLOW_API_KEY", "");
     static final ObjectMapper M = new ObjectMapper();
 
     public static void main(String[] args) throws Exception {

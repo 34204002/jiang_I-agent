@@ -18,7 +18,8 @@ import java.util.Map;
  */
 public class FullToolTest {
 
-    static final String AK = "sk-rzwpnfjvvgxfrbsmmnfilalfyeqjzwtgzczmmxocuaaqjuuu";
+    // key 曾硬编码并泄露进公开仓库，已改为环境变量读取：运行前 export SILICONFLOW_API_KEY=sk-xxx
+    static final String AK = System.getenv().getOrDefault("SILICONFLOW_API_KEY", "");
     static final String URL = "https://api.siliconflow.cn/v1";
     static final ObjectMapper M = new ObjectMapper();
 
