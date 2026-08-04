@@ -22,8 +22,8 @@ Spring Boot 4.1 · Spring AI 2.0 · DeepSeek v4-flash · Neo4j 5 · Qdrant · My
 
 ## ✨ 项目亮点
 
-- 🧠 **深度适配 DeepSeek 流式推理**：解决 OpenAI 适配器丢失 `reasoning_content`、并行工具参数粘连触发 DSML 标签、内容缓冲破坏打字机效果三大问题，思考与正文分事件 SSE 推送，单轮首字响应 **< 300ms**
-- 🔧 **自研 `@Tool` 注解框架**：脱离 Spring AI ChatClient 链路，启动扫描注册 + 反射执行 + ThreadLocal 上下文传递，支撑 **19 类工具**自主调用、10 轮循环与并行执行
+- 🧠 **深度适配 DeepSeek 流式推理**：解决 OpenAI 适配器丢失 `reasoning_content`、并行工具参数粘连触发 DSML 标签、内容缓冲破坏打字机效果三大问题，思考与正文分事件 SSE 推送，流式首字实测均值 **395ms**（DeepSeek 接口，5 次采样）
+- 🔧 **自研 `@Tool` 注解框架**：脱离 Spring AI ChatClient 链路，应用就绪后容器扫描注册 + 反射执行 + ThreadLocal 上下文传递，支撑 **19 个 @Tool 工具方法（10 个工具类）**自主调用、最多 10 轮循环（MAX_TOOL_ROUNDS），单轮多 tool_calls 按 index 分组累积
 - 📚 **RAG + 图谱双检索体系**：Qdrant 语义检索 + Neo4j 前置知识链查询（"学 Redis 前先学什么"），纯向量检索做不到的知识结构
 - 🔒 **全链路工程化治理**：JWT 无状态鉴权、Bucket4j 限流、Redis 会话记忆、事务保障，知识库/图谱**按用户隔离**
 - 🎨 **完整前端设计系统**：Vue 3 SPA + CSS 自定义属性粉蓝双色主题、思考框折叠、流式打字机、图谱层次化可视化
@@ -249,7 +249,7 @@ jiang_I-agent/
 ---
 
 ## 🧠 关键工程决策（面试可聊）
-   官方适配器丢失 DeepSeek 非标准字段、工具编排不够透明。保留 `spring-ai-deepseek` 做**类型解析**，HTTP 请求和工具编排**自己控制**——类型安全但不失灵活性。
+1. **为什么脱离 Spring AI ChatClient？** 官方适配器丢失 DeepSeek 非标准字段、工具编排不够透明。保留 `spring-ai-deepseek` 做**类型解析**，HTTP 请求和工具编排**自己控制**——类型安全但不失灵活性。
 
 2. **为什么不用 EventSource？**
    EventSource 无法自定义 header（JWT 只能进 URL）、错误后自动重连导致死循环。改用 `fetch` + `ReadableStream` 手写 SSE，HTTP 状态码非 200 立即失败。

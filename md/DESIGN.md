@@ -325,7 +325,7 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 - **方案**：无状态 JWT Token（HS256，secret 在配置中）
 - **拦截器**：`LoginInterceptor` 解析 `Authorization: Bearer <token>` header，把
   userId/role 写入 request attribute 供 Controller/Service 使用
-- **限流**：`RateLimitInterceptor`（Bucket4j 令牌桶，30 tokens / 1s refill）叠加在登录校验之后
+- **限流**：`RateLimitInterceptor`（Bucket4j 令牌桶，容量 30 tokens、refill 30 tokens/30s ≈ 1 token/s）叠加在登录校验之后
 - **前端**：token 存 localStorage，请求统一带 `Authorization` header
 - **安全**：token **只走 header**，历史上曾支持 `?token=` 查询参数（EventSource 所需），
   因 token 会暴露在 URL/日志中已移除（见 ISSUES.md §26）
