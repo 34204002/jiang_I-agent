@@ -208,7 +208,7 @@ onMounted(load)
 .field input {
   width: 100%;
   padding: 10px 14px;
-  border: 1.5px solid var(--border, #F0E2EF);
+  border: 1.5px solid var(--border, #DCEAF7);
   border-radius: 8px;
   font-size: 14px;
   outline: none
@@ -226,15 +226,15 @@ onMounted(load)
   height: 72px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid var(--border, #F0E2EF);
-  background: var(--bg-body, #FDF2F8)
+  border: 3px solid var(--border, #DCEAF7);
+  background: var(--bg-body, #F0F9FF)
 }
 
 .btn {
   padding: 10px 24px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, #EC4899, #F472B6);
+  background: linear-gradient(135deg, #0284C7, #38BDF8);
   color: #fff;
   font-size: 14px;
   font-weight: 700;

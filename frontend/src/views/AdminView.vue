@@ -155,7 +155,7 @@ onMounted(() => {
 .tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--border, #F0E2EF);
+  border-bottom: 1px solid var(--border, #DCEAF7);
   margin-bottom: 20px
 }
 
@@ -171,8 +171,8 @@ onMounted(() => {
 }
 
 .tabs button.active {
-  color: var(--accent, #EC4899);
-  border-bottom-color: var(--accent, #EC4899)
+  color: var(--accent, #0284C7);
+  border-bottom-color: var(--accent, #0284C7)
 }
 
 table {
@@ -184,7 +184,7 @@ th, td {
   text-align: left;
   padding: 10px 12px;
   font-size: 13px;
-  border-bottom: 1px solid var(--border, #F0E2EF)
+  border-bottom: 1px solid var(--border, #DCEAF7)
 }
 
 th {
@@ -201,8 +201,8 @@ th {
 }
 
 .badge.admin {
-  background: rgba(236, 72, 153, .1);
-  color: #EC4899
+  background: rgba(14, 165, 233, .1);
+  color: var(--accent)
 }
 
 .badge.user {
@@ -216,7 +216,7 @@ th {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid var(--border, #F0E2EF);
+  border: 1px solid var(--border, #DCEAF7);
   background: #fff;
   color: #EF4444
 }
@@ -231,7 +231,7 @@ th {
   padding: 10px 24px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, #EC4899, #F472B6);
+  background: linear-gradient(135deg, #0284C7, #38BDF8);
   color: #fff;
   font-size: 14px;
   font-weight: 700;
@@ -268,7 +268,7 @@ th {
 .field input, .field textarea {
   width: 100%;
   padding: 10px 14px;
-  border: 1.5px solid var(--border, #F0E2EF);
+  border: 1.5px solid var(--border, #DCEAF7);
   border-radius: 8px;
   font-size: 14px;
   outline: none
@@ -300,7 +300,7 @@ th {
   height: 64px;
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid var(--border, #F0E2EF)
+  border: 3px solid var(--border, #DCEAF7)
 }
 
 .admin-shell {

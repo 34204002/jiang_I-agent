@@ -87,7 +87,7 @@ function buildOption(data: GraphPayload) {
     name: n.id,
     symbolSize: n.center ? 36 : 24,
     category: n.category || '其他',
-    itemStyle: n.center ? {borderColor: '#ec4899', borderWidth: 2, borderType: 'solid' as const} : {},
+    itemStyle: n.center ? {borderColor: '#0EA5E9', borderWidth: 2, borderType: 'solid' as const} : {},
     label: {show: true, fontSize: 13, fontWeight: n.center ? 'bold' as const : 'normal' as const},
   }))
   const visibleEdges = data.edges.filter(edgesVisible)

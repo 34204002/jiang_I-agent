@@ -142,7 +142,7 @@ async function submit() {
   justify-content: center;
   min-height: 100vh;
   width: 100%;
-  background: linear-gradient(160deg, #FDF2F8 0%, #F0F9FF 55%, #EFF8FF 100%)
+  background: linear-gradient(160deg, #F0F9FF 0%, #E8F3FC 55%, #EFF8FF 100%)
 }
 
 .login-card {
@@ -182,7 +182,7 @@ async function submit() {
 .field input {
   width: 100%;
   padding: 10px 14px;
-  border: 1.5px solid var(--border, #F0E2EF);
+  border: 1.5px solid var(--border, #DCEAF7);
   border-radius: 8px;
   font-size: 14px;
   outline: none;
@@ -190,7 +190,7 @@ async function submit() {
 }
 
 .field input:focus {
-  border-color: var(--accent, #EC4899);
+  border-color: var(--accent, #0284C7);
   box-shadow: 0 0 0 3px rgba(244, 114, 182, .12)
 }
 
@@ -222,8 +222,8 @@ async function submit() {
 }
 
 .pwd-toggle:hover {
-  color: var(--accent, #EC4899);
-  background: var(--bg-hover, #FDF0F5)
+  color: var(--accent, #0284C7);
+  background: var(--bg-hover, #E6F3FC)
 }
 
 .login-btn {
@@ -231,7 +231,7 @@ async function submit() {
   padding: 11px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, #EC4899, #F472B6);
+  background: linear-gradient(135deg, #0284C7, #38BDF8);
   color: #fff;
   font-size: 14px;
   font-weight: 700;
@@ -241,7 +241,7 @@ async function submit() {
 
 .login-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(236, 72, 153, .3)
+  box-shadow: 0 4px 14px rgba(14, 165, 233, .3)
 }
 
 .login-btn:disabled {
@@ -275,7 +275,7 @@ async function submit() {
 .login-switch-btn {
   background: none;
   border: none;
-  color: var(--accent, #EC4899);
+  color: var(--accent, #0284C7);
   font-weight: 600;
   cursor: pointer;
   font-size: 13px;

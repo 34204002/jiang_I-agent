@@ -26,7 +26,7 @@ Spring Boot 4.1 · Spring AI 2.0 · DeepSeek v4-flash · Neo4j 5 · Qdrant · My
 - 🔧 **自研 `@Tool` 注解框架**：脱离 Spring AI ChatClient 链路，应用就绪后容器扫描注册 + 反射执行 + ThreadLocal 上下文传递，支撑 **19 个 @Tool 工具方法（10 个工具类）**自主调用、最多 10 轮循环（MAX_TOOL_ROUNDS），单轮多 tool_calls 按 index 分组累积
 - 📚 **RAG + 图谱双检索体系**：Qdrant 语义检索 + Neo4j 前置知识链查询（"学 Redis 前先学什么"），纯向量检索做不到的知识结构
 - 🔒 **全链路工程化治理**：JWT 无状态鉴权、Bucket4j 限流、Redis 会话记忆、事务保障，知识库/图谱**按用户隔离**
-- 🎨 **完整前端设计系统**：Vue 3 SPA + CSS 自定义属性粉蓝双色主题、思考框折叠、流式打字机、图谱层次化可视化
+- 🎨 **完整前端设计系统**：Vue 3 SPA + CSS 自定义属性淡蓝色主题、思考框折叠、流式打字机、图谱层次化可视化
 
 ---
 
@@ -95,17 +95,17 @@ Spring Boot 4.1 · Spring AI 2.0 · DeepSeek v4-flash · Neo4j 5 · Qdrant · My
 
 ### 🎨 前端设计系统
 - Vue 3 SFC + vue-router SPA，全局 CSS 自定义属性 token
-- 粉蓝双色主题：用户气泡淡粉、AI 气泡淡天蓝，主操作粉 / 次要强调蓝
+- 淡蓝色主题：用户气泡深蓝、AI 气泡浅蓝，主操作与次要强调均为天蓝系（主色 `#0284C7` 白字对比达 WCAG AA），背景淡蓝渐变
 - SVG 图标（无 emoji）、响应式、WCAG 无障碍、`prefers-reduced-motion`
 
 | Token | 值 | 用途 |
 |-------|-----|------|
-| `--accent` / `--accent-deep` | `#F472B6` / `#EC4899` | 主色（淡粉渐变，主按钮） |
+| `--accent` / `--accent-deep` | `#0284C7` / `#0369A1` | 主色（天蓝渐变，主按钮） |
 | `--sky` / `--sky-deep` | `#38BDF8` / `#0EA5E9` | 次色（天蓝，链接/outline 按钮/图谱前置边） |
 | `--lavender` | `#8B5CF6` | 紫色辅助（思考框） |
-| `--ai-bubble` / `--user-bubble` | `#EFF8FF` / `#FEF2F7` | AI 淡天蓝 / 用户淡粉气泡 |
+| `--ai-bubble` / `--user-bubble` | `#F0F9FF` / `#DBEAFE` | AI 浅蓝 / 用户深蓝气泡 |
 | `--color-error` / `--color-success` / `--color-warning` | `#EF4444` / `#22C55E` / `#F59E0B` | 语义色 |
-| `--text-primary` / `--bg-body` | `#1E293B` / `#FDF4F9` | 主文字 / 页面背景（粉→蓝渐变） |
+| `--text-primary` / `--bg-body` | `#1E293B` / `#F0F9FF` | 主文字 / 页面背景（淡蓝渐变） |
 
 ### 🔐 安全与工程化
 - JWT 无状态认证（token 只走 header，不进 URL）+ BCrypt 密码
