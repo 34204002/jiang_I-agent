@@ -21,6 +21,8 @@ export interface UserInfo {
     nickname?: string
     role?: string
     avatar?: string
+    llmModel?: string
+    apiKeyMasked?: string
 }
 
 // ==================== Chat ====================

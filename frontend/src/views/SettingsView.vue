@@ -7,6 +7,9 @@ import {USER} from '../stores/state'
 import type {UserInfo} from '../types'
 
 const username = ref(''), nickname = ref(''), role = ref(''), avatar = ref('')
+const llmModel = ref('')
+const apiKeyMasked = ref('')
+const newApiKey = ref('')
 
 async function load() {
   const json = await api.get<UserInfo>('/api/user/me')
@@ -16,6 +19,8 @@ async function load() {
     nickname.value = u.nickname || ''
     role.value = u.role || ''
     avatar.value = u.avatar || ''
+    llmModel.value = u.llmModel || ''
+    apiKeyMasked.value = u.apiKeyMasked || ''
     writeUser(u)
     Object.assign(USER, u)
   }
@@ -84,6 +89,29 @@ async function changePassword() {
   }
 }
 
+// ====== 对话模型（BYOK：自带 DeepSeek Key） ======
+async function saveLlmConfig() {
+  const payload: Record<string, string> = { llmModel: llmModel.value.trim() }
+  // 只在用户填了新 key 时才发送，避免误清已有的 key
+  if (newApiKey.value.trim()) payload.apiKey = newApiKey.value.trim()
+  const json = await api.put<UserInfo>('/api/user/me', payload)
+  if (json.code === 200 && json.data) {
+    llmModel.value = json.data.llmModel || ''
+    apiKeyMasked.value = json.data.apiKeyMasked || ''
+    newApiKey.value = ''
+    showToast('对话模型配置已保存', 'ok')
+  } else showToast(json.message || '保存失败', 'error')
+}
+
+async function clearApiKey() {
+  const json = await api.put<UserInfo>('/api/user/me', {apiKey: ''})
+  if (json.code === 200 && json.data) {
+    apiKeyMasked.value = ''
+    newApiKey.value = ''
+    showToast('已清除，回退系统默认 key', 'ok')
+  } else showToast(json.message || '清除失败', 'error')
+}
+
 onMounted(load)
 </script>
 
@@ -118,6 +146,27 @@ onMounted(load)
         <button class="btn" :disabled="changingPassword" @click="changePassword">
           {{ changingPassword ? '提交中...' : '修改密码' }}
         </button>
+      </div>
+      <div class="card"><h3>对话模型（可选 · 自带 Key）</h3>
+        <div class="field">
+          <label>模型</label>
+          <input v-model="llmModel" list="deepseek-models" placeholder="留空 = 使用系统默认模型">
+          <datalist id="deepseek-models">
+            <option value="deepseek-v4-flash"></option>
+            <option value="deepseek-chat"></option>
+            <option value="deepseek-reasoner"></option>
+          </datalist>
+          <div class="settings-upload-hint">仅支持 DeepSeek 系模型，具体以 DeepSeek 开放平台为准</div>
+        </div>
+        <div class="field">
+          <label>DeepSeek API Key</label>
+          <input v-model="newApiKey" type="password" placeholder="填写自己的 key（自费）；留空不修改">
+          <div v-if="apiKeyMasked" class="settings-upload-hint">已配置：{{ apiKeyMasked }}</div>
+        </div>
+        <div class="settings-row">
+          <button class="btn" @click="saveLlmConfig">保存模型配置</button>
+          <button v-if="apiKeyMasked" class="btn-outline" @click="clearApiKey">清除已配置 Key</button>
+        </div>
       </div>
     </div>
   </div>
@@ -261,5 +310,12 @@ onMounted(load)
 
 .settings-disabled {
   opacity: .5
+}
+
+.settings-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 4px
 }
 </style>

@@ -19,9 +19,11 @@ CREATE TABLE t_user
     username   VARCHAR(50)  NOT NULL COMMENT '用户名',
     password   VARCHAR(200) NOT NULL COMMENT 'BCrypt 密文',
     nickname   VARCHAR(100) NOT NULL DEFAULT '' COMMENT '昵称',
-    avatar     VARCHAR(500) NOT NULL DEFAULT '' COMMENT '头像 URL（OSS）',
-    role       VARCHAR(20)  NOT NULL DEFAULT 'USER' COMMENT 'ADMIN / USER',
-    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    avatar       VARCHAR(500) NOT NULL DEFAULT '' COMMENT '头像 URL（OSS）',
+    role         VARCHAR(20)  NOT NULL DEFAULT 'USER' COMMENT 'ADMIN / USER',
+    api_key_enc  VARCHAR(500) NULL COMMENT '用户自填 DeepSeek API Key（AES-GCM 密文，BYOK）',
+    llm_model    VARCHAR(50)  NULL COMMENT '用户自选对话模型名（可为空=全局模型）',
+    created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_username (username)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4

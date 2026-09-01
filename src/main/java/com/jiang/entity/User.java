@@ -44,6 +44,16 @@ public class User {
     private String role;
 
     /**
+     * 用户自填 DeepSeek API Key（AES-GCM 密文，BYOK；为 null 时用全局 key）
+     */
+    private String apiKeyEnc;
+
+    /**
+     * 用户自选对话模型名（为 null/空格时用全局模型，仅限 DeepSeek 系）
+     */
+    private String llmModel;
+
+    /**
      * 注册时间
      */
     @TableField(fill = FieldFill.INSERT)

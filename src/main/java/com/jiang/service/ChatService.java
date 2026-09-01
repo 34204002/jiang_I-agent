@@ -12,14 +12,17 @@ import com.jiang.constant.AgentConstants;
 import com.jiang.entity.AgentConfig;
 import com.jiang.entity.Conversation;
 import com.jiang.entity.Document;
+import com.jiang.entity.User;
 import com.jiang.mapper.AgentConfigMapper;
 import com.jiang.mapper.ConversationMapper;
 import com.jiang.mapper.DocumentMapper;
 import com.jiang.mapper.MessageMapper;
+import com.jiang.mapper.UserMapper;
 import com.jiang.model.req.ChatRequest;
 import com.jiang.model.resp.ChatResponse;
 import com.jiang.tool.ToolContext;
 import com.jiang.tool.ToolRegistry;
+import com.jiang.util.CryptoUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -28,6 +31,7 @@ import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletion;
 import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletionChunk;
 import org.springframework.ai.deepseek.api.DeepSeekApi.ChatCompletionMessage;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -84,6 +88,18 @@ public class ChatService {
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
 
+    /**
+     * 用户自填 API Key 的落库解密密钥（与 UserController 加密用同一个值）
+     */
+    @Value("${app.llm-key-secret}")
+    private String llmKeySecret;
+
+    /**
+     * BYOK：按 userId 查用户自填 key/模型
+     */
+    @Autowired
+    private UserMapper userMapper;
+
     public ChatService(RedisChatMemory chatMemory, ConversationMapper conversationMapper,
                        MessageMapper messageMapper, AgentConfigMapper agentConfigMapper,
                        DocumentMapper documentMapper, VectorStore vectorStore,
@@ -127,6 +143,53 @@ public class ChatService {
         } catch (Exception ignored) {
         }
         return defaultModel;
+    }
+
+    /**
+     * BYOK：本次请求的有效模型。优先级 = 用户自选模型 > 全局 DB 配置 > yml 默认。
+     */
+    private String getModel(Long userId) {
+        String userModel = resolveUserModel(userId);
+        if (userModel != null && !userModel.isBlank()) {
+            return userModel;
+        }
+        return getModel();
+    }
+
+    /**
+     * 解析用户自填模型名（仅 DeepSeek 系，供应商已由 base-url 锁定），未设置返回 null。
+     */
+    private String resolveUserModel(Long userId) {
+        if (userId == null) return null;
+        try {
+            User user = userMapper.selectById(userId);
+            if (user != null && user.getLlmModel() != null && !user.getLlmModel().isBlank()) {
+                return user.getLlmModel().trim();
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * BYOK：本次请求用的 DeepSeek API key。用户自填 key 优先（落库为 AES-GCM 密文），
+     * 解析失败或未配置则回退全局 key——与 UserController 使用同一 {@link #llmKeySecret}。
+     */
+    private String resolveLlmApiKey(Long userId) {
+        if (userId != null) {
+            try {
+                User user = userMapper.selectById(userId);
+                if (user != null && user.getApiKeyEnc() != null && !user.getApiKeyEnc().isEmpty()) {
+                    String key = CryptoUtil.decrypt(user.getApiKeyEnc(), llmKeySecret);
+                    if (key != null && !key.isEmpty()) {
+                        return key;
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("用户 {} 的 API Key 解析失败，回退全局 key: {}", userId, e.getMessage());
+            }
+        }
+        return apiKey;
     }
 
     // ==================== 公开接口 ====================
@@ -216,7 +279,7 @@ public class ChatService {
 
     private String doCall(List<Message> history, String userMsg, Long userId, Long convoId) {
         String body = buildRequestBody(history, userMsg, String.valueOf(convoId), false, false, userId);
-        String resp = syncHttp(body);
+        String resp = syncHttp(body, resolveLlmApiKey(userId));
         try {
             var completion = MAPPER.readValue(resp, ChatCompletion.class);
             var msg = completion.choices().get(0).message();
@@ -244,7 +307,7 @@ public class ChatService {
         final StringBuilder dsmlBuf = new StringBuilder();  // 记录被过滤的 DSML 内容
         String body = buildRequestBody(history, userMsg, memoryKey, thinking, true, userId);
 
-        return streamHttp(body)
+        return streamHttp(body, resolveLlmApiKey(userId))
                 .<String>handle((chunk, sink) -> {
                     try {
                         var delta = chunk.choices().get(0).delta();
@@ -343,8 +406,19 @@ public class ChatService {
                                 thinkingBuf != null ? thinkingBuf.toString() : null);
                     }
                 })
-                .onErrorResume(e ->
-                        Flux.just("{\"type\":\"content\",\"content\":\"\\n\\n（AI 回复因网络原因中断，请重试）\"}"));
+                .onErrorResume(e -> {
+                    // 带上错误信息（如 API 401/429），便于前端区分"key 无效/欠费"与"网络中断"
+                    String msg = e.getMessage() != null
+                            ? e.getMessage().replaceAll("\\s+", " ").trim() : "网络中断";
+                    if (msg.length() > 80) msg = msg.substring(0, 80);
+                    String contentJson;
+                    try {
+                        contentJson = MAPPER.writeValueAsString("\n\n（AI 回复中断：" + msg + "，请重试）");
+                    } catch (Exception ex) {
+                        contentJson = "\"\\n\\n（AI 回复中断，请重试）\"";
+                    }
+                    return Flux.just("{\"type\":\"content\",\"content\":" + contentJson + "}");
+                });
     }
 
     // ==================== LLM 调用（流式） ====================
@@ -404,7 +478,7 @@ public class ChatService {
         }
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", getModel());
+        body.put("model", getModel(userId));
         body.put("messages", messages);
         body.put("stream", true);
         if (toolRegistry.hasTools()) {
@@ -424,7 +498,7 @@ public class ChatService {
         final StringBuilder contentBuf = new StringBuilder();
         final StringBuilder thinkingBuf = new StringBuilder();
 
-        return streamHttp(json)
+        return streamHttp(json, resolveLlmApiKey(userId))
                 .<String>handle((chunk, sink) -> {
                     try {
                         var delta = chunk.choices().get(0).delta();
@@ -575,7 +649,7 @@ public class ChatService {
         }
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", getModel());
+        body.put("model", getModel(userId));
         body.put("messages", messages);
         body.put("stream", false);
         // 关键：follow-up 请求也必须带 tools，否则模型想调工具只能 fallback 到 DSML
@@ -586,7 +660,7 @@ public class ChatService {
         try {
             String json = MAPPER.writeValueAsString(body);
             log.info("[TOOL_FOLLOWUP] round={} tools={} msgs={}", round, toolRegistry.count(), messages.size());
-            String resp = syncHttp(json);
+            String resp = syncHttp(json, resolveLlmApiKey(userId));
             var completion = MAPPER.readValue(resp, ChatCompletion.class);
             var msg = completion.choices().get(0).message();
 
@@ -671,7 +745,7 @@ public class ChatService {
         }
     }
 
-    private String syncHttp(String body) {
+    private String syncHttp(String body, String apiKey) {
         try {
             var req = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/chat/completions"))
@@ -697,7 +771,7 @@ public class ChatService {
     /**
      * 流式 HTTP，返回 Flux<ChatCompletionChunk>（用 Spring AI 类型解析，自带 reasoningContent）
      */
-    private Flux<ChatCompletionChunk> streamHttp(String body) {
+    private Flux<ChatCompletionChunk> streamHttp(String body, String apiKey) {
         var req = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/chat/completions"))
                 .header("Content-Type", "application/json")
@@ -787,7 +861,8 @@ public class ChatService {
                     + "只输出摘要内容,不要加任何前缀或说明。\n\n对话历史:\n" + sb;
 
             String body = buildSummaryRequestBody(prompt);
-            String resp = syncHttp(body);
+            // 对话摘要是廉价内部维护任务，沿用全局 key（无请求级用户上下文）— 已知边界
+            String resp = syncHttp(body, apiKey);
             var completion = MAPPER.readValue(resp, ChatCompletion.class);
             String summary = completion.choices().get(0).message().content();
             return summary != null ? summary.strip() : null;
@@ -834,7 +909,7 @@ public class ChatService {
         }
         messages.add(Map.of("role", "user", "content", userMsg != null ? userMsg : ""));
 
-        String model = getModel();
+        String model = getModel(userId);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
         body.put("messages", messages);
@@ -907,7 +982,7 @@ public class ChatService {
         Conversation convo = new Conversation();
         convo.setUserId(userId);
         convo.setTitle(firstMessage.length() > 50 ? firstMessage.substring(0, 50) : firstMessage);
-        convo.setModel(getModel());
+        convo.setModel(getModel(userId));
         convo.setMessageCount(0);
         conversationMapper.insert(convo);
         log.info("新建会话: id={}, userId={}, title={}", convo.getId(), userId, convo.getTitle());

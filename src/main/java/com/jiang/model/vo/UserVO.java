@@ -31,6 +31,14 @@ public class UserVO {
      */
     private String role;
     /**
+     * 用户自选对话模型名（BYOK；空=用全局模型）
+     */
+    private String llmModel;
+    /**
+     * 已配置 API Key 的脱敏回显（****后四位）；未配置为 null。绝不返回明文/密文
+     */
+    private String apiKeyMasked;
+    /**
      * 注册时间
      */
     private LocalDateTime createdAt;
@@ -42,6 +50,7 @@ public class UserVO {
         vo.setNickname(user.getNickname());
         vo.setAvatar(user.getAvatar());
         vo.setRole(user.getRole());
+        vo.setLlmModel(user.getLlmModel());
         vo.setCreatedAt(user.getCreatedAt());
         return vo;
     }
