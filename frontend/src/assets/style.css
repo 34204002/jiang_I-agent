@@ -338,6 +338,9 @@ input, textarea {
 }
 
 .sidebar-action-btn {
+    background: none;
+    border: none;
+    padding: 0;
     width: 32px;
     height: 32px;
     display: flex;
@@ -366,6 +369,9 @@ input, textarea {
 
 /* ---- Admin link ---- */
 .sidebar-admin-link {
+    background: none;
+    font: inherit;
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -465,12 +471,14 @@ input, textarea {
 }
 
 .tab:hover {
-    color: var(--text-primary)
+    color: var(--accent);
+    background: var(--sky-subtle)
 }
 
 .tab.active {
     color: var(--accent);
-    border-bottom-color: var(--accent)
+    border-bottom-color: var(--accent);
+    background: var(--sky-subtle)
 }
 
 .tab .dot {
@@ -1442,4 +1450,120 @@ input, textarea {
     font-size: 11px;
     color: var(--text-tertiary);
     line-height: 1.4
+}
+
+/* ===========================================================================
+ * Page & tab transitions — settings/admin dialogs & panel switching
+ * 进入略慢于退出（UI/UX Pro Max: exit-faster-than-enter），淡入 + 轻微上移模拟窗口浮起
+ * =========================================================================== */
+.page-enter-active {
+    transition: opacity .22s ease, transform .22s cubic-bezier(.22, .61, .36, 1)
+}
+
+.page-leave-active {
+    transition: opacity .15s ease, transform .15s ease
+}
+
+.page-enter-from {
+    opacity: 0;
+    transform: translateY(6px) scale(.985)
+}
+
+.page-leave-to {
+    opacity: 0;
+    transform: translateY(-4px) scale(.995)
+}
+
+.tab-enter-active {
+    transition: opacity .18s ease, transform .18s ease
+}
+
+.tab-leave-active {
+    transition: opacity .12s ease
+}
+
+.tab-enter-from {
+    opacity: 0;
+    transform: translateY(4px)
+}
+
+.tab-leave-to {
+    opacity: 0
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .page-enter-active, .page-leave-active, .tab-enter-active, .tab-leave-active {
+        transition: none
+    }
+    .page-enter-from, .tab-enter-from {
+        transform: none
+    }
+}
+
+/* ===========================================================================
+ * Natural polish — selection / focus / scrollbar unify to sky blue
+ * =========================================================================== */
+::selection {
+    background: rgba(56, 189, 248, .28)
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(14, 165, 233, .25);
+    border-radius: 9999px
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(14, 165, 233, .4)
+}
+
+/* ===========================================================================
+ * Modal — settings / admin pop out as an independent window (Teleport to body)
+ * 遮罩淡入 + 窗口轻微缩放开起（fast leave, slower enter）
+ * =========================================================================== */
+.modal-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 6vh 24px 24px;
+    background: rgba(15, 23, 42, .42);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    overflow-y: auto;
+}
+
+.modal-window {
+    width: 100%;
+    max-width: 640px;
+    max-height: 88vh;
+    overflow-y: auto;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 24px 64px rgba(15, 23, 42, .24), 0 2px 8px rgba(15, 23, 42, .08);
+}
+
+.modal-window-lg { max-width: 760px }
+
+.modal-enter-active { transition: opacity .24s ease }
+.modal-leave-active { transition: opacity .15s ease }
+.modal-enter-active .modal-window { transition: transform .26s cubic-bezier(.2, .75, .32, 1.06) }
+.modal-leave-active .modal-window { transition: transform .15s ease }
+.modal-enter-from { opacity: 0 }
+.modal-leave-to { opacity: 0 }
+.modal-enter-from .modal-window { transform: translateY(16px) scale(.96) }
+.modal-leave-to .modal-window { transform: translateY(10px) scale(.97) }
+
+@media (prefers-reduced-motion: reduce) {
+    .modal-enter-active, .modal-leave-active,
+    .modal-enter-active .modal-window, .modal-leave-active .modal-window {
+        transition: none
+    }
 }

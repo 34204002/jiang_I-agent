@@ -1,6 +1,10 @@
 <script lang="ts" setup>
 import {onMounted, ref, useTemplateRef} from 'vue'
 import {api} from '../utils/api'
+
+// embedded：作为弹窗（modal）打开时，隐藏路由"返回"，显示"关闭"
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), {embedded: false})
+const emit = defineEmits<{ (e: 'close'): void }>()
 import {showToast} from '../utils/toast'
 import {writeUser} from '../utils/storage'
 import {USER} from '../stores/state'
@@ -119,7 +123,10 @@ onMounted(load)
   <div class="settings-shell">
     <div class="settings-page">
       <div class="settings-back-bar">
-        <router-link class="settings-back-link" to="/chat">←
+        <button v-if="embedded" class="settings-back-link" type="button" @click="emit('close')">←
+          关闭
+        </button>
+        <router-link v-else class="settings-back-link" to="/chat">←
           返回对话
         </router-link>
         <span class="settings-title">个人设置</span>
@@ -282,6 +289,9 @@ onMounted(load)
 }
 
 .settings-back-link {
+  background: none;
+  border: none;
+  cursor: pointer;
   font-size: 13px;
   color: var(--accent);
   text-decoration: none;

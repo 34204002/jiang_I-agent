@@ -4,6 +4,10 @@ import {api} from '../utils/api'
 import {showToast} from '../utils/toast'
 import type {AgentConfig} from '../types'
 
+// embedded：作为弹窗（modal）打开时，隐藏路由"返回"，显示"关闭"
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), {embedded: false})
+const emit = defineEmits<{ (e: 'close'): void }>()
+
 interface AdminUser {
   id: number;
   username: string;
@@ -69,7 +73,10 @@ onMounted(() => {
   <div class="admin-shell">
     <div class="admin-page">
       <div class="admin-back-bar">
-        <router-link class="admin-back-link" to="/chat">←
+        <button v-if="embedded" class="admin-back-link" type="button" @click="emit('close')">←
+          关闭
+        </button>
+        <router-link v-else class="admin-back-link" to="/chat">←
           返回对话
         </router-link>
         <span class="admin-title">管理后台</span>
@@ -316,6 +323,9 @@ th {
 }
 
 .admin-back-link {
+  background: none;
+  border: none;
+  cursor: pointer;
   font-size: 13px;
   color: var(--accent);
   text-decoration: none;

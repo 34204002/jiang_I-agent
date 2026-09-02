@@ -9,6 +9,9 @@ import SettingsIcon from './icons/SettingsIcon.vue'
 const selCount = computed(() => Object.keys(state.batchSelected).length)
 const allSelected = computed(() => state.convos.length > 0 && selCount.value === state.convos.length)
 
+// 设置 / 管理后台改为弹窗打开（App.vue 负责渲染 modal），不再走路由跳转
+const emit = defineEmits<{ (e: 'open-settings'): void; (e: 'open-admin'): void }>()
+
 function toggleSel(id: number) {
   state.batchSelected[id] = !state.batchSelected[id] ? true : delete state.batchSelected[id]
 }
@@ -77,9 +80,9 @@ async function batchDelete() {
         <div class="sidebar-profile-info"><span class="sidebar-profile-name">{{ USER.nickname || '用户' }}</span><span
             v-if="USER.role==='ADMIN'" class="sidebar-profile-role">ADMIN</span></div>
         <div class="sidebar-profile-actions">
-          <router-link class="sidebar-action-btn" title="设置" to="/settings">
+          <button class="sidebar-action-btn" title="设置" type="button" @click="emit('open-settings')">
             <SettingsIcon/>
-          </router-link>
+          </button>
           <button class="sidebar-action-btn sidebar-logout-btn" title="退出登录" type="button" @click="logout">
             <svg fill="none" height="14" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" width="14">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -89,10 +92,10 @@ async function batchDelete() {
           </button>
         </div>
       </div>
-      <router-link v-if="USER.role==='ADMIN'" class="sidebar-admin-link" to="/admin">
+      <button v-if="USER.role==='ADMIN'" class="sidebar-admin-link" type="button" @click="emit('open-admin')">
         <SettingsIcon/>
         管理后台
-      </router-link>
+      </button>
       <div class="sidebar-copyright">© 2026 Jiang · 仅供学习交流</div>
       <div class="sidebar-actions">
         <button class="sidebar-new sidebar-new-chat" @click="newChat">+ 新对话</button>
