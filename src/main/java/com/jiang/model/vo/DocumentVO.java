@@ -31,9 +31,13 @@ public class DocumentVO {
      */
     private Integer chunkCount;
     /**
-     * 处理状态：0-待处理 1-已解析 2-已向量化
+     * 处理状态：0-待处理 1-已解析 2-已向量化 3-失败
      */
     private Integer status;
+    /**
+     * 处理失败原因（status=3 时可见）
+     */
+    private String errorMessage;
     /**
      * LLM 生成的文档摘要
      */

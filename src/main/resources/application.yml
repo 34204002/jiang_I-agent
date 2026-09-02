@@ -39,6 +39,27 @@ spring:
       username: ${NEO4J_USERNAME}
       password: ${NEO4J_PASSWORD}
 
+  # ==================== RabbitMQ（文档异步处理） ====================
+  # 重试/死信参数是设计的一部分：default-requeue-rejected=false 保证重试耗尽进 DLQ，
+  # 否则失败消息会无限 requeue、死信队列永远收不到。
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        concurrency: ${RABBITMQ_CONCURRENCY:2}   # 向量化是远程调用，控制并发防 429
+        max-concurrency: 4
+        prefetch: 1                              # 长任务，一次只取 1 条不积压
+        retry:
+          enabled: true
+          max-attempts: 3                        # 瞬态失败重试 3 次（指数退避）
+          initial-interval: 2000
+          multiplier: 2.0
+          max-interval: 30000
+        default-requeue-rejected: false          # 重试耗尽 → 拒绝 → 进死信队列
+
   # ==================== Spring AI ====================
   ai:
     openai:
