@@ -326,7 +326,7 @@ public class ChatService {
         final Map<Integer, String> tcNames = new LinkedHashMap<>();
         final Map<Integer, StringBuilder> tcArgsMap = new LinkedHashMap<>();
         final StringBuilder contentBuf = new StringBuilder();
-        final StringBuilder thinkingBuf = thinking ? new StringBuilder() : null;
+        final StringBuilder thinkingBuf = new StringBuilder();  // 始终捕获 reasoning_content（DeepSeek 要求 tool_calls 轮原样回传 API）
         final StringBuilder dsmlBuf = new StringBuilder();  // 记录被过滤的 DSML 内容
         final long streamStart = System.nanoTime();         // 首字延迟计时起点
         final boolean[] firstContentLogged = {false};
@@ -355,11 +355,12 @@ public class ChatService {
                             if (!tcNames.isEmpty()) return;
                         }
 
-                        // reasoning_content
-                        if (thinking) {
-                            String rc = delta.reasoningContent();
-                            if (rc != null && !rc.isEmpty()) {
-                                thinkingBuf.append(rc);
+                        // reasoning_content — 始终捕获以便回传 API（DeepSeek 对 tool_calls 轮强制要求把上一轮
+                        // reasoning_content 原样带回，否则 400）；仅 thinking 模式推送给前端展示
+                        String rc = delta.reasoningContent();
+                        if (rc != null && !rc.isEmpty()) {
+                            thinkingBuf.append(rc);
+                            if (thinking) {
                                 sink.next("{\"type\":\"thinking\",\"content\":"
                                         + MAPPER.writeValueAsString(rc) + "}");
                             }
@@ -424,7 +425,7 @@ public class ChatService {
                     for (var tc : calls) {
                         log.info("[TOOL_CALL] name={} args={}", tc.name(), tc.arguments());
                     }
-                    ToolContext.setReasoning(thinkingBuf != null ? thinkingBuf.toString() : null);
+                    ToolContext.setReasoning(thinkingBuf.toString());
                     return handleToolCallAndContinue(calls,
                             history, userMsg, convoId, memoryKey, userId);
                 }))
