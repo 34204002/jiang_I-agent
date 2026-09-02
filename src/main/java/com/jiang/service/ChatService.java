@@ -82,6 +82,8 @@ public class ChatService {
             .build();
     @Value("${spring.ai.openai.chat.model}")
     private String defaultModel;
+    @Value("${spring.ai.openai.chat.temperature:0.7}")
+    private Double defaultTemperature;
     @Value("${spring.ai.openai.base-url}")
     private String baseUrl;
 
@@ -154,6 +156,21 @@ public class ChatService {
             return userModel;
         }
         return getModel();
+    }
+
+    /**
+     * 全局温度：管理员配置（t_agent_config.temperature）优先，数据库中无值/异常时兜底 yml 默认。
+     * 温度属于全局行为（影响所有未单独指定温度的请求），不走用户 BYOK。
+     */
+    private Double resolveTemperature() {
+        try {
+            AgentConfig config = agentConfigMapper.selectById(1);
+            if (config != null && config.getTemperature() != null) {
+                return config.getTemperature();
+            }
+        } catch (Exception ignored) {
+        }
+        return defaultTemperature;
     }
 
     /**
@@ -479,6 +496,7 @@ public class ChatService {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", getModel(userId));
+        body.put("temperature", resolveTemperature());
         body.put("messages", messages);
         body.put("stream", true);
         if (toolRegistry.hasTools()) {
@@ -650,6 +668,7 @@ public class ChatService {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", getModel(userId));
+        body.put("temperature", resolveTemperature());
         body.put("messages", messages);
         body.put("stream", false);
         // 关键：follow-up 请求也必须带 tools，否则模型想调工具只能 fallback 到 DSML
@@ -878,6 +897,7 @@ public class ChatService {
                 Map.of("role", "user", "content", userPrompt));
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", getModel());
+        body.put("temperature", resolveTemperature());
         body.put("messages", msgs);
         body.put("stream", false);
         try {
@@ -912,6 +932,7 @@ public class ChatService {
         String model = getModel(userId);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
+        body.put("temperature", resolveTemperature());
         body.put("messages", messages);
         body.put("stream", stream);
         if (thinking && (model == null || !model.contains("R1"))) {
