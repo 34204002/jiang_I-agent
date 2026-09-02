@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 知识库接口 — 文档上传/列表/删除/下载/检索（全部按当前用户隔离）。
@@ -76,6 +77,16 @@ public class KnowledgeController {
         return ResponseEntity.status(HttpStatus.FOUND)
                 .header(HttpHeaders.LOCATION, url)
                 .build();
+    }
+
+    /**
+     * 文档处理状态（异步上传后前端轮询：0-处理中 2-完成 3-失败）
+     */
+    @GetMapping("/documents/{id}/status")
+    public Result<Map<String, Object>> documentStatus(@PathVariable Long id,
+                                                      HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(knowledgeService.getDocumentStatus(id, userId));
     }
 
     /**

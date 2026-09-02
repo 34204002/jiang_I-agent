@@ -1,6 +1,7 @@
 package com.jiang.service;
 
 import com.aliyun.oss.OSS;
+import com.aliyun.oss.model.OSSObject;
 import com.aliyun.oss.model.PutObjectRequest;
 import com.jiang.config.OssConfig;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.UUID;
 
 /**
@@ -58,6 +60,19 @@ public class OssService {
 
         log.info("OSS 上传成功: {}", key);
         return key;
+    }
+
+    /**
+     * 按 key 下载文档原始字节（异步消费者取回文件用）。
+     */
+    public byte[] download(String key) throws IOException {
+        if (key == null || key.isEmpty()) {
+            throw new IOException("OSS key 为空，无法下载");
+        }
+        OSSObject obj = ossClient.getObject(ossConfig.getBucketName(), key);
+        try (InputStream in = obj.getObjectContent()) {
+            return in.readAllBytes();
+        }
     }
 
     /**

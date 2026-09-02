@@ -8,10 +8,12 @@ import com.jiang.entity.AgentConfig;
 import com.jiang.entity.Document;
 import com.jiang.entity.DocumentChunk;
 import com.jiang.exception.BusinessException;
+import com.jiang.config.RabbitConfig;
 import com.jiang.mapper.AgentConfigMapper;
 import com.jiang.mapper.DocumentChunkMapper;
 import com.jiang.mapper.DocumentMapper;
 import com.jiang.model.PageResult;
+import com.jiang.model.mq.UploadMessage;
 import com.jiang.model.req.SearchRequest;
 import com.jiang.model.resp.SearchResponse;
 import com.jiang.model.vo.DocumentVO;
@@ -21,11 +23,14 @@ import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.amqp.core.MessageBuilder;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -43,10 +48,10 @@ import java.util.stream.Collectors;
  * 知识库服务 — RAG 检索 + 文档管理。
  * 覆盖文档上传/解析/分块/向量化、列表、删除、语义检索。
  */
+// 去掉类级 @Transactional：上传受理只有单行 insert，不再把 OSS/Qdrant 等远程调用包进事务
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@org.springframework.transaction.annotation.Transactional
 public class KnowledgeService {
 
     private static final Set<String> ALLOWED_TYPES = FileConstants.ALLOWED_DOC_TYPES;
@@ -59,6 +64,7 @@ public class KnowledgeService {
     private final OssService ossService;
     private final ObjectMapper objectMapper;
     private final VectorStore vectorStore;
+    private final RabbitTemplate rabbitTemplate;
     @Qualifier("defaultSystemPrompt")
     private final String defaultSystemPrompt;
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -74,7 +80,8 @@ public class KnowledgeService {
     // ==================== 公开接口 ====================
 
     /**
-     * 上传并解析文档 → 分块 → 向量化存入 Qdrant。
+     * 上传并受理文档 — 只做「校验 → 去重 → OSS 落盘 → 入库 → 投递消息」，立即返回。
+     * 慢活（解析/分块/向量化）全部交给 MQ 消费者异步执行，前端轮询状态。
      */
     public DocumentVO upload(MultipartFile file, Long userId) throws IOException {
         // 1. 校验
@@ -90,74 +97,122 @@ public class KnowledgeService {
             throw new IllegalArgumentException("文件大小不能超过 20MB");
         }
 
-        // 2. SHA-256 去重
+        // 2. SHA-256 去重（内容指纹 + 用户隔离）
         String hash = sha256(file.getBytes());
         Document existing = documentMapper.selectOne(
                 new LambdaQueryWrapper<Document>()
                         .eq(Document::getUserId, userId)
                         .eq(Document::getContentHash, hash));
-        if (existing != null) {
+        // 仅 status=2（已向量化）视为真重复；0/1/3（待处理/已解析/失败）表示上次没走完 → 复用同一行重投，自愈
+        if (existing != null && existing.getStatus() != null && existing.getStatus() == 2) {
             log.info("文档已存在，跳过上传: {} (hash={})", originalFilename, hash.substring(0, 8));
             return toVO(existing);
         }
 
-        // 3. 上传原始文件到 OSS
-        String ossKey;
-        try {
-            ossKey = ossService.uploadKnowledgeFile(file);
-        } catch (Exception e) {
-            log.error("OSS 上传失败，继续解析", e);
-            ossKey = "";
+        // 3. OSS 上传 = commit 点：消费者后续从 OSS 取字节，失败必须直接 500（不能容忍）
+        String ossKey = ossService.uploadKnowledgeFile(file);
+
+        // 4. 入库 status=0（待处理）；复用失败行则先清理上次残留
+        Document doc = existing;
+        if (doc == null) {
+            doc = new Document();
+        } else {
+            deleteVectorsAndChunks(existing.getId());
         }
-
-        // 4. 解析文档内容
-        String content = parseFileContent(file, ext);
-
-        // 5. 文本分块
-        List<org.springframework.ai.document.Document> chunks = chunkContent(content);
-
-        // 6. 保存文档元数据到 MySQL
-        Document doc = new Document();
         doc.setUserId(userId);
         doc.setFilename(originalFilename);
         doc.setFileType(ext);
         doc.setFileSize(file.getSize());
         doc.setContentHash(hash);
-        doc.setChunkCount(chunks.size());
-        doc.setStatus(1); // 已解析
-        doc.setSummary(content.length() > 200 ? content.substring(0, 200) : content);
+        doc.setChunkCount(0);
+        doc.setStatus(0);
+        doc.setSummary("");
         doc.setOssKey(ossKey);
-        documentMapper.insert(doc);
+        doc.setErrorMessage(null);
+        if (doc.getId() != null) {
+            documentMapper.updateById(doc);
+        } else {
+            documentMapper.insert(doc);
+        }
 
-        // 7. 保存分片到 MySQL
+        // 5. 投递消息（队列只带身份，不带字节；显式 JSON 字节，不依赖类型头转换）
+        try {
+            byte[] body = objectMapper.writeValueAsBytes(new UploadMessage(doc.getId(), userId, hash));
+            rabbitTemplate.send(RabbitConfig.UPLOAD_EXCHANGE, RabbitConfig.PROCESS_ROUTING_KEY,
+                    MessageBuilder.withBody(body).setContentType("application/json").build());
+        } catch (Exception e) {
+            // 发布失败：回滚受理，避免产生无法被消费的孤儿状态
+            log.error("文档消息投递失败，回滚受理: id={}", doc.getId(), e);
+            documentMapper.deleteById(doc.getId());
+            try {
+                ossService.delete(ossKey);
+            } catch (Exception ignored) {
+            }
+            throw new BusinessException("服务暂不可用，请稍后重试");
+        }
+        log.info("文档受理，已入队: id={}, filename={}", doc.getId(), originalFilename);
+        return toVO(doc);
+    }
+
+    /**
+     * MQ 消费者入口 — 从 OSS 取回字节，完成解析/分块/向量化。
+     * <p>
+     * 幂等：已到达终态（2 已向量化 / 3 失败）的消息直接跳过；中途崩溃残留（0/1）会重建，
+     * 处理前先清理旧分片/向量，保证重投不会重复入库。
+     */
+    public void processDocument(Long docId) throws IOException {
+        Document doc = documentMapper.selectById(docId);
+        if (doc == null) {
+            log.warn("[KNOWLEDGE] 文档不存在，跳过: id={}", docId);
+            return;
+        }
+        if (doc.getStatus() != null && (doc.getStatus() == 2 || doc.getStatus() == 3)) {
+            log.info("[KNOWLEDGE] 文档已是终态，跳过重复处理: id={} status={}", docId, doc.getStatus());
+            return;
+        }
+        if (doc.getOssKey() == null || doc.getOssKey().isEmpty()) {
+            throw new IOException("文档缺少 OSS 文件: id=" + docId);
+        }
+
+        // 从 OSS 取回字节（只依赖落盘的 ossKey，不依赖上传请求）
+        byte[] bytes = ossService.download(doc.getOssKey());
+        String content = parseContent(bytes, doc.getFileType());
+        List<org.springframework.ai.document.Document> chunks = chunkContent(content);
+
+        // 清理上次残留后重建（重投幂等）
+        deleteVectorsAndChunks(docId);
+
         for (int i = 0; i < chunks.size(); i++) {
             org.springframework.ai.document.Document chunk = chunks.get(i);
             DocumentChunk entity = new DocumentChunk();
-            entity.setDocumentId(doc.getId());
+            entity.setDocumentId(docId);
             entity.setChunkIndex(i);
             entity.setContent(chunk.getText());
             entity.setTokenCount(estimateTokens(chunk.getText()));
             documentChunkMapper.insert(entity);
 
-            // 为 Qdrant 添加元数据
-            chunk.getMetadata().put("documentId", doc.getId().toString());
-            chunk.getMetadata().put("userId", userId);
-            chunk.getMetadata().put("filename", originalFilename);
+            chunk.getMetadata().put("documentId", docId.toString());
+            chunk.getMetadata().put("userId", doc.getUserId());
+            chunk.getMetadata().put("filename", doc.getFilename());
             chunk.getMetadata().put("chunkIndex", i);
         }
 
-        // 8. 向量化存入 Qdrant
+        // 已解析（status=1）
+        doc.setChunkCount(chunks.size());
+        doc.setSummary(content.length() > 200 ? content.substring(0, 200) : content);
+        doc.setStatus(1);
+        documentMapper.updateById(doc);
+
+        // 向量化（远程 embedding，最慢）— 失败抛出由消费者重试，耗尽后进 DLQ 标记失败
         try {
             vectorStore.add(chunks);
-            doc.setStatus(2); // 已向量化
+            doc.setStatus(2);
             documentMapper.updateById(doc);
-            log.info("文档向量化完成: id={}, 分片数={}", doc.getId(), chunks.size());
+            log.info("[KNOWLEDGE] 文档处理完成: id={}, 分片={}", docId, chunks.size());
         } catch (Exception e) {
-            log.error("Qdrant 向量化失败: id={}, error={}", doc.getId(), e.getMessage());
-            // 状态仍为 1，可后续重试
+            log.error("[KNOWLEDGE] 文档向量化失败: id={}", docId, e);
+            throw new IllegalStateException("文档向量化失败: id=" + docId, e);
         }
-
-        return toVO(doc);
     }
 
     /**
@@ -220,22 +275,26 @@ public class KnowledgeService {
             throw new BusinessException("无权删除该文档");
         }
 
-        // 1. 从 Qdrant 删除向量（跳过其他文档的 chunks）
-        try {
-            vectorStore.delete("documentId == '" + id + "'");
-            log.info("Qdrant 向量已删除: documentId={}", id);
-        } catch (Exception e) {
-            log.warn("Qdrant 删除失败（可能已被清理）: documentId={}", id, e);
-        }
+        // 1. 清理向量 + 分片（与重传共用的清理逻辑）
+        deleteVectorsAndChunks(id);
 
-        // 2. 从 MySQL 删除分片
-        documentChunkMapper.delete(
-                new LambdaQueryWrapper<DocumentChunk>().eq(DocumentChunk::getDocumentId, id));
-
-        // 3. 删除文档主记录
+        // 2. 删除文档主记录
         documentMapper.deleteById(id);
 
         log.info("文档已删除: id={}, filename={}", id, doc.getFilename());
+    }
+
+    /**
+     * 文档处理状态查询（异步上传后前端轮询用）。
+     */
+    public Map<String, Object> getDocumentStatus(Long id, Long userId) {
+        Document doc = documentMapper.selectById(id);
+        if (doc == null) throw new IllegalArgumentException("文档不存在: " + id);
+        if (!doc.getUserId().equals(userId)) throw new BusinessException("无权访问该文档");
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("status", doc.getStatus());
+        status.put("errorMessage", doc.getErrorMessage());
+        return status;
     }
 
     /**
@@ -306,6 +365,19 @@ public class KnowledgeService {
     // ==================== 内部辅助 ====================
 
     /**
+     * 清理文档的 Qdrant 向量 + MySQL 分片（删除/重传共用，保证重建幂等）。
+     */
+    private void deleteVectorsAndChunks(Long docId) {
+        try {
+            vectorStore.delete("documentId == '" + docId + "'");
+        } catch (Exception e) {
+            log.warn("Qdrant 删除失败（可能已被清理）: documentId={}", docId, e);
+        }
+        documentChunkMapper.delete(
+                new LambdaQueryWrapper<DocumentChunk>().eq(DocumentChunk::getDocumentId, docId));
+    }
+
+    /**
      * 获取模型名称（DB 优先，否则默认）
      */
     private String getModel() {
@@ -320,15 +392,14 @@ public class KnowledgeService {
     }
 
     /**
-     * 使用 Apache Tika 解析文档内容（统一处理 PDF/MD/TXT/DOCX）
+     * 按扩展名解析字节内容（消费者从 OSS 取回字节后调用）。
+     * 纯文本类型直接读，避免 Tika 的格式检测开销；PDF / DOCX 用 Tika。
      */
-    private String parseFileContent(MultipartFile file, String ext) throws IOException {
-        // 纯文本类型直接读，避免 Tika 的格式检测开销
+    private String parseContent(byte[] bytes, String ext) throws IOException {
         if ("txt".equals(ext) || "md".equals(ext)) {
-            return new String(file.getBytes(), StandardCharsets.UTF_8);
+            return new String(bytes, StandardCharsets.UTF_8);
         }
-        // PDF / DOCX 用 Tika 解析
-        try (InputStream is = file.getInputStream()) {
+        try (InputStream is = new ByteArrayInputStream(bytes)) {
             Tika tika = new Tika();
             return tika.parseToString(is);
         } catch (TikaException e) {
@@ -447,6 +518,7 @@ public class KnowledgeService {
         vo.setFileSize(doc.getFileSize());
         vo.setChunkCount(doc.getChunkCount());
         vo.setStatus(doc.getStatus());
+        vo.setErrorMessage(doc.getErrorMessage());
         vo.setSummary(doc.getSummary());
         vo.setUploadedAt(doc.getUploadedAt());
         vo.setDownloadUrl(
