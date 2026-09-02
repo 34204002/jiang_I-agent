@@ -12,7 +12,7 @@
 
 - **对话**：多轮对话 + SSE 流式输出（DeepSeek v4-flash thinking 思考模式），Redis 会话记忆 + MySQL 持久化，拖拽文件上传（PDF/MD/TXT/DOCX → Tika → `read_uploaded_file` 工具按需读取）
 - **工具调用**：自研 `@Tool` 注解框架，19 个 @Tool 工具方法（10 个工具类）自动注册，LLM 自主选择调用，最多 10 轮工具循环，单轮多 tool_calls 按 index 分组累积
-- **RAG 知识库**：文档上传 → Tika 解析 → 分片 → BAAI/bge-m3 向量化 → Qdrant 语义检索增强回答
+- **RAG 知识库**：文档上传 **RabbitMQ 异步化**（受理秒回 → 消费者 OSS 取回 → 解析/分块/bge-m3 向量化 → Qdrant），状态机 0→1→2、失败 3 可重传自愈，SHA-256 按用户去重
 - **知识图谱**：Neo4j 概念关联建模 + 前置知识链查询（"学 Redis 前需要先学什么"），AI 对话自动沉淀 + 循环检测 + 自环预防 + 传递化简 + ECharts 层次化可视化 + 关系过滤
 - **待办 & 提醒**：CRUD 待办管理 + 定时提醒（前端轮询到点弹通知，可离线补弹）
 - **用户隔离**：知识库文档与图谱概念按用户隔离，多用户数据互不可见、不可删
@@ -82,16 +82,16 @@ frontend/src/
 │   ├── storage.ts       # localStorage 封装 (token/user)
 │   └── reminders.ts     # 定时提醒轮询（30s，到期弹通知 + ack）
 ├── types.ts             # 共享 TS 类型
-├── assets/style.css     # 全局设计系统 (CSS 自定义属性, 响应式, 粉蓝双色)
+├── assets/style.css     # 全局设计系统 (CSS 自定义属性, 响应式, 淡蓝主题)
 ├── components/
 │   ├── ChatPanel.vue    # SSE 流式聊天: thinking/content/tool_call/conversation_id 事件分派 + 打字机光标
 │   ├── Sidebar.vue      # 会话列表 + 批量删除 + 登出 (SVG 图标)
 │   ├── GraphPanel.vue   # Neo4j 图谱: 层次化树形图 + 关系过滤 + 概念删除 + Teleport 模态框
-│   ├── KnowledgePanel.vue # RAG 知识库: 文档上传/搜索/列表/删除 (SVG 图标)
+│   ├── KnowledgePanel.vue # RAG 知识库: 异步上传轮询(处理中/完成/失败) + 搜索/列表/删除
 │   └── ToolsPanel.vue   # 工具标签卡片 + 待办 CRUD
 └── views/
     ├── LoginView.vue     # 登录/注册 (密码显隐 + 注册确认密码)
-    ├── SettingsView.vue  # 个人设置 (头像/昵称/密码修改)
+    ├── SettingsView.vue  # 个人设置 (头像/昵称/密码修改 + 对话模型 BYOK 自带 Key)
     └── AdminView.vue     # 管理后台 (用户管理 + Agent 配置)
 ```
 
@@ -108,7 +108,8 @@ frontend/src/
 | **P5** | Vue 3 SPA 重写（SFC 组件 + 设计系统 + 打字机恢复 + 思考框折叠） | ✅ |
 | **P6** | 定时提醒 + 修改密码（提醒轮询、安全增强） | ✅ |
 | **P7** | 知识库/图谱用户隔离（存量数据迁移 + 越权防护） | ✅ |
-| **P8** | 主题改版（粉蓝双色设计系统） | ✅ |
+| **P8** | 主题改版（淡蓝设计系统） | ✅ |
+| **P9** | 耗时可观测埋点 + 并发压测 + RabbitMQ 文档上传异步化 | ✅ |
 
 ---
 
@@ -137,8 +138,9 @@ frontend/src/
 | POST | `/api/chat` | 同步对话 |
 | GET/POST | `/api/chat/stream` | SSE 流式对话（POST 支持附件，?thinking=true 开启思考模式） |
 | POST | `/api/chat/upload` | 上传对话附件（Tika 解析返回文本） |
-| POST | `/api/knowledge/documents` | 上传文档 |
+| POST | `/api/knowledge/documents` | 上传文档（异步受理，秒回） |
 | GET | `/api/knowledge/documents` | 文档列表 |
+| GET | `/api/knowledge/documents/{id}/status` | 文档处理状态轮询 |
 | DELETE | `/api/knowledge/documents/{id}` | 删除文档 |
 | GET | `/api/knowledge/documents/{id}/download` | 下载文档 |
 | POST | `/api/knowledge/search` | RAG 知识库问答 |

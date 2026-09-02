@@ -327,6 +327,23 @@ Neo4j 侧 `MATCH (c:Concept) WHERE c.userId IS NULL SET c.userId = <oldest>`。
 
 ---
 
+## 32. 非思考模式工具调用 400 —— reasoning_content 必须回传
+
+**症状**：8 并发压测时 5 个工具对话在 follow-up 轮全部失败：
+`API 返回 400: The reasoning_content in the thinking mode must be passed back to the API.`
+
+**根因**：`deepseek-v4-flash` 在**非思考模式**的工具规划轮照样返回 `reasoning_content`，
+DeepSeek 强制要求 tool_calls 轮把它**原样带回**下一轮请求。原代码仅在 `thinking=true`
+时捕获 `reasoning_content`，非思考流式路径直接丢弃 → follow-up 的 assistant(tool_calls)
+消息缺它 → 400。同步路径 `runToolLoop` 无条件保存所以没爆，流式默认模式必挂。
+
+**修复**：`streamWithPossibleTools` 始终捕获 `reasoning_content` 并存入 ToolContext 用于
+回传构造；`thinking` 开关只决定是否推送给前端展示/入库。
+
+**要点**：API 契约（回传要求）与 UI 开关（是否展示）是两回事，别用开关挡数据捕获。
+
+---
+
 ## 教训
 
 1. **非标准字段不信任任何 SDK** — 直接从 HTTP 层验证
@@ -344,3 +361,4 @@ Neo4j 侧 `MATCH (c:Concept) WHERE c.userId IS NULL SET c.userId = <oldest>`。
 13. **token 只走 header** — 任何放 URL/日志的方案都是安全隐患
 14. **共享 ObjectMapper 是地雷** — 特殊序列化用独立实例，别污染全局
 15. **登录态是"事件"不是"页面事件"** — SPA 内部跳转不触发 onMounted，用状态 watch
+16. **队列传身份，存储传负载** — MultipartFile 随请求销毁，文件字节跨不过消息队列；先 OSS/persist 落盘作 commit 点，队列只传 docId，消费者回存取回。异步后失败必须可观测（状态机+死信），否则僵尸文档比同步失败更糟

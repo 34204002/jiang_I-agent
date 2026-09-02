@@ -210,15 +210,20 @@ Content-Type: multipart/form-data
     "filename": "Redis实战笔记.md",
     "fileType": "md",
     "fileSize": 15360,
-    "chunkCount": 5,
-    "status": 1
+    "chunkCount": 0,
+    "status": 0
   }
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| status | Integer | 0-待处理 1-已解析 2-已向量化 |
+| status | Integer | 0-待处理 1-已解析 2-已向量化 **3-失败** |
+| errorMessage | String | status=3 时的失败原因 |
+
+> **异步化**：上传接口只做 校验/SHA-256 去重/OSS 落盘/入库(status=0)/投递 MQ 消息，**立即返回**；
+> 解析/分块/向量化由 RabbitMQ 消费者后台完成（重试 3 次指数退避，耗尽进死信队列标记失败）。
+> 用 `GET /api/knowledge/documents/{id}/status` 轮询终态。失败重传自动复用原行重开一轮。
 
 ### 3.2 批量上传文档
 
@@ -629,7 +634,8 @@ PUT /api/profile/password    # 修改密码 {"oldPassword":"...","newPassword":"
 | GET | `/api/chat/stream` | SSE 流式对话 (?thinking=true) |
 | POST | `/api/chat/stream` | SSE 流式对话（POST 变体，支持附件） |
 | POST | `/api/chat/upload` | 上传对话附件（Tika 解析） |
-| POST | `/api/knowledge/documents` | 上传文档 |
+| POST | `/api/knowledge/documents` | 上传文档（异步受理，秒回） |
+| GET | `/api/knowledge/documents/{id}/status` | 文档处理状态轮询 |
 | POST | `/api/knowledge/documents/batch` | 批量上传文档 |
 | GET | `/api/knowledge/documents` | 文档列表 |
 | DELETE | `/api/knowledge/documents/{id}` | 删除文档 |

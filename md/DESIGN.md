@@ -121,7 +121,8 @@ CREATE TABLE t_document (
     file_size    BIGINT UNSIGNED NOT NULL DEFAULT 0,
     content_hash VARCHAR(64)     NOT NULL DEFAULT '',       -- SHA-256 去重（按用户）
     chunk_count  INT UNSIGNED    NOT NULL DEFAULT 0,
-    status       TINYINT         NOT NULL DEFAULT 0,        -- 0-待处理 1-已解析 2-已向量化
+    status       TINYINT         NOT NULL DEFAULT 0,        -- 0-待处理 1-已解析 2-已向量化 3-失败（异步处理状态机）
+    error_message VARCHAR(255)   NULL,                      -- status=3 时的失败原因
     summary      VARCHAR(500)    NOT NULL DEFAULT '',
     oss_key      VARCHAR(200)    NOT NULL DEFAULT '',       -- OSS 存储 key
     uploaded_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -389,10 +390,10 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 }
 ```
 
-**配色语义**（粉蓝双色，粉为主蓝为次）：
-- 背景：粉→天蓝垂直渐变（`body`），登录页 160° 渐变
-- 用户气泡 `--user-bubble` 淡粉；AI 气泡 `--ai-bubble: #EFF8FF` 淡天蓝——对话一眼分角色
-- 主按钮/发送/登录 = 粉色渐变（主操作）；outline 次要按钮/链接/图谱前置边 = 天蓝（次强调）
+**配色语义**（淡蓝为主色调）：
+- 背景：淡蓝垂直渐变（`body`），登录页 160° 渐变
+- 用户气泡深蓝 `--user-bubble: #DBEAFE`；AI 气泡浅蓝 `--ai-bubble: #EFF8FF`——对话一眼分角色
+- 主按钮/发送/登录 = 天蓝渐变（主操作）；outline 次要按钮/链接/图谱前置边 = 天蓝（次强调）
 - 思考框保留 `--lavender` 紫色——与 AI 正文天蓝区分"在想 vs 说出"
 
 ---
