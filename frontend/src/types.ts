@@ -99,6 +99,7 @@ export interface DocumentItem {
     fileType: string
     fileSize: number
     status: number
+    errorMessage?: string
     summary?: string
     ossKey?: string
     chunkCount?: number

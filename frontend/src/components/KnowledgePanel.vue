@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import {onMounted, ref} from 'vue'
+import {onMounted, onUnmounted, ref} from 'vue'
 import {api} from '../utils/api'
 import {showToast} from '../utils/toast'
 import type {DocumentItem, PageResult, SearchResponse} from '../types'
@@ -10,10 +10,46 @@ const docs = ref<DocumentItem[]>([])
 const searchQuery = ref('')
 const searchResult = ref<SearchResponse | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
+let autoRefresh: ReturnType<typeof setInterval> | null = null
 
 async function loadDocs() {
   const json = await api.get<PageResult<DocumentItem>>('/api/knowledge/documents?page=1&size=50')
   if (json.code === 200 && json.data) docs.value = json.data.records || []
+}
+
+function statusText(d: DocumentItem): string {
+  if (d.status === 2) return '已向量化'
+  if (d.status === 3) return '处理失败'
+  if (d.status === 1) return '已解析'
+  return '处理中'
+}
+
+// 只要列表里还有文档在异步处理（status<2），每 2.5s 自动刷新一次
+function startAutoRefresh() {
+  stopAutoRefresh()
+  autoRefresh = setInterval(() => {
+    if (docs.value.some(d => d.status !== undefined && d.status < 2)) loadDocs()
+  }, 2500)
+}
+
+function stopAutoRefresh() {
+  if (autoRefresh) { clearInterval(autoRefresh); autoRefresh = null }
+}
+
+// 上传后对新文档轮询到终态（2 完成 / 3 失败），给用户明确反馈
+async function pollNewDoc(id: number, filename: string) {
+  const maxTries = 60
+  for (let i = 0; i < maxTries; i++) {
+    await new Promise(r => setTimeout(r, 1500))
+    const json = await api.get<{ status: number; errorMessage?: string }>(
+      `/api/knowledge/documents/${id}/status`)
+    if (json.code !== 200) break
+    const st = json.data?.status
+    if (st === 2) { showToast(`「${filename}」已向量化`, 'ok'); break }
+    if (st === 3) { showToast(`「${filename}」处理失败：${json.data?.errorMessage || '请重新上传'}`, 'error'); break }
+  }
+  loadDocs()
+  stopAutoRefresh()
 }
 
 async function uploadDoc(e: Event) {
@@ -22,10 +58,13 @@ async function uploadDoc(e: Event) {
   if (!file) return
   const form = new FormData();
   form.append('file', file)
-  const json = await api.postForm('/api/knowledge/documents', form)
-  if (json.code === 200) {
-    loadDocs();
-    showToast('上传成功', 'ok')
+  const json = await api.postForm<DocumentItem>('/api/knowledge/documents', form)
+  target.value = ''
+  if (json.code === 200 && json.data) {
+    loadDocs()
+    startAutoRefresh()
+    showToast('已受理，后台解析中…', 'ok')
+    pollNewDoc(json.data.id, file.name)
   } else showToast(json.message || '上传失败', 'error')
 }
 
@@ -50,7 +89,8 @@ function formatSize(bytes: number): string {
   return bytes > 1048576 ? (bytes / 1048576).toFixed(1) + 'MB' : (bytes / 1024).toFixed(0) + 'KB'
 }
 
-onMounted(loadDocs)
+onMounted(() => { loadDocs(); startAutoRefresh() })
+onUnmounted(stopAutoRefresh)
 </script>
 
 <template>
@@ -91,7 +131,8 @@ onMounted(loadDocs)
         <FileIcon v-else :color="'#0EA5E9'"/>
         <span class="kb-doc-name">{{ d.filename }}</span>
         <span class="kb-doc-size">{{ formatSize(d.fileSize) }}</span>
-        <span class="kb-doc-status">{{ d.status === 2 ? '已向量化' : d.status === 1 ? '已解析' : '待处理' }}</span>
+        <span :class="['kb-doc-status', d.status === 3 ? 'kb-doc-status-fail' : '']">{{ statusText(d) }}</span>
+        <span v-if="d.status === 3 && d.errorMessage" class="kb-doc-err" :title="d.errorMessage">{{ d.errorMessage }}</span>
         <a v-if="d.status===2&&downloadUrl(d)" :href="downloadUrl(d)" class="kb-doc-download">下载</a>
         <button class="kb-doc-del" title="删除" type="button" @click="deleteDoc(d.id)">
           <CloseIcon :size="14"/>
@@ -217,6 +258,20 @@ onMounted(loadDocs)
   background: var(--accent-subtle);
   color: var(--accent);
   font-weight: 600
+}
+
+.kb-doc-status-fail {
+  background: #FEE2E2;
+  color: #EF4444
+}
+
+.kb-doc-err {
+  font-size: 11px;
+  color: #EF4444;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap
 }
 
 .kb-doc-download {
