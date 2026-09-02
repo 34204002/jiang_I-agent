@@ -32,4 +32,7 @@ build/
 ### VS Code ###
 .vscode/
 
+### 运行时生成物 ###
+logs/
+
 src/main/resources/application-dev.yml

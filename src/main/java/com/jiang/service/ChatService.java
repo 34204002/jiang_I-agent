@@ -224,9 +224,12 @@ public class ChatService {
     }
 
     public Flux<String> streamChat(ChatRequest request, Long userId) {
+        long t0 = System.nanoTime();
         String fullMsg = buildUserMessage(request);
         var ctx = prepareConversation(request, fullMsg, userId);
         // 首帧下发会话 ID，让前端立即拿到新建会话的 id（避免靠轮询/定时器兜底造成竞态）
+        log.info("[SSE_FRAME] conversation_id 首帧下发：会话准备 {}ms convoId={}",
+                (System.nanoTime() - t0) / 1_000_000L, ctx.convoId);
         return Flux.just(conversationIdEvent(ctx.convoId))
                 .concatWith(streamWithPossibleTools(ctx.history, fullMsg,
                         ctx.convoId, ctx.memoryKey, false, userId))
@@ -234,9 +237,12 @@ public class ChatService {
     }
 
     public Flux<String> streamChatWithThinking(ChatRequest request, Long userId) {
+        long t0 = System.nanoTime();
         String fullMsg = buildUserMessage(request);
         var ctx = prepareConversation(request, fullMsg, userId);
         // 首帧下发会话 ID，让前端立即拿到新建会话的 id（避免靠轮询/定时器兜底造成竞态）
+        log.info("[SSE_FRAME] conversation_id 首帧下发：会话准备 {}ms convoId={}",
+                (System.nanoTime() - t0) / 1_000_000L, ctx.convoId);
         return Flux.just(conversationIdEvent(ctx.convoId))
                 .concatWith(streamWithPossibleTools(ctx.history, fullMsg,
                         ctx.convoId, ctx.memoryKey, true, userId))
@@ -322,6 +328,8 @@ public class ChatService {
         final StringBuilder contentBuf = new StringBuilder();
         final StringBuilder thinkingBuf = thinking ? new StringBuilder() : null;
         final StringBuilder dsmlBuf = new StringBuilder();  // 记录被过滤的 DSML 内容
+        final long streamStart = System.nanoTime();         // 首字延迟计时起点
+        final boolean[] firstContentLogged = {false};
         String body = buildRequestBody(history, userMsg, memoryKey, thinking, true, userId);
 
         return streamHttp(body, resolveLlmApiKey(userId))
@@ -368,6 +376,10 @@ public class ChatService {
                         }
                         // 实时发射 content（支持打字机效果），同时缓冲用于持久化
                         contentBuf.append(c);
+                        if (!firstContentLogged[0]) {
+                            firstContentLogged[0] = true;
+                            log.info("[TTFT] round=0 首字延迟 {}ms", (System.nanoTime() - streamStart) / 1_000_000L);
+                        }
                         try {
                             sink.next("{\"type\":\"content\",\"content\":"
                                     + MAPPER.writeValueAsString(c) + "}");
@@ -515,6 +527,8 @@ public class ChatService {
         final Map<Integer, StringBuilder> tcArgsMap = new LinkedHashMap<>();
         final StringBuilder contentBuf = new StringBuilder();
         final StringBuilder thinkingBuf = new StringBuilder();
+        final long streamStart = System.nanoTime();         // 本轮首字延迟计时起点
+        final boolean[] firstContentLogged = {false};
 
         return streamHttp(json, resolveLlmApiKey(userId))
                 .<String>handle((chunk, sink) -> {
@@ -553,6 +567,10 @@ public class ChatService {
                         }
                         // 实时发射 content，同时缓冲用于持久化
                         contentBuf.append(c);
+                        if (!firstContentLogged[0]) {
+                            firstContentLogged[0] = true;
+                            log.info("[TTFT] round={} 首字延迟 {}ms", round, (System.nanoTime() - streamStart) / 1_000_000L);
+                        }
                         try {
                             sink.next("{\"type\":\"content\",\"content\":"
                                     + MAPPER.writeValueAsString(c) + "}");
@@ -952,11 +970,15 @@ public class ChatService {
     }
 
     private String retrieveRelevantContext(String query, Long userId) {
+        long t0 = System.nanoTime();
         try {
             var results = vectorStore.similaritySearch(
                     org.springframework.ai.vectorstore.SearchRequest.builder()
                             .query(query).topK(3).similarityThreshold(0.6).build());
-            if (results == null || results.isEmpty()) return null;
+            if (results == null || results.isEmpty()) {
+                log.info("[RAG_TIME] 无命中 ms={}", (System.nanoTime() - t0) / 1_000_000L);
+                return null;
+            }
             // 用户隔离：只保留属于该用户的文档。MySQL 是归属的唯一真源
             // （Qdrant 存量向量没有 userId payload），故检索后按文档归属过滤
             List<Long> docIds = results.stream()
@@ -965,19 +987,26 @@ public class ChatService {
                     .map(o -> Long.valueOf(o.toString()))
                     .distinct()
                     .toList();
-            if (docIds.isEmpty()) return null;
+            if (docIds.isEmpty()) {
+                log.info("[RAG_TIME] 无归属命中 ms={}", (System.nanoTime() - t0) / 1_000_000L);
+                return null;
+            }
             Set<Long> owned = new HashSet<>(documentMapper.selectBatchIds(docIds).stream()
                     .filter(d -> userId.equals(d.getUserId()))
                     .map(Document::getId)
                     .toList());
             StringBuilder sb = new StringBuilder();
+            int kept = 0;
             for (var doc : results) {
                 Object docId = doc.getMetadata().get("documentId");
                 if (docId == null || !owned.contains(Long.valueOf(docId.toString()))) continue;
+                kept++;
                 String filename = doc.getMetadata().getOrDefault("filename", "未知").toString();
                 sb.append("【来源: ").append(filename).append("】\n")
                         .append(doc.getText()).append("\n\n");
             }
+            long ms = (System.nanoTime() - t0) / 1_000_000L;
+            log.info("[RAG_TIME] raw={} kept={} ms={}", results.size(), kept, ms);
             return sb.length() > 0 ? sb.toString() : null;
         } catch (Exception e) {
             log.warn("RAG 检索失败（对话不受影响）: {}", e.getMessage());

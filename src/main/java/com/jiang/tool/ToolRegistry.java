@@ -99,6 +99,7 @@ public class ToolRegistry {
     }
 
     public String execute(String name, String arguments) {
+        long t0 = System.nanoTime();
         ToolDef def = tools.get(name);
         if (def == null) return "错误: 未知工具 " + name;
 
@@ -108,7 +109,7 @@ public class ToolRegistry {
         try {
             if (params.length == 0) {
                 Object result = method.invoke(def.bean());
-                return result != null ? result.toString() : "完成";
+                return logToolTime(name, result, t0);
             }
 
             JsonNode argsNode = objectMapper.readTree(arguments);
@@ -135,7 +136,7 @@ public class ToolRegistry {
             }
 
             Object result = method.invoke(def.bean(), args);
-            return result != null ? result.toString() : "完成";
+            return logToolTime(name, result, t0);
 
         } catch (InvocationTargetException e) {
             log.error("工具 {} 执行异常", name, e.getCause());
@@ -144,6 +145,16 @@ public class ToolRegistry {
             log.error("工具 {} 调用失败", name, e);
             return "错误: " + e.getMessage();
         }
+    }
+
+    /**
+     * 计时埋点：每次工具执行成功打一条 [TOOL_TIME] 日志，供压测收敛 p50/p95。
+     */
+    private String logToolTime(String name, Object result, long t0) {
+        long ms = (System.nanoTime() - t0) / 1_000_000L;
+        String text = result != null ? result.toString() : "完成";
+        log.info("[TOOL_TIME] name={} ms={} resultLen={}", name, ms, text.length());
+        return text;
     }
 
     // ==================== 执行调度 ====================
