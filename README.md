@@ -1,6 +1,6 @@
 <div align="center">
 
-# Jiang I-Agent 🤖
+# Jiang I-Agent 
 
 **个人 AI 知识库助手 · 单智能体 Agent 全栈实现**
 
