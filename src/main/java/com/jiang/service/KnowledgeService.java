@@ -245,7 +245,7 @@ public class KnowledgeService {
         if (!doc.getUserId().equals(userId)) throw new BusinessException("无权访问该文档");
         if (doc.getOssKey() == null || doc.getOssKey().isEmpty())
             throw new IllegalArgumentException("该文档没有存储原始文件");
-        return ossService.getPublicUrl(doc.getOssKey());
+        return ossService.generatePresignedUrl(doc.getOssKey());
     }
 
     /**
@@ -523,7 +523,7 @@ public class KnowledgeService {
         vo.setUploadedAt(doc.getUploadedAt());
         vo.setDownloadUrl(
                 doc.getOssKey() != null && !doc.getOssKey().isEmpty()
-                        ? ossService.getPublicUrl(doc.getOssKey()) : "");
+                        ? ossService.generatePresignedUrl(doc.getOssKey()) : "");
         return vo;
     }
 

@@ -16,7 +16,11 @@ Spring Boot 4.1 · Spring AI 2.0 · DeepSeek v4-flash · Neo4j 5 · Qdrant · My
 
 📺 [**项目演示视频（Bilibili）**](https://www.bilibili.com/video/BV17F7W6GEnM/?spm_id_from=333.1387.homepage.video_card.click)(演示视频已过时，具体体验以当前项目为准)
 
-![Jiang I-Agent 截图](https://jiang-learning.oss-cn-beijing.aliyuncs.com/Snipaste_2026-06-27_16-24-58.png)
+![Jiang I-Agent 主界面](https://jiang-learning.oss-cn-beijing.aliyuncs.com/readme/agent-ui.png)
+
+| 回复示例（含思考框） | 知识图谱 | 设置界面 |
+|---|---|---|
+| ![回复示例](https://jiang-learning.oss-cn-beijing.aliyuncs.com/readme/reply-example.png) | ![知识图谱](https://jiang-learning.oss-cn-beijing.aliyuncs.com/readme/knowledge-graph.png) | ![设置界面](https://jiang-learning.oss-cn-beijing.aliyuncs.com/readme/settings.png) |
 
 ---
 

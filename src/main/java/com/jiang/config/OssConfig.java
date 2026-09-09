@@ -28,9 +28,13 @@ public class OssConfig {
      */
     private String accessKeySecret;
     /**
-     * Bucket 名称
+     * Bucket 名称 — 私有桶，存储用户文档（如 jiang-i-agent）
      */
     private String bucketName;
+    /**
+     * 公共读 Bucket — 存储头像/演示图等公开资源（如 jiang-learning），公网可直接访问
+     */
+    private String publicBucketName;
 
     @Bean
     public OSS ossClient() {

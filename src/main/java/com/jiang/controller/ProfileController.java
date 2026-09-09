@@ -56,6 +56,7 @@ public class ProfileController {
             return Result.fail(400, "仅支持 JPG/PNG/WebP/GIF");
         }
 
+        // uploadAvatar 上传到公共读桶并返回完整公网 URL
         String url = ossService.uploadAvatar(file);
         return Result.success(Map.of("url", url));
     }
