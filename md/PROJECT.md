@@ -61,6 +61,7 @@
 | 图数据库 | Neo4j | 5.x |
 | 关系库 | MySQL + MyBatis-Plus | 8.x |
 | 对象存储 | 阿里云 OSS | — |
+| 消息队列 | RabbitMQ (Spring AMQP) | 4.1.0 |
 | 鉴权 | JWT Filter | — |
 
 ---
@@ -170,13 +171,14 @@ frontend/src/
 ## 快速启动
 
 ```bash
-# 1. 启动基础设施: MySQL(3306) + Redis(6379) + Neo4j(7687) + Qdrant(6334)
+# 1. 启动基础设施: MySQL(3306) + Redis(6379) + Neo4j(7687) + Qdrant(6334) + RabbitMQ(5672/15672)
+#    RabbitMQ 队列拓扑由应用启动时自动声明（RabbitConfig），无需手动建
 # 2. 初始化数据库 (全新安装)
 mysql -u root < src/main/resources/sql/schema.sql
 
 # 3. 已有数据库执行迁移 (如果是从旧版升级)
-mysql -u root jiang_i_agent < src/main/resources/sql/migration_add_user_isolation.sql   # 用户隔离
-mysql -u root jiang_i_agent < src/main/resources/sql/migration_update_model.sql         # 模型默认值
+#    按时间顺序执行全部存量迁移：模型默认值 → 用户隔离 → BYOK → 文档异步化
+mysql -u root jiang_i_agent < src/main/resources/sql/migrations.sql
 # Neo4j 存量概念归属最早用户（替换 <OLDEST_USER_ID>）：
 #   MATCH (c:Concept) WHERE c.userId IS NULL SET c.userId = <OLDEST_USER_ID>
 
@@ -193,11 +195,11 @@ cd frontend && npm install && npm run dev
 
 前端使用完整 CSS 自定义属性体系（`frontend/src/assets/style.css`）：
 
-- **主色**：`--accent: #F472B6`（淡粉）+ `--accent-deep: #EC4899`（深粉渐变）
-- **次色**：`--sky: #38BDF8` / `--sky-deep: #0EA5E9`（天蓝，链接/outline 按钮/图谱前置边）
-- **辅助**：`--lavender: #8B5CF6`（紫色，思考框——与 AI 正文天蓝区分"在想 vs 说出"）
-- **背景**：`--bg-body: #FDF4F9`（粉）→ `--bg-body-blue: #EFF8FF`（蓝）垂直渐变
-- **气泡**：用户淡粉 `--user-bubble`，AI 淡天蓝 `--ai-bubble: #EFF8FF`
+- **主色**：`--accent: #0284C7`（天蓝）+ `--accent-deep: #0369A1`（深天蓝）+ `--accent-light: #7DD3FC`
+- **次色**：`--sky: #38BDF8` / `--sky-deep: #0EA5E9`（链接/outline 按钮/图谱前置边）
+- **辅助**：`--lavender: #60A5FA`（浅蓝，思考框——与 AI 正文区分"在想 vs 说出"）
+- **背景**：`--bg-body: #F0F9FF` → `--bg-body-blue: #E8F3FC` 垂直渐变
+- **气泡**：用户 `--user-bubble: #DBEAFE`，AI `--ai-bubble: #F0F9FF`
 - **语义色**：`--color-error: #EF4444` / `--color-success: #22C55E` / `--color-warning: #F59E0B`
 - **字体**：Inter 优先，等宽代码（`--font-mono`）
 - **间距/字重/阴影/过渡**：统一 token，无硬编码值

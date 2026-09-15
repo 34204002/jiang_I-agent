@@ -378,12 +378,12 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 
 ```
 :root {
-  --accent: #F472B6;        --accent-deep: #EC4899;     --accent-light: #FBCFE8;
+  --accent: #0284C7;        --accent-deep: #0369A1;     --accent-light: #7DD3FC;
   --sky: #38BDF8;           --sky-deep: #0EA5E9;        --sky-light: #BAE6FD;
-  --lavender: #8B5CF6;      --lavender-light: #A78BFA;   --color-error: #EF4444;
+  --lavender: #60A5FA;      --lavender-light: #93C5FD;  --color-error: #EF4444;
   --color-success: #22C55E; --color-warning: #F59E0B;
   --text-primary: #1E293B;  --text-secondary: #64748B;  --text-tertiary: #94A3B8;
-  --bg-body: #FDF4F9;       --bg-body-blue: #EFF8FF;    --bg-surface: #FFFFFF;
+  --bg-body: #F0F9FF;       --bg-body-blue: #E8F3FC;    --bg-surface: #FFFFFF;
   --radius-sm: 8px;         --radius: 12px;             --radius-lg: 18px;
   --font-sans: "Inter", ...; --font-mono: "SF Mono", ...;
   /* + 间距/字重/阴影/过渡 scale */
@@ -392,7 +392,7 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 
 **配色语义**（淡蓝为主色调）：
 - 背景：淡蓝垂直渐变（`body`），登录页 160° 渐变
-- 用户气泡深蓝 `--user-bubble: #DBEAFE`；AI 气泡浅蓝 `--ai-bubble: #EFF8FF`——对话一眼分角色
+- 用户气泡深蓝 `--user-bubble: #DBEAFE`；AI 气泡浅蓝 `--ai-bubble: #F0F9FF`——对话一眼分角色
 - 主按钮/发送/登录 = 天蓝渐变（主操作）；outline 次要按钮/链接/图谱前置边 = 天蓝（次强调）
 - 思考框保留 `--lavender` 紫色——与 AI 正文天蓝区分"在想 vs 说出"
 
@@ -409,7 +409,10 @@ MATCH (c:Concept) WHERE c.name =~ '.*Redis.*' RETURN c LIMIT 20
 | P5（前端） | `t_message.thinking` 列 | — |
 | P6（提醒） | `t_reminder` | — |
 | P7（隔离） | `t_document.user_id`、概念 `userId` 属性 | — |
+| P8（主题改版） | — | — |
+| P9（可观测 + 文档异步化） | `t_document.error_message`、`t_user.api_key_enc` `t_user.llm_model`（BYOK） | RabbitMQ |
 
-> **迁移脚本**：`src/main/resources/sql/` 下有 `migration_add_user_isolation.sql`
-> （知识库/图谱用户隔离，存量数据归最早用户）与 `migration_update_model.sql`
-> （模型默认值统一为 `deepseek-v4-flash`）。全新安装只需执行 `schema.sql`。
+> **迁移脚本**：`src/main/resources/sql/` 下只有两个文件——`schema.sql`（全新安装，
+> 已含全部最新结构）与 `migrations.sql`（存量升级，按时间顺序合并了历史迁移：
+> 模型默认值 → 用户隔离 → BYOK → 文档异步化）。2026-09-10 前分散的
+> `migration_*.sql` 小文件已合并进 `migrations.sql`。

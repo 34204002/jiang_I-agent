@@ -75,4 +75,4 @@ src/
 
 ## 设计主题
 
-全局 CSS 自定义属性（`src/assets/style.css`）粉蓝双色：用户气泡淡粉 `#FEF2F7`、AI 气泡淡天蓝 `#EFF8FF`，主操作粉色渐变、次要强调天蓝（链接/outline 按钮），背景粉→蓝渐变。主色 token：`--accent #F472B6` / `--sky #38BDF8`。
+全局 CSS 自定义属性（`src/assets/style.css`）淡蓝单色系：用户气泡深蓝 `#DBEAFE`、AI 气泡浅蓝 `#F0F9FF`，主操作与次要强调均为天蓝（链接/outline 按钮），背景淡蓝渐变。主色 token：`--accent #0284C7`（白字对比达 WCAG AA）/ `--accent-deep #0369A1` / `--sky #38BDF8`。2026-09 已由粉蓝双色改为纯天蓝，不再使用粉/紫。

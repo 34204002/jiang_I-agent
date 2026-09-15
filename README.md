@@ -109,7 +109,7 @@ Spring Boot 4.1 · Spring AI 2.0 · DeepSeek v4-flash · Neo4j 5 · Qdrant · My
 |-------|-----|------|
 | `--accent` / `--accent-deep` | `#0284C7` / `#0369A1` | 主色（天蓝渐变，主按钮） |
 | `--sky` / `--sky-deep` | `#38BDF8` / `#0EA5E9` | 次色（天蓝，链接/outline 按钮/图谱前置边） |
-| `--lavender` | `#8B5CF6` | 紫色辅助（思考框） |
+| `--lavender` | `#60A5FA` | 浅蓝辅助（思考框） |
 | `--ai-bubble` / `--user-bubble` | `#F0F9FF` / `#DBEAFE` | AI 浅蓝 / 用户深蓝气泡 |
 | `--color-error` / `--color-success` / `--color-warning` | `#EF4444` / `#22C55E` / `#F59E0B` | 语义色 |
 | `--text-primary` / `--bg-body` | `#1E293B` / `#F0F9FF` | 主文字 / 页面背景（淡蓝渐变） |
@@ -162,17 +162,14 @@ curl -X PUT http://localhost:6333/collections/jiang_i_agent_knowledge \
 # 全新安装
 mysql -u root < src/main/resources/sql/schema.sql
 
-# 从旧版升级（知识库/图谱用户隔离，存量数据归最早用户）
-mysql -u root jiang_i_agent < src/main/resources/sql/migration_add_user_isolation.sql
+# 从旧版升级（按时间顺序执行全部存量迁移：模型默认值 → 用户隔离 → BYOK → 文档异步化）
+mysql -u root jiang_i_agent < src/main/resources/sql/migrations.sql
 # Neo4j 存量概念归属最早用户（替换 <OLDEST_USER_ID>）：
 #   MATCH (c:Concept) WHERE c.userId IS NULL SET c.userId = <OLDEST_USER_ID>
-
-# 从旧版升级（模型默认值统一为 deepseek-v4-flash）
-mysql -u root jiang_i_agent < src/main/resources/sql/migration_update_model.sql
 ```
 
 ### 3. 配置
-编辑 `src/main/resources/application-dev.yml`，填写 DeepSeek / 硅基流动 / MySQL / Redis / Neo4j / Qdrant / OSS 连接信息。
+编辑 `src/main/resources/application-dev.yml`，填写 DeepSeek / 硅基流动 / MySQL / Redis / Neo4j / Qdrant / RabbitMQ / OSS 连接信息。
 
 ### 4. 启动
 ```bash
