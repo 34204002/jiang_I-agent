@@ -182,10 +182,15 @@ mysql -u root jiang_i_agent < src/main/resources/sql/migrations.sql
 # Neo4j 存量概念归属最早用户（替换 <OLDEST_USER_ID>）：
 #   MATCH (c:Concept) WHERE c.userId IS NULL SET c.userId = <OLDEST_USER_ID>
 
-# 4. 启动后端
+# 4. 配置（从模板复制，再填真实值）
+cp src/main/resources/application-dev.example.yml src/main/resources/application-dev.yml
+#    然后把模板里的 <...> 占位符换成真实配置：DeepSeek Key / 硅基流动 Key /
+#    MySQL / Redis / Neo4j / RabbitMQ / OSS。真实文件已被 .gitignore 忽略，不会入库。
+
+# 5. 启动后端
 ./mvnw spring-boot:run
 
-# 5. 启动前端开发服务器 (可选，生产环境用编译后的静态资源)
+# 6. 启动前端开发服务器 (可选，生产环境用编译后的静态资源)
 cd frontend && npm install && npm run dev
 ```
 

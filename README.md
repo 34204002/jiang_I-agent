@@ -169,7 +169,14 @@ mysql -u root jiang_i_agent < src/main/resources/sql/migrations.sql
 ```
 
 ### 3. 配置
-编辑 `src/main/resources/application-dev.yml`，填写 DeepSeek / 硅基流动 / MySQL / Redis / Neo4j / Qdrant / RabbitMQ / OSS 连接信息。
+```bash
+cp src/main/resources/application-dev.example.yml src/main/resources/application-dev.yml
+```
+然后编辑 `application-dev.yml`，把模板里的 `<...>` 占位符替换为真实配置：
+DeepSeek API Key / 硅基流动 Key / MySQL / Redis / Neo4j / RabbitMQ / OSS。
+
+> 真实的 `application-dev.yml` 已被 `.gitignore` 忽略，**不会入库**；可提交的模板是
+> `application-dev.example.yml`。生产环境建议改用环境变量注入，不要落文件。
 
 ### 4. 启动
 ```bash

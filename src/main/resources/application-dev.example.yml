@@ -1,0 +1,91 @@
+# =============================================================================
+# Jiang I-Agent — 本地开发环境配置模板
+# =============================================================================
+# 用法：复制本文件为同目录下的 application-dev.yml，再把下面所有 <...> 占位符
+#       换成你自己的真实配置。application-dev.yml 已被 .gitignore 忽略，不会入库。
+#
+#   cp src/main/resources/application-dev.example.yml src/main/resources/application-dev.yml
+#
+# 说明：
+#   - application.yml（基础配置）里的连接项都写成 ${ENV:default} 形式，
+#     本文件负责提供实际的 dev 值。生产环境建议改用环境变量注入，不要落文件。
+#   - 带 ★ 的是必填，缺了应用起不来。其余有默认值，可留空。
+# =============================================================================
+
+app:
+  jwt:
+    # ★ JWT 签名密钥，随便一串足够长的随机字符串即可
+    #   生成示例：openssl rand -base64 48
+    secret: <JWT_SECRET>
+  # ★ 用户自填 API Key 的落库加密密钥（AES-GCM，SHA-256 派生）
+  #   生产环境务必改为随机长串；一旦更换，已存的用户 Key 将无法解密
+  llm-key-secret: <LLM_KEY_SECRET>
+
+spring:
+  datasource:
+    # ★ 库不存在时 createDatabaseIfNotExist=true 会自动建
+    url: jdbc:mysql://localhost:3306/jiang_i_agent?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    username: <MYSQL_USER>
+    password: <MYSQL_PASSWORD>
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # 本地 Redis 没设密码就留空
+      password: <REDIS_PASSWORD>
+      database: 0
+
+  neo4j:
+    uri: bolt://localhost:7687
+    authentication:
+      username: neo4j
+      password: <NEO4J_PASSWORD>
+
+  # ==================== RabbitMQ（仅连接；重试/并发/死信参数在 application.yml 基础配置） ====================
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+  ai:
+    openai:
+      # ★ 对话模型：DeepSeek 官方 API Key（https://platform.deepseek.com）
+      api-key: <DEEPSEEK_API_KEY>
+      base-url: https://api.deepseek.com
+      chat:
+        temperature: 0.7
+        model: deepseek-v4-flash
+      embedding:
+        # ★ 嵌入模型走硅基流动，与对话模型独立（bge-m3，1024 维）
+        #   Key 申请：https://cloud.siliconflow.cn
+        base-url: https://api.siliconflow.cn
+        api-key: <SILICONFLOW_API_KEY>
+        model: BAAI/bge-m3
+    vectorstore:
+      qdrant:
+        host: localhost
+        port: 6334        # 注意：gRPC 端口 6334，不是 REST 的 6333
+        collection-name: jiang_i_agent_knowledge
+
+  # ==================== 阿里云 OSS ====================
+  # bucketName        = 私有桶，存用户上传的文档（下载走预签名 URL）
+  # publicBucketName  = 公共读桶，存头像/演示图等公开资源（可直接公网访问）
+  # 两个桶可以用同一个，但分开更安全：私有文档不会因为误配 ACL 而公开
+  oss:
+    endpoint: oss-cn-beijing.aliyuncs.com
+    access-key-id: <OSS_ACCESS_KEY_ID>
+    access-key-secret: <OSS_ACCESS_KEY_SECRET>
+    bucket-name: <OSS_PRIVATE_BUCKET>
+    public-bucket-name: <OSS_PUBLIC_BUCKET>
+
+logging:
+  level:
+    com.jiang: INFO
+  # 耗时埋点（[SSE_FRAME][TTFT][RAG_TIME][TOOL_TIME]）需落盘，压测脚本读取收敛 p95
+  file:
+    name: logs/jiang-i-agent.log
+
+server:
+  port: 8080

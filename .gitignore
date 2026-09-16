@@ -35,4 +35,6 @@ build/
 ### 运行时生成物 ###
 logs/
 
+### 本地真实配置（含密钥，绝不入库）###
 src/main/resources/application-dev.yml
+# 可提交的模板见 src/main/resources/application-dev.example.yml
