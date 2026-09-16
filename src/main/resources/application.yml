@@ -54,10 +54,11 @@ spring:
         prefetch: 1                              # 长任务，一次只取 1 条不积压
         retry:
           enabled: true
-          max-attempts: 3                        # 瞬态失败重试 3 次（指数退避）
           initial-interval: 2000
           multiplier: 2.0
           max-interval: 30000
+          max-retries: 3                           # 瞬态失败重试 3 次（指数退避）
+                                                   # 注意：Boot 4 起 max-attempts 已废弃（level=error），用 max-retries
         default-requeue-rejected: false          # 重试耗尽 → 拒绝 → 进死信队列
 
   # ==================== Spring AI ====================
